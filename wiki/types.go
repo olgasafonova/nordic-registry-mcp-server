@@ -1,0 +1,224 @@
+package wiki
+
+import "time"
+
+// Constants for response limits
+const (
+	DefaultLimit    = 50
+	MaxLimit        = 500
+	CharacterLimit  = 25000
+)
+
+// ========== Search Types ==========
+
+type SearchArgs struct {
+	Query  string `json:"query" jsonschema:"required,description=Search query text"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"description=Maximum results to return (default 20, max 500)"`
+	Offset int    `json:"offset,omitempty" jsonschema:"description=Offset for pagination"`
+}
+
+type SearchResult struct {
+	Query      string       `json:"query"`
+	TotalHits  int          `json:"total_hits"`
+	Results    []SearchHit  `json:"results"`
+	HasMore    bool         `json:"has_more"`
+	NextOffset int          `json:"next_offset,omitempty"`
+}
+
+type SearchHit struct {
+	PageID  int    `json:"page_id"`
+	Title   string `json:"title"`
+	Snippet string `json:"snippet"`
+	Size    int    `json:"size"`
+}
+
+// ========== Page Content Types ==========
+
+type GetPageArgs struct {
+	Title  string `json:"title" jsonschema:"required,description=Page title to retrieve"`
+	Format string `json:"format,omitempty" jsonschema:"description=Output format: 'wikitext' (default) or 'html'"`
+}
+
+type PageContent struct {
+	Title     string `json:"title"`
+	PageID    int    `json:"page_id"`
+	Content   string `json:"content"`
+	Format    string `json:"format"`
+	Revision  int    `json:"revision_id"`
+	Timestamp string `json:"timestamp"`
+	Truncated bool   `json:"truncated,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
+// ========== List Pages Types ==========
+
+type ListPagesArgs struct {
+	Prefix       string `json:"prefix,omitempty" jsonschema:"description=Filter pages starting with this prefix"`
+	Namespace    int    `json:"namespace,omitempty" jsonschema:"description=Namespace ID (0=main, 1=talk, etc.)"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum pages to return (default 50, max 500)"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
+}
+
+type ListPagesResult struct {
+	Pages        []PageSummary `json:"pages"`
+	TotalCount   int           `json:"total_count"`
+	HasMore      bool          `json:"has_more"`
+	ContinueFrom string        `json:"continue_from,omitempty"`
+}
+
+type PageSummary struct {
+	PageID int    `json:"page_id"`
+	Title  string `json:"title"`
+}
+
+// ========== Categories Types ==========
+
+type ListCategoriesArgs struct {
+	Prefix       string `json:"prefix,omitempty" jsonschema:"description=Filter categories starting with this prefix"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum categories to return (default 50, max 500)"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
+}
+
+type ListCategoriesResult struct {
+	Categories   []CategoryInfo `json:"categories"`
+	HasMore      bool           `json:"has_more"`
+	ContinueFrom string         `json:"continue_from,omitempty"`
+}
+
+type CategoryInfo struct {
+	Title   string `json:"title"`
+	Members int    `json:"members"`
+}
+
+type CategoryMembersArgs struct {
+	Category     string `json:"category" jsonschema:"required,description=Category name (with or without 'Category:' prefix)"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum members to return (default 50, max 500)"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
+	Type         string `json:"type,omitempty" jsonschema:"description=Filter by type: 'page', 'subcat', 'file', or empty for all"`
+}
+
+type CategoryMembersResult struct {
+	Category     string        `json:"category"`
+	Members      []PageSummary `json:"members"`
+	HasMore      bool          `json:"has_more"`
+	ContinueFrom string        `json:"continue_from,omitempty"`
+}
+
+// ========== Page Info Types ==========
+
+type PageInfoArgs struct {
+	Title string `json:"title" jsonschema:"required,description=Page title"`
+}
+
+type PageInfo struct {
+	Title         string     `json:"title"`
+	PageID        int        `json:"page_id"`
+	Namespace     int        `json:"namespace"`
+	ContentModel  string     `json:"content_model"`
+	PageLanguage  string     `json:"page_language"`
+	Length        int        `json:"length"`
+	Touched       string     `json:"touched"`
+	LastRevision  int        `json:"last_revision_id"`
+	Categories    []string   `json:"categories,omitempty"`
+	Links         int        `json:"links_count"`
+	Exists        bool       `json:"exists"`
+	Redirect      bool       `json:"redirect"`
+	RedirectTo    string     `json:"redirect_to,omitempty"`
+	Protection    []string   `json:"protection,omitempty"`
+}
+
+// ========== Edit Types ==========
+
+type EditPageArgs struct {
+	Title   string `json:"title" jsonschema:"required,description=Page title to edit or create"`
+	Content string `json:"content" jsonschema:"required,description=New page content in wikitext format"`
+	Summary string `json:"summary,omitempty" jsonschema:"description=Edit summary explaining the change"`
+	Minor   bool   `json:"minor,omitempty" jsonschema:"description=Mark as minor edit"`
+	Bot     bool   `json:"bot,omitempty" jsonschema:"description=Mark as bot edit (requires bot flag)"`
+	Section string `json:"section,omitempty" jsonschema:"description=Section to edit ('new' for new section, number for existing)"`
+}
+
+type EditResult struct {
+	Success    bool   `json:"success"`
+	Title      string `json:"title"`
+	PageID     int    `json:"page_id"`
+	RevisionID int    `json:"revision_id"`
+	NewPage    bool   `json:"new_page"`
+	Message    string `json:"message"`
+}
+
+// ========== Recent Changes Types ==========
+
+type RecentChangesArgs struct {
+	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum changes to return (default 50, max 500)"`
+	Namespace    int    `json:"namespace,omitempty" jsonschema:"description=Filter by namespace (-1 for all)"`
+	Type         string `json:"type,omitempty" jsonschema:"description=Filter by type: 'edit', 'new', 'log', or empty for all"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
+	Start        string `json:"start,omitempty" jsonschema:"description=Start timestamp (ISO 8601)"`
+	End          string `json:"end,omitempty" jsonschema:"description=End timestamp (ISO 8601)"`
+}
+
+type RecentChangesResult struct {
+	Changes      []RecentChange `json:"changes"`
+	HasMore      bool           `json:"has_more"`
+	ContinueFrom string         `json:"continue_from,omitempty"`
+}
+
+type RecentChange struct {
+	Type      string    `json:"type"`
+	Title     string    `json:"title"`
+	PageID    int       `json:"page_id"`
+	RevisionID int      `json:"revision_id"`
+	User      string    `json:"user"`
+	Timestamp time.Time `json:"timestamp"`
+	Comment   string    `json:"comment"`
+	SizeDiff  int       `json:"size_diff"`
+	New       bool      `json:"new"`
+	Minor     bool      `json:"minor"`
+	Bot       bool      `json:"bot"`
+}
+
+// ========== Parse Types ==========
+
+type ParseArgs struct {
+	Wikitext string `json:"wikitext" jsonschema:"required,description=Wikitext content to parse"`
+	Title    string `json:"title,omitempty" jsonschema:"description=Page title for context (affects template expansion)"`
+}
+
+type ParseResult struct {
+	HTML       string   `json:"html"`
+	Categories []string `json:"categories,omitempty"`
+	Links      []string `json:"links,omitempty"`
+	Truncated  bool     `json:"truncated,omitempty"`
+	Message    string   `json:"message,omitempty"`
+}
+
+// ========== Wiki Info Types ==========
+
+type WikiInfoArgs struct {
+	// No arguments needed
+}
+
+type WikiInfo struct {
+	SiteName    string `json:"site_name"`
+	MainPage    string `json:"main_page"`
+	Base        string `json:"base_url"`
+	Generator   string `json:"generator"`
+	PHPVersion  string `json:"php_version"`
+	Language    string `json:"language"`
+	ArticlePath string `json:"article_path"`
+	Server      string `json:"server"`
+	Timezone    string `json:"timezone"`
+	WriteAPI    bool   `json:"write_api_enabled"`
+	Statistics  *WikiStats `json:"statistics,omitempty"`
+}
+
+type WikiStats struct {
+	Pages       int `json:"pages"`
+	Articles    int `json:"articles"`
+	Edits       int `json:"edits"`
+	Images      int `json:"images"`
+	Users       int `json:"users"`
+	ActiveUsers int `json:"active_users"`
+	Admins      int `json:"admins"`
+}
