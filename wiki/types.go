@@ -12,9 +12,9 @@ const (
 // ========== Search Types ==========
 
 type SearchArgs struct {
-	Query  string `json:"query" jsonschema:"required,description=Search query text"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"description=Maximum results to return (default 20, max 500)"`
-	Offset int    `json:"offset,omitempty" jsonschema:"description=Offset for pagination"`
+	Query  string `json:"query" jsonschema:"required" jsonschema_description:"Search query text"`
+	Limit  int    `json:"limit,omitempty" jsonschema_description:"Maximum results to return (default 20, max 500)"`
+	Offset int    `json:"offset,omitempty" jsonschema_description:"Offset for pagination"`
 }
 
 type SearchResult struct {
@@ -35,8 +35,8 @@ type SearchHit struct {
 // ========== Page Content Types ==========
 
 type GetPageArgs struct {
-	Title  string `json:"title" jsonschema:"required,description=Page title to retrieve"`
-	Format string `json:"format,omitempty" jsonschema:"description=Output format: 'wikitext' (default) or 'html'"`
+	Title  string `json:"title" jsonschema:"required" jsonschema_description:"Page title to retrieve"`
+	Format string `json:"format,omitempty" jsonschema_description:"Output format: 'wikitext' (default) or 'html'"`
 }
 
 type PageContent struct {
@@ -53,10 +53,10 @@ type PageContent struct {
 // ========== List Pages Types ==========
 
 type ListPagesArgs struct {
-	Prefix       string `json:"prefix,omitempty" jsonschema:"description=Filter pages starting with this prefix"`
-	Namespace    int    `json:"namespace,omitempty" jsonschema:"description=Namespace ID (0=main, 1=talk, etc.)"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum pages to return (default 50, max 500)"`
-	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
+	Prefix       string `json:"prefix,omitempty" jsonschema_description:"Filter pages starting with this prefix"`
+	Namespace    int    `json:"namespace,omitempty" jsonschema_description:"Namespace ID (0=main, 1=talk, etc.)"`
+	Limit        int    `json:"limit,omitempty" jsonschema_description:"Maximum pages to return (default 50, max 500)"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema_description:"Continue token for pagination"`
 }
 
 type ListPagesResult struct {
@@ -74,9 +74,9 @@ type PageSummary struct {
 // ========== Categories Types ==========
 
 type ListCategoriesArgs struct {
-	Prefix       string `json:"prefix,omitempty" jsonschema:"description=Filter categories starting with this prefix"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum categories to return (default 50, max 500)"`
-	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
+	Prefix       string `json:"prefix,omitempty" jsonschema_description:"Filter categories starting with this prefix"`
+	Limit        int    `json:"limit,omitempty" jsonschema_description:"Maximum categories to return (default 50, max 500)"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema_description:"Continue token for pagination"`
 }
 
 type ListCategoriesResult struct {
@@ -91,10 +91,10 @@ type CategoryInfo struct {
 }
 
 type CategoryMembersArgs struct {
-	Category     string `json:"category" jsonschema:"required,description=Category name (with or without 'Category:' prefix)"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum members to return (default 50, max 500)"`
-	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
-	Type         string `json:"type,omitempty" jsonschema:"description=Filter by type: 'page', 'subcat', 'file', or empty for all"`
+	Category     string `json:"category" jsonschema:"required" jsonschema_description:"Category name (with or without 'Category:' prefix)"`
+	Limit        int    `json:"limit,omitempty" jsonschema_description:"Maximum members to return (default 50, max 500)"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema_description:"Continue token for pagination"`
+	Type         string `json:"type,omitempty" jsonschema_description:"Filter by type: 'page', 'subcat', 'file', or empty for all"`
 }
 
 type CategoryMembersResult struct {
@@ -107,7 +107,7 @@ type CategoryMembersResult struct {
 // ========== Page Info Types ==========
 
 type PageInfoArgs struct {
-	Title string `json:"title" jsonschema:"required,description=Page title"`
+	Title string `json:"title" jsonschema:"required" jsonschema_description:"Page title"`
 }
 
 type PageInfo struct {
@@ -130,12 +130,12 @@ type PageInfo struct {
 // ========== Edit Types ==========
 
 type EditPageArgs struct {
-	Title   string `json:"title" jsonschema:"required,description=Page title to edit or create"`
-	Content string `json:"content" jsonschema:"required,description=New page content in wikitext format"`
-	Summary string `json:"summary,omitempty" jsonschema:"description=Edit summary explaining the change"`
-	Minor   bool   `json:"minor,omitempty" jsonschema:"description=Mark as minor edit"`
-	Bot     bool   `json:"bot,omitempty" jsonschema:"description=Mark as bot edit (requires bot flag)"`
-	Section string `json:"section,omitempty" jsonschema:"description=Section to edit ('new' for new section, number for existing)"`
+	Title   string `json:"title" jsonschema:"required" jsonschema_description:"Page title to edit or create"`
+	Content string `json:"content" jsonschema:"required" jsonschema_description:"New page content in wikitext format"`
+	Summary string `json:"summary,omitempty" jsonschema_description:"Edit summary explaining the change"`
+	Minor   bool   `json:"minor,omitempty" jsonschema_description:"Mark as minor edit"`
+	Bot     bool   `json:"bot,omitempty" jsonschema_description:"Mark as bot edit (requires bot flag)"`
+	Section string `json:"section,omitempty" jsonschema_description:"Section to edit ('new' for new section, number for existing)"`
 }
 
 type EditResult struct {
@@ -150,12 +150,12 @@ type EditResult struct {
 // ========== Recent Changes Types ==========
 
 type RecentChangesArgs struct {
-	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum changes to return (default 50, max 500)"`
-	Namespace    int    `json:"namespace,omitempty" jsonschema:"description=Filter by namespace (-1 for all)"`
-	Type         string `json:"type,omitempty" jsonschema:"description=Filter by type: 'edit', 'new', 'log', or empty for all"`
-	ContinueFrom string `json:"continue_from,omitempty" jsonschema:"description=Continue token for pagination"`
-	Start        string `json:"start,omitempty" jsonschema:"description=Start timestamp (ISO 8601)"`
-	End          string `json:"end,omitempty" jsonschema:"description=End timestamp (ISO 8601)"`
+	Limit        int    `json:"limit,omitempty" jsonschema_description:"Maximum changes to return (default 50, max 500)"`
+	Namespace    int    `json:"namespace,omitempty" jsonschema_description:"Filter by namespace (-1 for all)"`
+	Type         string `json:"type,omitempty" jsonschema_description:"Filter by type: 'edit', 'new', 'log', or empty for all"`
+	ContinueFrom string `json:"continue_from,omitempty" jsonschema_description:"Continue token for pagination"`
+	Start        string `json:"start,omitempty" jsonschema_description:"Start timestamp (ISO 8601)"`
+	End          string `json:"end,omitempty" jsonschema_description:"End timestamp (ISO 8601)"`
 }
 
 type RecentChangesResult struct {
@@ -181,8 +181,8 @@ type RecentChange struct {
 // ========== Parse Types ==========
 
 type ParseArgs struct {
-	Wikitext string `json:"wikitext" jsonschema:"required,description=Wikitext content to parse"`
-	Title    string `json:"title,omitempty" jsonschema:"description=Page title for context (affects template expansion)"`
+	Wikitext string `json:"wikitext" jsonschema:"required" jsonschema_description:"Wikitext content to parse"`
+	Title    string `json:"title,omitempty" jsonschema_description:"Page title for context (affects template expansion)"`
 }
 
 type ParseResult struct {
@@ -221,4 +221,61 @@ type WikiStats struct {
 	Users       int `json:"users"`
 	ActiveUsers int `json:"active_users"`
 	Admins      int `json:"admins"`
+}
+
+// ========== External Links Types ==========
+
+type GetExternalLinksArgs struct {
+	Title string `json:"title" jsonschema:"required" jsonschema_description:"Page title to get external links from"`
+}
+
+type ExternalLinksResult struct {
+	Title string         `json:"title"`
+	Links []ExternalLink `json:"links"`
+	Count int            `json:"count"`
+}
+
+type ExternalLink struct {
+	URL      string `json:"url"`
+	Protocol string `json:"protocol,omitempty"`
+}
+
+// ========== Check Links Types ==========
+
+type CheckLinksArgs struct {
+	URLs    []string `json:"urls" jsonschema:"required" jsonschema_description:"List of URLs to check (max 20)"`
+	Timeout int      `json:"timeout,omitempty" jsonschema_description:"Timeout per URL in seconds (default 10, max 30)"`
+}
+
+type CheckLinksResult struct {
+	Results     []LinkCheckResult `json:"results"`
+	TotalLinks  int               `json:"total_links"`
+	BrokenCount int               `json:"broken_count"`
+	ValidCount  int               `json:"valid_count"`
+}
+
+type LinkCheckResult struct {
+	URL        string `json:"url"`
+	Status     string `json:"status"`
+	StatusCode int    `json:"status_code,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Broken     bool   `json:"broken"`
+}
+
+// ========== Batch External Links Types ==========
+
+type GetExternalLinksBatchArgs struct {
+	Titles []string `json:"titles" jsonschema:"required" jsonschema_description:"Page titles to get external links from (max 10)"`
+}
+
+type ExternalLinksBatchResult struct {
+	Pages      []PageExternalLinks `json:"pages"`
+	TotalLinks int                 `json:"total_links"`
+}
+
+type PageExternalLinks struct {
+	Title string         `json:"title"`
+	Links []ExternalLink `json:"links"`
+	Count int            `json:"count"`
+	Error string         `json:"error,omitempty"`
 }

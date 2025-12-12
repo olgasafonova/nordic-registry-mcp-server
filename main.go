@@ -8,14 +8,25 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"runtime/debug"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/olgasafonova/mediawiki-mcp-server/wiki"
 )
 
+// recoverPanic wraps a function with panic recovery and returns an error instead of crashing
+func recoverPanic(logger *slog.Logger, operation string) {
+	if r := recover(); r != nil {
+		logger.Error("Panic recovered",
+			"operation", operation,
+			"panic", r,
+			"stack", string(debug.Stack()))
+	}
+}
+
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.0.0"
+	ServerVersion = "1.1.0" // Added rate limiting, panic recovery, external links, broken link checker
 )
 
 func main() {
@@ -58,7 +69,7 @@ Configure via environment variables:
 	})
 
 	// Register all tools
-	registerTools(server, client)
+	registerTools(server, client, logger)
 
 	// Run server on stdio transport
 	ctx := context.Background()
@@ -73,7 +84,7 @@ Configure via environment variables:
 	}
 }
 
-func registerTools(server *mcp.Server, client *wiki.Client) {
+func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger) {
 	// Search tool
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_search",
@@ -84,6 +95,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.SearchArgs) (*mcp.CallToolResult, wiki.SearchResult, error) {
+		defer recoverPanic(logger, "search")
 		result, err := client.Search(ctx, args)
 		if err != nil {
 			return nil, wiki.SearchResult{}, fmt.Errorf("search failed: %w", err)
@@ -101,6 +113,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.GetPageArgs) (*mcp.CallToolResult, wiki.PageContent, error) {
+		defer recoverPanic(logger, "get_page")
 		result, err := client.GetPage(ctx, args)
 		if err != nil {
 			return nil, wiki.PageContent{}, fmt.Errorf("failed to get page: %w", err)
@@ -118,6 +131,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.ListPagesArgs) (*mcp.CallToolResult, wiki.ListPagesResult, error) {
+		defer recoverPanic(logger, "list_pages")
 		result, err := client.ListPages(ctx, args)
 		if err != nil {
 			return nil, wiki.ListPagesResult{}, fmt.Errorf("failed to list pages: %w", err)
@@ -135,6 +149,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.ListCategoriesArgs) (*mcp.CallToolResult, wiki.ListCategoriesResult, error) {
+		defer recoverPanic(logger, "list_categories")
 		result, err := client.ListCategories(ctx, args)
 		if err != nil {
 			return nil, wiki.ListCategoriesResult{}, fmt.Errorf("failed to list categories: %w", err)
@@ -152,6 +167,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.CategoryMembersArgs) (*mcp.CallToolResult, wiki.CategoryMembersResult, error) {
+		defer recoverPanic(logger, "get_category_members")
 		result, err := client.GetCategoryMembers(ctx, args)
 		if err != nil {
 			return nil, wiki.CategoryMembersResult{}, fmt.Errorf("failed to get category members: %w", err)
@@ -169,6 +185,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.PageInfoArgs) (*mcp.CallToolResult, wiki.PageInfo, error) {
+		defer recoverPanic(logger, "get_page_info")
 		result, err := client.GetPageInfo(ctx, args)
 		if err != nil {
 			return nil, wiki.PageInfo{}, fmt.Errorf("failed to get page info: %w", err)
@@ -188,6 +205,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint:   ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.EditPageArgs) (*mcp.CallToolResult, wiki.EditResult, error) {
+		defer recoverPanic(logger, "edit_page")
 		result, err := client.EditPage(ctx, args)
 		if err != nil {
 			return nil, wiki.EditResult{}, fmt.Errorf("failed to edit page: %w", err)
@@ -205,6 +223,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.RecentChangesArgs) (*mcp.CallToolResult, wiki.RecentChangesResult, error) {
+		defer recoverPanic(logger, "get_recent_changes")
 		result, err := client.GetRecentChanges(ctx, args)
 		if err != nil {
 			return nil, wiki.RecentChangesResult{}, fmt.Errorf("failed to get recent changes: %w", err)
@@ -222,6 +241,7 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.ParseArgs) (*mcp.CallToolResult, wiki.ParseResult, error) {
+		defer recoverPanic(logger, "parse")
 		result, err := client.Parse(ctx, args)
 		if err != nil {
 			return nil, wiki.ParseResult{}, fmt.Errorf("failed to parse wikitext: %w", err)
@@ -239,9 +259,64 @@ func registerTools(server *mcp.Server, client *wiki.Client) {
 			OpenWorldHint: ptr(true),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.WikiInfoArgs) (*mcp.CallToolResult, wiki.WikiInfo, error) {
+		defer recoverPanic(logger, "get_wiki_info")
 		result, err := client.GetWikiInfo(ctx, args)
 		if err != nil {
 			return nil, wiki.WikiInfo{}, fmt.Errorf("failed to get wiki info: %w", err)
+		}
+		return nil, result, nil
+	})
+
+	// Get external links from a page
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_get_external_links",
+		Description: "Get all external links (URLs) from a wiki page. Useful for finding outbound links and checking for broken links.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:        "Get External Links",
+			ReadOnlyHint: true,
+			OpenWorldHint: ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.GetExternalLinksArgs) (*mcp.CallToolResult, wiki.ExternalLinksResult, error) {
+		defer recoverPanic(logger, "get_external_links")
+		result, err := client.GetExternalLinks(ctx, args)
+		if err != nil {
+			return nil, wiki.ExternalLinksResult{}, fmt.Errorf("failed to get external links: %w", err)
+		}
+		return nil, result, nil
+	})
+
+	// Get external links from multiple pages
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_get_external_links_batch",
+		Description: "Get external links from multiple wiki pages in one call (max 10 pages). Returns links for each page separately.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:        "Get External Links (Batch)",
+			ReadOnlyHint: true,
+			OpenWorldHint: ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.GetExternalLinksBatchArgs) (*mcp.CallToolResult, wiki.ExternalLinksBatchResult, error) {
+		defer recoverPanic(logger, "get_external_links_batch")
+		result, err := client.GetExternalLinksBatch(ctx, args)
+		if err != nil {
+			return nil, wiki.ExternalLinksBatchResult{}, fmt.Errorf("failed to get external links batch: %w", err)
+		}
+		return nil, result, nil
+	})
+
+	// Check if URLs are broken
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_check_links",
+		Description: "Check if URLs are accessible (broken link detection). Checks up to 20 URLs and reports their status. Use this after getting external links to find broken ones.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:        "Check Links",
+			ReadOnlyHint: true,
+			OpenWorldHint: ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.CheckLinksArgs) (*mcp.CallToolResult, wiki.CheckLinksResult, error) {
+		defer recoverPanic(logger, "check_links")
+		result, err := client.CheckLinks(ctx, args)
+		if err != nil {
+			return nil, wiki.CheckLinksResult{}, fmt.Errorf("failed to check links: %w", err)
 		}
 		return nil, result, nil
 	})

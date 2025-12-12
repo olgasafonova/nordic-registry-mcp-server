@@ -11,6 +11,14 @@ Works with Wikipedia, Fandom wikis, corporate wikis, and any MediaWiki installat
 - **Browse** - List pages, categories, and recent changes
 - **Edit** - Create and modify wiki pages (with bot password authentication)
 - **Parse** - Preview wikitext rendering before saving
+- **External Links** - Extract all external URLs from pages
+- **Link Checker** - Detect broken links across your wiki
+
+### Production-Ready
+
+- **Rate limiting** - Prevents overwhelming the wiki API with concurrent requests
+- **Panic recovery** - Graceful error handling keeps the server running
+- **Automatic retries** - Exponential backoff for transient failures
 
 ## Requirements
 
@@ -89,6 +97,14 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 | `mediawiki_get_wiki_info` | Get wiki information and statistics |
 | `mediawiki_parse` | Parse wikitext to HTML |
 
+### Link Analysis Tools
+
+| Tool | Description |
+|------|-------------|
+| `mediawiki_get_external_links` | Get all external URLs from a single page |
+| `mediawiki_get_external_links_batch` | Get external links from multiple pages (max 10) |
+| `mediawiki_check_links` | Check if URLs are accessible (max 20 URLs) |
+
 ### Write Operations
 
 | Tool | Description |
@@ -158,6 +174,9 @@ Once configured, ask your AI assistant:
 
 ### Edit (requires authentication)
 > "Create a new page called 'Meeting Notes' with today's agenda"
+
+### Find Broken Links
+> "Get all external links from the Installation Guide page and check if any are broken"
 
 ## Response Handling
 

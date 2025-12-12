@@ -25,11 +25,20 @@ type Client struct {
 	loggedIn    bool
 	csrfToken   string
 	tokenExpiry time.Time
+
+	// Rate limiting - semaphore to control concurrent requests
+	semaphore chan struct{}
 }
+
+// MaxConcurrentRequests limits parallel API calls to prevent overwhelming the server
+const MaxConcurrentRequests = 3
 
 // NewClient creates a new MediaWiki API client
 func NewClient(config *Config, logger *slog.Logger) *Client {
 	jar, _ := cookiejar.New(nil)
+
+	// Initialize semaphore for rate limiting
+	sem := make(chan struct{}, MaxConcurrentRequests)
 
 	return &Client{
 		config: config,
@@ -37,32 +46,56 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 			Timeout: config.Timeout,
 			Jar:     jar,
 		},
-		logger: logger,
+		logger:    logger,
+		semaphore: sem,
 	}
 }
 
-// apiRequest makes a request to the MediaWiki API
+// apiRequest makes a request to the MediaWiki API with rate limiting
 func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]interface{}, error) {
-	params.Set("format", "json")
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.config.BaseURL, strings.NewReader(params.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	// Acquire semaphore slot (rate limiting)
+	select {
+	case c.semaphore <- struct{}{}:
+		defer func() { <-c.semaphore }()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context cancelled while waiting for rate limiter: %w", ctx.Err())
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", c.config.UserAgent)
+	// Check context before proceeding
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context error: %w", err)
+	}
+
+	params.Set("format", "json")
 
 	var lastErr error
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff
-			time.Sleep(time.Duration(attempt*attempt) * 100 * time.Millisecond)
+			// Exponential backoff with context awareness
+			backoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return nil, fmt.Errorf("context cancelled during backoff: %w", ctx.Err())
+			}
 		}
+
+		// Create fresh request for each attempt (body is consumed on read)
+		req, err := http.NewRequestWithContext(ctx, "POST", c.config.BaseURL, strings.NewReader(params.Encode()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("User-Agent", c.config.UserAgent)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("request failed: %w", err)
+			c.logger.Warn("API request failed, retrying",
+				"attempt", attempt+1,
+				"max_retries", c.config.MaxRetries,
+				"error", err)
 			continue
 		}
 
@@ -76,6 +109,9 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 
 		if resp.StatusCode != http.StatusOK {
 			lastErr = fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+			c.logger.Warn("API returned non-OK status",
+				"status", resp.StatusCode,
+				"attempt", attempt+1)
 			continue
 		}
 
@@ -86,8 +122,8 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 
 		// Check for API errors
 		if errObj, ok := result["error"].(map[string]interface{}); ok {
-			code := errObj["code"].(string)
-			info := errObj["info"].(string)
+			code, _ := errObj["code"].(string)
+			info, _ := errObj["info"].(string)
 			return nil, fmt.Errorf("API error [%s]: %s", code, info)
 		}
 
@@ -204,6 +240,19 @@ func (c *Client) getCSRFToken(ctx context.Context) (string, error) {
 	c.mu.Unlock()
 
 	return csrfToken, nil
+}
+
+// EnsureLoggedIn ensures the client is logged in (for wikis requiring auth for read)
+func (c *Client) EnsureLoggedIn(ctx context.Context) error {
+	c.mu.RLock()
+	loggedIn := c.loggedIn && time.Now().Before(c.tokenExpiry)
+	c.mu.RUnlock()
+
+	if loggedIn {
+		return nil
+	}
+
+	return c.login(ctx)
 }
 
 // truncateContent truncates content if it exceeds the limit

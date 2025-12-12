@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,6 +17,11 @@ import (
 func (c *Client) Search(ctx context.Context, args SearchArgs) (SearchResult, error) {
 	if args.Query == "" {
 		return SearchResult{}, fmt.Errorf("query is required")
+	}
+
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return SearchResult{}, err
 	}
 
 	limit := normalizeLimit(args.Limit, 20, MaxLimit)
@@ -86,6 +93,11 @@ func (c *Client) GetPage(ctx context.Context, args GetPageArgs) (PageContent, er
 }
 
 func (c *Client) getPageWikitext(ctx context.Context, title string) (PageContent, error) {
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return PageContent{}, err
+	}
+
 	params := url.Values{}
 	params.Set("action", "query")
 	params.Set("titles", title)
@@ -146,6 +158,11 @@ func (c *Client) getPageWikitext(ctx context.Context, title string) (PageContent
 }
 
 func (c *Client) getPageHTML(ctx context.Context, title string) (PageContent, error) {
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return PageContent{}, err
+	}
+
 	params := url.Values{}
 	params.Set("action", "parse")
 	params.Set("page", title)
@@ -183,6 +200,11 @@ func (c *Client) getPageHTML(ctx context.Context, title string) (PageContent, er
 
 // ListPages lists pages in the wiki
 func (c *Client) ListPages(ctx context.Context, args ListPagesArgs) (ListPagesResult, error) {
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return ListPagesResult{}, err
+	}
+
 	limit := normalizeLimit(args.Limit, DefaultLimit, MaxLimit)
 
 	params := url.Values{}
@@ -237,6 +259,11 @@ func (c *Client) ListPages(ctx context.Context, args ListPagesArgs) (ListPagesRe
 
 // ListCategories lists categories in the wiki
 func (c *Client) ListCategories(ctx context.Context, args ListCategoriesArgs) (ListCategoriesResult, error) {
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return ListCategoriesResult{}, err
+	}
+
 	limit := normalizeLimit(args.Limit, DefaultLimit, MaxLimit)
 
 	params := url.Values{}
@@ -295,6 +322,11 @@ func (c *Client) GetCategoryMembers(ctx context.Context, args CategoryMembersArg
 		return CategoryMembersResult{}, fmt.Errorf("category is required")
 	}
 
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return CategoryMembersResult{}, err
+	}
+
 	category := normalizeCategoryName(args.Category)
 	limit := normalizeLimit(args.Limit, DefaultLimit, MaxLimit)
 
@@ -349,6 +381,11 @@ func (c *Client) GetCategoryMembers(ctx context.Context, args CategoryMembersArg
 func (c *Client) GetPageInfo(ctx context.Context, args PageInfoArgs) (PageInfo, error) {
 	if args.Title == "" {
 		return PageInfo{}, fmt.Errorf("title is required")
+	}
+
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return PageInfo{}, err
 	}
 
 	params := url.Values{}
@@ -492,6 +529,11 @@ func (c *Client) EditPage(ctx context.Context, args EditPageArgs) (EditResult, e
 
 // GetRecentChanges gets recent changes
 func (c *Client) GetRecentChanges(ctx context.Context, args RecentChangesArgs) (RecentChangesResult, error) {
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return RecentChangesResult{}, err
+	}
+
 	limit := normalizeLimit(args.Limit, DefaultLimit, MaxLimit)
 
 	params := url.Values{}
@@ -570,6 +612,11 @@ func (c *Client) Parse(ctx context.Context, args ParseArgs) (ParseResult, error)
 		return ParseResult{}, fmt.Errorf("wikitext is required")
 	}
 
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return ParseResult{}, err
+	}
+
 	params := url.Values{}
 	params.Set("action", "parse")
 	params.Set("text", args.Wikitext)
@@ -624,6 +671,11 @@ func (c *Client) Parse(ctx context.Context, args ParseArgs) (ParseResult, error)
 
 // GetWikiInfo gets information about the wiki
 func (c *Client) GetWikiInfo(ctx context.Context, args WikiInfoArgs) (WikiInfo, error) {
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return WikiInfo{}, err
+	}
+
 	params := url.Values{}
 	params.Set("action", "query")
 	params.Set("meta", "siteinfo")
@@ -692,4 +744,216 @@ func stripHTMLTags(s string) string {
 	// Clean up whitespace
 	s = strings.TrimSpace(s)
 	return s
+}
+
+// GetExternalLinks retrieves external links from a wiki page
+func (c *Client) GetExternalLinks(ctx context.Context, args GetExternalLinksArgs) (ExternalLinksResult, error) {
+	if args.Title == "" {
+		return ExternalLinksResult{}, fmt.Errorf("title is required")
+	}
+
+	// Ensure logged in for wikis requiring auth for read
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return ExternalLinksResult{}, err
+	}
+
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("titles", args.Title)
+	params.Set("prop", "extlinks")
+	params.Set("ellimit", "500")
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return ExternalLinksResult{}, err
+	}
+
+	query, ok := resp["query"].(map[string]interface{})
+	if !ok {
+		return ExternalLinksResult{}, fmt.Errorf("unexpected response format")
+	}
+
+	pages, ok := query["pages"].(map[string]interface{})
+	if !ok {
+		return ExternalLinksResult{}, fmt.Errorf("no pages in response")
+	}
+
+	var links []ExternalLink
+	var pageTitle string
+
+	for _, pageData := range pages {
+		page := pageData.(map[string]interface{})
+
+		// Check if page exists
+		if _, missing := page["missing"]; missing {
+			return ExternalLinksResult{}, fmt.Errorf("page '%s' does not exist", args.Title)
+		}
+
+		pageTitle = page["title"].(string)
+
+		if extlinks, ok := page["extlinks"].([]interface{}); ok {
+			for _, el := range extlinks {
+				link := el.(map[string]interface{})
+				linkURL := getString(link, "*")
+				if linkURL == "" {
+					linkURL = getString(link, "url")
+				}
+				if linkURL != "" {
+					protocol := ""
+					if u, err := url.Parse(linkURL); err == nil {
+						protocol = u.Scheme
+					}
+					links = append(links, ExternalLink{
+						URL:      linkURL,
+						Protocol: protocol,
+					})
+				}
+			}
+		}
+		break
+	}
+
+	return ExternalLinksResult{
+		Title: pageTitle,
+		Links: links,
+		Count: len(links),
+	}, nil
+}
+
+// GetExternalLinksBatch retrieves external links from multiple wiki pages
+func (c *Client) GetExternalLinksBatch(ctx context.Context, args GetExternalLinksBatchArgs) (ExternalLinksBatchResult, error) {
+	if len(args.Titles) == 0 {
+		return ExternalLinksBatchResult{}, fmt.Errorf("at least one title is required")
+	}
+
+	// Limit batch size to prevent overwhelming the API
+	maxBatch := 10
+	if len(args.Titles) > maxBatch {
+		args.Titles = args.Titles[:maxBatch]
+	}
+
+	result := ExternalLinksBatchResult{
+		Pages: make([]PageExternalLinks, 0, len(args.Titles)),
+	}
+
+	// Process pages sequentially to respect rate limiting
+	for _, title := range args.Titles {
+		pageLinks, err := c.GetExternalLinks(ctx, GetExternalLinksArgs{Title: title})
+		if err != nil {
+			result.Pages = append(result.Pages, PageExternalLinks{
+				Title: title,
+				Error: err.Error(),
+			})
+			continue
+		}
+
+		result.Pages = append(result.Pages, PageExternalLinks{
+			Title: pageLinks.Title,
+			Links: pageLinks.Links,
+			Count: pageLinks.Count,
+		})
+		result.TotalLinks += pageLinks.Count
+	}
+
+	return result, nil
+}
+
+// CheckLinks checks if URLs are accessible (broken link detection)
+func (c *Client) CheckLinks(ctx context.Context, args CheckLinksArgs) (CheckLinksResult, error) {
+	if len(args.URLs) == 0 {
+		return CheckLinksResult{}, fmt.Errorf("at least one URL is required")
+	}
+
+	// Limit URLs to prevent abuse
+	maxURLs := 20
+	if len(args.URLs) > maxURLs {
+		args.URLs = args.URLs[:maxURLs]
+	}
+
+	// Set timeout (default 10s, max 30s)
+	timeout := 10
+	if args.Timeout > 0 && args.Timeout <= 30 {
+		timeout = args.Timeout
+	}
+
+	httpClient := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Allow up to 5 redirects
+			if len(via) >= 5 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
+
+	result := CheckLinksResult{
+		Results:    make([]LinkCheckResult, 0, len(args.URLs)),
+		TotalLinks: len(args.URLs),
+	}
+
+	// Use a semaphore to limit concurrent checks
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for _, linkURL := range args.URLs {
+		wg.Add(1)
+		go func(checkURL string) {
+			defer wg.Done()
+
+			// Acquire semaphore
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			linkResult := LinkCheckResult{URL: checkURL}
+
+			// Validate URL format
+			parsedURL, err := url.Parse(checkURL)
+			if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+				linkResult.Status = "invalid_url"
+				linkResult.Error = "Invalid URL format"
+				linkResult.Broken = true
+			} else {
+				// Make HEAD request first (faster)
+				req, _ := http.NewRequestWithContext(ctx, "HEAD", checkURL, nil)
+				req.Header.Set("User-Agent", "MediaWiki-MCP-LinkChecker/1.0")
+
+				resp, err := httpClient.Do(req)
+				if err != nil {
+					// Try GET if HEAD fails
+					req, _ = http.NewRequestWithContext(ctx, "GET", checkURL, nil)
+					req.Header.Set("User-Agent", "MediaWiki-MCP-LinkChecker/1.0")
+					resp, err = httpClient.Do(req)
+				}
+
+				if err != nil {
+					linkResult.Status = "error"
+					linkResult.Error = err.Error()
+					linkResult.Broken = true
+				} else {
+					resp.Body.Close()
+					linkResult.StatusCode = resp.StatusCode
+					linkResult.Status = resp.Status
+
+					// Consider 4xx and 5xx as broken (except 403 which might be access denied)
+					if resp.StatusCode >= 400 {
+						linkResult.Broken = true
+					}
+				}
+			}
+
+			mu.Lock()
+			result.Results = append(result.Results, linkResult)
+			if linkResult.Broken {
+				result.BrokenCount++
+			} else {
+				result.ValidCount++
+			}
+			mu.Unlock()
+		}(linkURL)
+	}
+
+	wg.Wait()
+	return result, nil
 }
