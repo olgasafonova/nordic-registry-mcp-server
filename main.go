@@ -96,7 +96,7 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 	// Search tool
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_search",
-		Description: "Search for pages in the wiki by text. Returns matching page titles and snippets.",
+		Description: "Full-text search across wiki pages. Returns titles, snippets, and page IDs. Use 'offset' parameter for pagination when results exceed limit.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:        "Search Wiki",
 			ReadOnlyHint: true,
@@ -108,13 +108,19 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.SearchResult{}, fmt.Errorf("search failed: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_search",
+			"query", args.Query,
+			"results_count", len(result.Results),
+			"total_hits", result.TotalHits,
+		)
 		return nil, result, nil
 	})
 
 	// Get page content
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_get_page",
-		Description: "Get the content of a wiki page. Can return wikitext source or parsed HTML.",
+		Description: "Retrieve wiki page content. Returns wikitext by default; set format='html' for rendered HTML. Large pages are truncated at 25KB.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:        "Get Page Content",
 			ReadOnlyHint: true,
@@ -126,13 +132,20 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.PageContent{}, fmt.Errorf("failed to get page: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_page",
+			"title", args.Title,
+			"format", args.Format,
+			"output_chars", len(result.Content),
+			"approx_tokens", len(result.Content)/4,
+		)
 		return nil, result, nil
 	})
 
 	// List pages
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_list_pages",
-		Description: "List all pages in the wiki with pagination. Use 'continue_from' for pagination.",
+		Description: "List wiki pages with optional prefix filter. Returns page titles and IDs. Use 'continue_from' token from previous response for pagination.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:        "List Pages",
 			ReadOnlyHint: true,
@@ -144,6 +157,12 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.ListPagesResult{}, fmt.Errorf("failed to list pages: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_list_pages",
+			"prefix", args.Prefix,
+			"pages_returned", len(result.Pages),
+			"has_more", result.HasMore,
+		)
 		return nil, result, nil
 	})
 
@@ -162,6 +181,12 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.ListCategoriesResult{}, fmt.Errorf("failed to list categories: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_list_categories",
+			"prefix", args.Prefix,
+			"categories_returned", len(result.Categories),
+			"has_more", result.HasMore,
+		)
 		return nil, result, nil
 	})
 
@@ -180,6 +205,12 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.CategoryMembersResult{}, fmt.Errorf("failed to get category members: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_category_members",
+			"category", args.Category,
+			"members_returned", len(result.Members),
+			"has_more", result.HasMore,
+		)
 		return nil, result, nil
 	})
 
@@ -198,17 +229,23 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.PageInfo{}, fmt.Errorf("failed to get page info: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_page_info",
+			"title", args.Title,
+			"exists", result.Exists,
+			"page_length", result.Length,
+		)
 		return nil, result, nil
 	})
 
 	// Edit page (requires authentication)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_edit_page",
-		Description: "Create or edit a wiki page. Requires bot password authentication. Set MEDIAWIKI_USERNAME and MEDIAWIKI_PASSWORD environment variables.",
+		Description: "Create or update wiki page content. WARNING: Overwrites existing content unless 'section' is specified. Requires MEDIAWIKI_USERNAME and MEDIAWIKI_PASSWORD environment variables.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Edit Page",
 			ReadOnlyHint:    false,
-			DestructiveHint: ptr(false),
+			DestructiveHint: ptr(true),
 			IdempotentHint:  false,
 			OpenWorldHint:   ptr(true),
 		},
@@ -218,6 +255,14 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.EditResult{}, fmt.Errorf("failed to edit page: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_edit_page",
+			"title", args.Title,
+			"input_chars", len(args.Content),
+			"approx_input_tokens", len(args.Content)/4,
+			"success", result.Success,
+			"new_page", result.NewPage,
+		)
 		return nil, result, nil
 	})
 
@@ -236,6 +281,11 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.RecentChangesResult{}, fmt.Errorf("failed to get recent changes: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_recent_changes",
+			"changes_returned", len(result.Changes),
+			"has_more", result.HasMore,
+		)
 		return nil, result, nil
 	})
 
@@ -254,6 +304,13 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.ParseResult{}, fmt.Errorf("failed to parse wikitext: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_parse",
+			"input_chars", len(args.Wikitext),
+			"output_chars", len(result.HTML),
+			"approx_input_tokens", len(args.Wikitext)/4,
+			"approx_output_tokens", len(result.HTML)/4,
+		)
 		return nil, result, nil
 	})
 
@@ -272,6 +329,10 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.WikiInfo{}, fmt.Errorf("failed to get wiki info: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_wiki_info",
+			"site_name", result.SiteName,
+		)
 		return nil, result, nil
 	})
 
@@ -290,13 +351,18 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.ExternalLinksResult{}, fmt.Errorf("failed to get external links: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_external_links",
+			"title", args.Title,
+			"links_found", result.Count,
+		)
 		return nil, result, nil
 	})
 
 	// Get external links from multiple pages
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_get_external_links_batch",
-		Description: "Get external links from multiple wiki pages in one call (max 10 pages). Returns links for each page separately.",
+		Description: "Batch retrieve external URLs from up to 10 wiki pages. More efficient than multiple single-page calls. Returns links grouped by source page.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:        "Get External Links (Batch)",
 			ReadOnlyHint: true,
@@ -308,13 +374,18 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.ExternalLinksBatchResult{}, fmt.Errorf("failed to get external links batch: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_external_links_batch",
+			"pages_requested", len(args.Titles),
+			"total_links_found", result.TotalLinks,
+		)
 		return nil, result, nil
 	})
 
 	// Check if URLs are broken
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_check_links",
-		Description: "Check if URLs are accessible (broken link detection). Checks up to 20 URLs and reports their status. Use this after getting external links to find broken ones.",
+		Description: "Verify URL accessibility via HTTP HEAD/GET requests. Returns status codes and identifies broken links. Max 20 URLs per call, 10s default timeout.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:        "Check Links",
 			ReadOnlyHint: true,
@@ -326,13 +397,19 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.CheckLinksResult{}, fmt.Errorf("failed to check links: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_check_links",
+			"urls_checked", len(args.URLs),
+			"broken_count", result.BrokenCount,
+			"valid_count", result.ValidCount,
+		)
 		return nil, result, nil
 	})
 
 	// Check terminology consistency
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_check_terminology",
-		Description: "Check wiki pages for terminology inconsistencies. Uses a glossary wiki page (default: 'Brand Terminology Glossary') with a table of incorrect/correct terms. Specify pages directly or scan an entire category.",
+		Description: "Scan pages for terminology violations using a wiki-hosted glossary table. Specify pages directly or scan entire category. Default glossary: 'Brand Terminology Glossary'.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:        "Check Terminology",
 			ReadOnlyHint: true,
@@ -344,6 +421,12 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.CheckTerminologyResult{}, fmt.Errorf("failed to check terminology: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_check_terminology",
+			"pages_checked", result.PagesChecked,
+			"issues_found", result.IssuesFound,
+			"terms_loaded", result.TermsLoaded,
+		)
 		return nil, result, nil
 	})
 
@@ -362,6 +445,12 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.CheckTranslationsResult{}, fmt.Errorf("failed to check translations: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_check_translations",
+			"pages_checked", result.PagesChecked,
+			"languages_checked", len(result.LanguagesChecked),
+			"missing_count", result.MissingCount,
+		)
 		return nil, result, nil
 	})
 
@@ -380,6 +469,11 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.FindBrokenInternalLinksResult{}, fmt.Errorf("failed to find broken internal links: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_find_broken_internal_links",
+			"pages_checked", result.PagesChecked,
+			"broken_count", result.BrokenCount,
+		)
 		return nil, result, nil
 	})
 
@@ -398,6 +492,11 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.FindOrphanedPagesResult{}, fmt.Errorf("failed to find orphaned pages: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_find_orphaned_pages",
+			"total_checked", result.TotalChecked,
+			"orphaned_count", result.OrphanedCount,
+		)
 		return nil, result, nil
 	})
 
@@ -416,6 +515,12 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.GetBacklinksResult{}, fmt.Errorf("failed to get backlinks: %w", err)
 		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_backlinks",
+			"title", args.Title,
+			"backlinks_found", result.Count,
+			"has_more", result.HasMore,
+		)
 		return nil, result, nil
 	})
 }
