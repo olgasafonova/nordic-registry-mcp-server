@@ -604,7 +604,7 @@ server {
 
 ---
 
-## Public 360° Wiki (Tietoevry)
+## Public 360° Wiki (Tieto)
 
 <details>
 <summary><strong>Setup for wiki.software-innovation.com</strong></summary>
@@ -612,7 +612,7 @@ server {
 ### Get Your Bot Password
 
 1. Go to [Special:BotPasswords](https://wiki.software-innovation.com/wiki/Special:BotPasswords)
-2. Log in with your Tietoevry account
+2. Log in with your Tieto account
 3. Create a bot named `wiki-MCP`
 4. Enable: **Basic rights** + **Edit existing pages**
 5. Save the generated password
