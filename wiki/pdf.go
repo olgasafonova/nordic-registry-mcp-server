@@ -45,10 +45,12 @@ func SearchInPDF(pdfData []byte, query string) ([]FileSearchMatch, bool, string,
 
 	// Write PDF data to temp file
 	if _, err := tmpPDF.Write(pdfData); err != nil {
-		tmpPDF.Close()
+		_ = tmpPDF.Close() // Best effort cleanup on error path
 		return nil, false, fmt.Sprintf("Failed to write temp file: %v", err), nil
 	}
-	tmpPDF.Close()
+	if err := tmpPDF.Close(); err != nil {
+		return nil, false, fmt.Sprintf("Failed to close temp file: %v", err), nil
+	}
 
 	// Create temp file for text output
 	tmpTXT, err := os.CreateTemp("", "mediawiki-pdf-*.txt")
@@ -56,12 +58,15 @@ func SearchInPDF(pdfData []byte, query string) ([]FileSearchMatch, bool, string,
 		return nil, false, fmt.Sprintf("Failed to create temp text file: %v", err), nil
 	}
 	tmpTXTPath := tmpTXT.Name()
-	tmpTXT.Close()
+	if err := tmpTXT.Close(); err != nil {
+		return nil, false, fmt.Sprintf("Failed to close temp text file: %v", err), nil
+	}
 	defer os.Remove(tmpTXTPath)
 
 	// Run pdftotext
 	// -layout preserves the original layout
 	// -enc UTF-8 ensures proper encoding
+	// #nosec G204 -- paths are from os.CreateTemp, not user input
 	cmd := exec.Command("pdftotext", "-layout", "-enc", "UTF-8", tmpPDFPath, tmpTXTPath)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -75,6 +80,7 @@ func SearchInPDF(pdfData []byte, query string) ([]FileSearchMatch, bool, string,
 	}
 
 	// Read extracted text
+	// #nosec G304 -- path is from os.CreateTemp, not user input
 	textBytes, err := os.ReadFile(tmpTXTPath)
 	if err != nil {
 		return nil, false, fmt.Sprintf("Failed to read extracted text: %v", err), nil
