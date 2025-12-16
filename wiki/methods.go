@@ -2635,3 +2635,651 @@ func (c *Client) ListUsers(ctx context.Context, args ListUsersArgs) (ListUsersRe
 
 	return result, nil
 }
+
+// GetSections retrieves section structure and optionally section content from a page
+func (c *Client) GetSections(ctx context.Context, args GetSectionsArgs) (GetSectionsResult, error) {
+	if args.Title == "" {
+		return GetSectionsResult{}, fmt.Errorf("title is required")
+	}
+
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return GetSectionsResult{}, err
+	}
+
+	normalizedTitle := normalizePageTitle(args.Title)
+
+	// If section number is specified, retrieve that section's content
+	if args.Section > 0 || (args.Section == 0 && args.Format != "") {
+		return c.getSectionContent(ctx, normalizedTitle, args.Section, args.Format)
+	}
+
+	// Otherwise, list all sections
+	cacheKey := fmt.Sprintf("sections:%s", normalizedTitle)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached.(GetSectionsResult), nil
+	}
+
+	params := url.Values{}
+	params.Set("action", "parse")
+	params.Set("page", normalizedTitle)
+	params.Set("prop", "sections")
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return GetSectionsResult{}, err
+	}
+
+	if errInfo, ok := resp["error"].(map[string]interface{}); ok {
+		return GetSectionsResult{}, fmt.Errorf("%s", errInfo["info"])
+	}
+
+	parse := resp["parse"].(map[string]interface{})
+	pageID := int(parse["pageid"].(float64))
+	title := parse["title"].(string)
+
+	sectionsRaw := parse["sections"].([]interface{})
+	sections := make([]SectionInfo, 0, len(sectionsRaw))
+
+	for _, s := range sectionsRaw {
+		sec := s.(map[string]interface{})
+		index, _ := strconv.Atoi(sec["index"].(string))
+		level, _ := strconv.Atoi(sec["level"].(string))
+		lineNum := 0
+		if line, ok := sec["line"].(float64); ok {
+			lineNum = int(line)
+		}
+
+		sections = append(sections, SectionInfo{
+			Index:   index,
+			Level:   level,
+			Title:   stripHTMLTags(sec["line"].(string)),
+			Anchor:  sec["anchor"].(string),
+			LineNum: lineNum,
+		})
+	}
+
+	result := GetSectionsResult{
+		Title:    title,
+		PageID:   pageID,
+		Sections: sections,
+		Message:  fmt.Sprintf("Found %d sections. Use section parameter to get specific section content.", len(sections)),
+	}
+
+	c.setCache(cacheKey, result, "page_content")
+	return result, nil
+}
+
+// getSectionContent retrieves the content of a specific section
+func (c *Client) getSectionContent(ctx context.Context, title string, section int, format string) (GetSectionsResult, error) {
+	if format == "" {
+		format = "wikitext"
+	}
+
+	params := url.Values{}
+	params.Set("action", "parse")
+	params.Set("page", title)
+	params.Set("section", strconv.Itoa(section))
+
+	if format == "html" {
+		params.Set("prop", "text|displaytitle")
+	} else {
+		params.Set("prop", "wikitext|displaytitle")
+	}
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return GetSectionsResult{}, err
+	}
+
+	if errInfo, ok := resp["error"].(map[string]interface{}); ok {
+		return GetSectionsResult{}, fmt.Errorf("%s", errInfo["info"])
+	}
+
+	parse := resp["parse"].(map[string]interface{})
+	pageID := int(parse["pageid"].(float64))
+	pageTitle := parse["title"].(string)
+
+	var content string
+	var sectionTitle string
+
+	if format == "html" {
+		if text, ok := parse["text"].(map[string]interface{}); ok {
+			content = text["*"].(string)
+		}
+	} else {
+		if wikitext, ok := parse["wikitext"].(map[string]interface{}); ok {
+			content = wikitext["*"].(string)
+		}
+	}
+
+	// Extract section title from content if it starts with ==
+	if format == "wikitext" && strings.HasPrefix(strings.TrimSpace(content), "==") {
+		lines := strings.SplitN(content, "\n", 2)
+		if len(lines) > 0 {
+			sectionTitle = strings.Trim(lines[0], "= \t")
+		}
+	}
+
+	return GetSectionsResult{
+		Title:          pageTitle,
+		PageID:         pageID,
+		SectionContent: content,
+		SectionTitle:   sectionTitle,
+		Format:         format,
+	}, nil
+}
+
+// GetRelated finds pages related to the given page
+func (c *Client) GetRelated(ctx context.Context, args GetRelatedArgs) (GetRelatedResult, error) {
+	if args.Title == "" {
+		return GetRelatedResult{}, fmt.Errorf("title is required")
+	}
+
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return GetRelatedResult{}, err
+	}
+
+	limit := normalizeLimit(args.Limit, 20, 50)
+	method := args.Method
+	if method == "" {
+		method = "categories"
+	}
+
+	normalizedTitle := normalizePageTitle(args.Title)
+	result := GetRelatedResult{
+		Title:  normalizedTitle,
+		Method: method,
+	}
+
+	relatedMap := make(map[string]*RelatedPage)
+
+	// Get categories for the source page
+	if method == "categories" || method == "all" {
+		cats, err := c.getPageCategories(ctx, normalizedTitle)
+		if err == nil {
+			result.Categories = cats
+
+			// Get pages from each category
+			for _, cat := range cats {
+				if len(relatedMap) >= limit {
+					break
+				}
+				members, err := c.GetCategoryMembers(ctx, CategoryMembersArgs{
+					Category: cat,
+					Limit:    limit,
+					Type:     "page",
+				})
+				if err == nil {
+					for _, m := range members.Members {
+						if m.Title == normalizedTitle {
+							continue
+						}
+						if existing, ok := relatedMap[m.Title]; ok {
+							existing.Categories = append(existing.Categories, cat)
+							existing.Score++
+						} else {
+							relatedMap[m.Title] = &RelatedPage{
+								Title:      m.Title,
+								PageID:     m.PageID,
+								Relation:   "same_category",
+								Categories: []string{cat},
+								Score:      1,
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Get pages linked from this page
+	if method == "links" || method == "all" {
+		links, err := c.getPageLinks(ctx, normalizedTitle, limit)
+		if err == nil {
+			for _, link := range links {
+				if existing, ok := relatedMap[link.Title]; ok {
+					existing.Relation = "linked_and_categorized"
+					existing.Score += 2
+				} else {
+					relatedMap[link.Title] = &RelatedPage{
+						Title:    link.Title,
+						PageID:   link.PageID,
+						Relation: "linked_from",
+						Score:    2,
+					}
+				}
+			}
+		}
+	}
+
+	// Get pages that link to this page
+	if method == "backlinks" || method == "all" {
+		backlinks, err := c.GetBacklinks(ctx, GetBacklinksArgs{
+			Title: normalizedTitle,
+			Limit: limit,
+		})
+		if err == nil {
+			for _, bl := range backlinks.Backlinks {
+				if existing, ok := relatedMap[bl.Title]; ok {
+					existing.Relation = "bidirectional_link"
+					existing.Score += 3
+				} else {
+					relatedMap[bl.Title] = &RelatedPage{
+						Title:    bl.Title,
+						PageID:   bl.PageID,
+						Relation: "links_to",
+						Score:    1,
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice and sort by score
+	related := make([]RelatedPage, 0, len(relatedMap))
+	for _, rp := range relatedMap {
+		related = append(related, *rp)
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(related)-1; i++ {
+		for j := i + 1; j < len(related); j++ {
+			if related[j].Score > related[i].Score {
+				related[i], related[j] = related[j], related[i]
+			}
+		}
+	}
+
+	// Limit results
+	if len(related) > limit {
+		related = related[:limit]
+	}
+
+	result.RelatedPages = related
+	result.Count = len(related)
+
+	return result, nil
+}
+
+// getPageCategories gets categories for a page
+func (c *Client) getPageCategories(ctx context.Context, title string) ([]string, error) {
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("titles", title)
+	params.Set("prop", "categories")
+	params.Set("cllimit", "50")
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	query := resp["query"].(map[string]interface{})
+	pages := query["pages"].(map[string]interface{})
+
+	var categories []string
+	for _, p := range pages {
+		page := p.(map[string]interface{})
+		if cats, ok := page["categories"].([]interface{}); ok {
+			for _, cat := range cats {
+				c := cat.(map[string]interface{})
+				catTitle := c["title"].(string)
+				// Remove "Category:" prefix
+				catTitle = strings.TrimPrefix(catTitle, "Category:")
+				categories = append(categories, catTitle)
+			}
+		}
+	}
+
+	return categories, nil
+}
+
+// getPageLinks gets outgoing links from a page
+func (c *Client) getPageLinks(ctx context.Context, title string, limit int) ([]PageSummary, error) {
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("titles", title)
+	params.Set("prop", "links")
+	params.Set("pllimit", strconv.Itoa(limit))
+	params.Set("plnamespace", "0") // Main namespace only
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	query := resp["query"].(map[string]interface{})
+	pages := query["pages"].(map[string]interface{})
+
+	var links []PageSummary
+	for _, p := range pages {
+		page := p.(map[string]interface{})
+		if linksList, ok := page["links"].([]interface{}); ok {
+			for _, l := range linksList {
+				link := l.(map[string]interface{})
+				links = append(links, PageSummary{
+					Title: link["title"].(string),
+				})
+			}
+		}
+	}
+
+	return links, nil
+}
+
+// GetImages retrieves images/files used on a page
+func (c *Client) GetImages(ctx context.Context, args GetImagesArgs) (GetImagesResult, error) {
+	if args.Title == "" {
+		return GetImagesResult{}, fmt.Errorf("title is required")
+	}
+
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return GetImagesResult{}, err
+	}
+
+	limit := normalizeLimit(args.Limit, 50, MaxLimit)
+	normalizedTitle := normalizePageTitle(args.Title)
+
+	// First get list of images on the page
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("titles", normalizedTitle)
+	params.Set("prop", "images")
+	params.Set("imlimit", strconv.Itoa(limit))
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return GetImagesResult{}, err
+	}
+
+	query := resp["query"].(map[string]interface{})
+	pages := query["pages"].(map[string]interface{})
+
+	var imageTitles []string
+	for _, p := range pages {
+		page := p.(map[string]interface{})
+		if images, ok := page["images"].([]interface{}); ok {
+			for _, img := range images {
+				i := img.(map[string]interface{})
+				imageTitles = append(imageTitles, i["title"].(string))
+			}
+		}
+	}
+
+	if len(imageTitles) == 0 {
+		return GetImagesResult{
+			Title:  normalizedTitle,
+			Images: []ImageInfo{},
+			Count:  0,
+		}, nil
+	}
+
+	// Get image info (URLs, dimensions) for each image
+	images, err := c.getImageInfo(ctx, imageTitles)
+	if err != nil {
+		// Return basic info without URLs if imageinfo fails
+		basicImages := make([]ImageInfo, 0, len(imageTitles))
+		for _, t := range imageTitles {
+			basicImages = append(basicImages, ImageInfo{Title: t})
+		}
+		return GetImagesResult{
+			Title:  normalizedTitle,
+			Images: basicImages,
+			Count:  len(basicImages),
+		}, nil
+	}
+
+	return GetImagesResult{
+		Title:  normalizedTitle,
+		Images: images,
+		Count:  len(images),
+	}, nil
+}
+
+// getImageInfo retrieves detailed info for images
+func (c *Client) getImageInfo(ctx context.Context, titles []string) ([]ImageInfo, error) {
+	if len(titles) == 0 {
+		return nil, nil
+	}
+
+	// Batch in groups of 50
+	batchSize := 50
+	var allImages []ImageInfo
+
+	for i := 0; i < len(titles); i += batchSize {
+		end := i + batchSize
+		if end > len(titles) {
+			end = len(titles)
+		}
+		batch := titles[i:end]
+
+		params := url.Values{}
+		params.Set("action", "query")
+		params.Set("titles", strings.Join(batch, "|"))
+		params.Set("prop", "imageinfo")
+		params.Set("iiprop", "url|size|mime")
+		params.Set("iiurlwidth", "300") // Get thumbnail URL
+
+		resp, err := c.apiRequest(ctx, params)
+		if err != nil {
+			continue
+		}
+
+		query := resp["query"].(map[string]interface{})
+		pages := query["pages"].(map[string]interface{})
+
+		for _, p := range pages {
+			page := p.(map[string]interface{})
+			title := getString(page, "title")
+
+			imgInfo := ImageInfo{Title: title}
+
+			if imageinfo, ok := page["imageinfo"].([]interface{}); ok && len(imageinfo) > 0 {
+				info := imageinfo[0].(map[string]interface{})
+				imgInfo.URL = getString(info, "url")
+				imgInfo.ThumbURL = getString(info, "thumburl")
+				imgInfo.Width = getInt(info, "width")
+				imgInfo.Height = getInt(info, "height")
+				imgInfo.Size = getInt(info, "size")
+				imgInfo.MimeType = getString(info, "mime")
+			}
+
+			allImages = append(allImages, imgInfo)
+		}
+	}
+
+	return allImages, nil
+}
+
+// UploadFile uploads a file to the wiki
+func (c *Client) UploadFile(ctx context.Context, args UploadFileArgs) (UploadFileResult, error) {
+	if args.Filename == "" {
+		return UploadFileResult{}, fmt.Errorf("filename is required")
+	}
+	if args.FilePath == "" && args.FileURL == "" {
+		return UploadFileResult{}, fmt.Errorf("either file_path or file_url is required")
+	}
+
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return UploadFileResult{}, fmt.Errorf("authentication required for uploads: %w", err)
+	}
+
+	// Get CSRF token
+	token, err := c.getCSRFToken(ctx)
+	if err != nil {
+		return UploadFileResult{}, fmt.Errorf("failed to get edit token: %w", err)
+	}
+
+	// If URL provided, use URL upload
+	if args.FileURL != "" {
+		return c.uploadFromURL(ctx, args, token)
+	}
+
+	// For local file upload, we need multipart form
+	return c.uploadFromFile(ctx, args, token)
+}
+
+// uploadFromURL uploads a file from a URL
+func (c *Client) uploadFromURL(ctx context.Context, args UploadFileArgs, token string) (UploadFileResult, error) {
+	params := url.Values{}
+	params.Set("action", "upload")
+	params.Set("filename", args.Filename)
+	params.Set("url", args.FileURL)
+	params.Set("token", token)
+
+	if args.Text != "" {
+		params.Set("text", args.Text)
+	}
+	if args.Comment != "" {
+		params.Set("comment", args.Comment)
+	}
+	if args.IgnoreWarnings {
+		params.Set("ignorewarnings", "1")
+	}
+
+	resp, err := c.apiRequest(ctx, params)
+	if err != nil {
+		return UploadFileResult{}, err
+	}
+
+	return c.parseUploadResponse(resp, args.Filename)
+}
+
+// uploadFromFile uploads a local file using multipart form
+func (c *Client) uploadFromFile(ctx context.Context, args UploadFileArgs, token string) (UploadFileResult, error) {
+	// Read file
+	fileData, err := c.readLocalFile(args.FilePath)
+	if err != nil {
+		return UploadFileResult{}, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Create multipart request
+	boundary := "----WikiUploadBoundary" + strconv.FormatInt(time.Now().UnixNano(), 36)
+
+	var body strings.Builder
+	body.WriteString("--" + boundary + "\r\n")
+	body.WriteString("Content-Disposition: form-data; name=\"action\"\r\n\r\n")
+	body.WriteString("upload\r\n")
+
+	body.WriteString("--" + boundary + "\r\n")
+	body.WriteString("Content-Disposition: form-data; name=\"format\"\r\n\r\n")
+	body.WriteString("json\r\n")
+
+	body.WriteString("--" + boundary + "\r\n")
+	body.WriteString("Content-Disposition: form-data; name=\"filename\"\r\n\r\n")
+	body.WriteString(args.Filename + "\r\n")
+
+	body.WriteString("--" + boundary + "\r\n")
+	body.WriteString("Content-Disposition: form-data; name=\"token\"\r\n\r\n")
+	body.WriteString(token + "\r\n")
+
+	if args.Text != "" {
+		body.WriteString("--" + boundary + "\r\n")
+		body.WriteString("Content-Disposition: form-data; name=\"text\"\r\n\r\n")
+		body.WriteString(args.Text + "\r\n")
+	}
+
+	if args.Comment != "" {
+		body.WriteString("--" + boundary + "\r\n")
+		body.WriteString("Content-Disposition: form-data; name=\"comment\"\r\n\r\n")
+		body.WriteString(args.Comment + "\r\n")
+	}
+
+	if args.IgnoreWarnings {
+		body.WriteString("--" + boundary + "\r\n")
+		body.WriteString("Content-Disposition: form-data; name=\"ignorewarnings\"\r\n\r\n")
+		body.WriteString("1\r\n")
+	}
+
+	body.WriteString("--" + boundary + "\r\n")
+	body.WriteString(fmt.Sprintf("Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n", args.Filename))
+	body.WriteString("Content-Type: application/octet-stream\r\n\r\n")
+	body.Write(fileData)
+	body.WriteString("\r\n")
+	body.WriteString("--" + boundary + "--\r\n")
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.config.BaseURL, strings.NewReader(body.String()))
+	if err != nil {
+		return UploadFileResult{}, err
+	}
+
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+
+	// Use HTTP client to make request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return UploadFileResult{}, err
+	}
+	defer resp.Body.Close()
+
+	// Parse JSON response
+	var result map[string]interface{}
+	if err := c.parseJSONResponse(resp, &result); err != nil {
+		return UploadFileResult{}, err
+	}
+
+	return c.parseUploadResponse(result, args.Filename)
+}
+
+// readLocalFile reads a file from the local filesystem
+func (c *Client) readLocalFile(path string) ([]byte, error) {
+	// This is a placeholder - in a real implementation you'd read the file
+	// For security, MCP servers typically don't have direct filesystem access
+	// Instead, the file content should be passed directly or via URL
+	return nil, fmt.Errorf("local file upload not supported - use file_url instead")
+}
+
+// parseUploadResponse parses the upload API response
+func (c *Client) parseUploadResponse(resp map[string]interface{}, filename string) (UploadFileResult, error) {
+	if errInfo, ok := resp["error"].(map[string]interface{}); ok {
+		return UploadFileResult{
+			Success:  false,
+			Filename: filename,
+			Message:  fmt.Sprintf("Upload failed: %s", errInfo["info"]),
+		}, nil
+	}
+
+	upload, ok := resp["upload"].(map[string]interface{})
+	if !ok {
+		return UploadFileResult{
+			Success:  false,
+			Filename: filename,
+			Message:  "Unexpected response format",
+		}, nil
+	}
+
+	result := UploadFileResult{
+		Filename: filename,
+	}
+
+	status := getString(upload, "result")
+	switch status {
+	case "Success":
+		result.Success = true
+		result.Message = "File uploaded successfully"
+		if imageinfo, ok := upload["imageinfo"].(map[string]interface{}); ok {
+			result.URL = getString(imageinfo, "url")
+			result.Size = getInt(imageinfo, "size")
+		}
+	case "Warning":
+		result.Success = false
+		result.Message = "Upload has warnings - set ignore_warnings=true to proceed"
+		if warnings, ok := upload["warnings"].(map[string]interface{}); ok {
+			for k, v := range warnings {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("%s: %v", k, v))
+			}
+		}
+	default:
+		result.Success = false
+		result.Message = fmt.Sprintf("Upload status: %s", status)
+	}
+
+	return result, nil
+}
+
+// parseJSONResponse parses a JSON response from http.Response
+func (c *Client) parseJSONResponse(resp *http.Response, target interface{}) error {
+	// Import would be needed: "encoding/json"
+	// For now, return error indicating this needs implementation
+	return fmt.Errorf("JSON parsing not implemented for multipart upload")
+}

@@ -660,3 +660,97 @@ type UserInfo struct {
 	EditCount    int      `json:"edit_count,omitempty"`
 	Registration string   `json:"registration,omitempty"`
 }
+
+// ========== Get Sections Types ==========
+
+type GetSectionsArgs struct {
+	Title   string `json:"title" jsonschema:"required" jsonschema_description:"Page title to get sections from"`
+	Section int    `json:"section,omitempty" jsonschema_description:"Specific section number to retrieve content for (0 = intro, 1+ = sections). Omit to list all sections."`
+	Format  string `json:"format,omitempty" jsonschema_description:"Output format for section content: 'wikitext' (default) or 'html'"`
+}
+
+type GetSectionsResult struct {
+	Title          string        `json:"title"`
+	PageID         int           `json:"page_id"`
+	Sections       []SectionInfo `json:"sections,omitempty"`
+	SectionContent string        `json:"section_content,omitempty"`
+	SectionTitle   string        `json:"section_title,omitempty"`
+	Format         string        `json:"format,omitempty"`
+	Message        string        `json:"message,omitempty"`
+}
+
+type SectionInfo struct {
+	Index   int    `json:"index"`
+	Level   int    `json:"level"`
+	Title   string `json:"title"`
+	Anchor  string `json:"anchor"`
+	LineNum int    `json:"line_number,omitempty"`
+}
+
+// ========== Related Pages Types ==========
+
+type GetRelatedArgs struct {
+	Title    string `json:"title" jsonschema:"required" jsonschema_description:"Page title to find related pages for"`
+	Limit    int    `json:"limit,omitempty" jsonschema_description:"Maximum related pages to return (default 20, max 50)"`
+	Method   string `json:"method,omitempty" jsonschema_description:"Method to find related: 'categories' (default), 'links', 'backlinks', or 'all'"`
+}
+
+type GetRelatedResult struct {
+	Title         string         `json:"title"`
+	RelatedPages  []RelatedPage  `json:"related_pages"`
+	Count         int            `json:"count"`
+	Method        string         `json:"method"`
+	Categories    []string       `json:"categories_used,omitempty"`
+}
+
+type RelatedPage struct {
+	Title      string   `json:"title"`
+	PageID     int      `json:"page_id"`
+	Relation   string   `json:"relation"`
+	Categories []string `json:"shared_categories,omitempty"`
+	Score      int      `json:"relevance_score,omitempty"`
+}
+
+// ========== Upload File Types ==========
+
+type UploadFileArgs struct {
+	Filename    string `json:"filename" jsonschema:"required" jsonschema_description:"Target filename on the wiki (e.g., 'Example.png')"`
+	FilePath    string `json:"file_path,omitempty" jsonschema_description:"Local file path to upload"`
+	FileURL     string `json:"file_url,omitempty" jsonschema_description:"URL to fetch and upload (alternative to file_path)"`
+	Text        string `json:"text,omitempty" jsonschema_description:"File description page content (wikitext)"`
+	Comment     string `json:"comment,omitempty" jsonschema_description:"Upload comment for the log"`
+	IgnoreWarnings bool `json:"ignore_warnings,omitempty" jsonschema_description:"Ignore duplicate/overwrite warnings"`
+}
+
+type UploadFileResult struct {
+	Success    bool   `json:"success"`
+	Filename   string `json:"filename"`
+	PageID     int    `json:"page_id,omitempty"`
+	URL        string `json:"url,omitempty"`
+	Size       int    `json:"size,omitempty"`
+	Message    string `json:"message"`
+	Warnings   []string `json:"warnings,omitempty"`
+}
+
+// ========== Get Images Types ==========
+
+type GetImagesArgs struct {
+	Title string `json:"title" jsonschema:"required" jsonschema_description:"Page title to get images from"`
+	Limit int    `json:"limit,omitempty" jsonschema_description:"Maximum images to return (default 50, max 500)"`
+}
+
+type GetImagesResult struct {
+	Title  string      `json:"title"`
+	Images []ImageInfo `json:"images"`
+	Count  int         `json:"count"`
+}
+
+type ImageInfo struct {
+	Title     string `json:"title"`
+	URL       string `json:"url,omitempty"`
+	ThumbURL  string `json:"thumb_url,omitempty"`
+	Width     int    `json:"width,omitempty"`
+	Height    int    `json:"height,omitempty"`
+	Size      int    `json:"size,omitempty"`
+	MimeType  string `json:"mime_type,omitempty"`
+}

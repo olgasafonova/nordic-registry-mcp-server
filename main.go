@@ -33,7 +33,7 @@ func recoverPanic(logger *slog.Logger, operation string) {
 
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.9.0" // Added: HTTP transport support for ChatGPT and n8n
+	ServerVersion = "1.10.0" // Added: Section extraction, related pages, images, file uploads
 )
 
 // =============================================================================
@@ -1167,6 +1167,105 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 			"group", args.Group,
 			"users_returned", len(result.Users),
 			"has_more", result.HasMore,
+		)
+		return nil, result, nil
+	})
+
+	// Get page sections
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_get_sections",
+		Description: "Get the section structure of a page, or retrieve content from a specific section. Use without section parameter to list all sections with their indices. Use with section parameter to get that section's content.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:          "Get Sections",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.GetSectionsArgs) (*mcp.CallToolResult, wiki.GetSectionsResult, error) {
+		defer recoverPanic(logger, "get_sections")
+		result, err := client.GetSections(ctx, args)
+		if err != nil {
+			return nil, wiki.GetSectionsResult{}, fmt.Errorf("get sections failed: %w", err)
+		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_sections",
+			"title", args.Title,
+			"section", args.Section,
+			"sections_found", len(result.Sections),
+		)
+		return nil, result, nil
+	})
+
+	// Get related pages
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_get_related",
+		Description: "Find pages related to a given page. Uses shared categories, outgoing links, and backlinks to determine relevance. Method options: 'categories' (default), 'links', 'backlinks', or 'all'.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:          "Get Related Pages",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.GetRelatedArgs) (*mcp.CallToolResult, wiki.GetRelatedResult, error) {
+		defer recoverPanic(logger, "get_related")
+		result, err := client.GetRelated(ctx, args)
+		if err != nil {
+			return nil, wiki.GetRelatedResult{}, fmt.Errorf("get related failed: %w", err)
+		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_related",
+			"title", args.Title,
+			"method", result.Method,
+			"related_count", result.Count,
+		)
+		return nil, result, nil
+	})
+
+	// Get images on a page
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_get_images",
+		Description: "Get all images and files used on a wiki page. Returns image titles, URLs, dimensions, and file sizes.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:          "Get Images",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.GetImagesArgs) (*mcp.CallToolResult, wiki.GetImagesResult, error) {
+		defer recoverPanic(logger, "get_images")
+		result, err := client.GetImages(ctx, args)
+		if err != nil {
+			return nil, wiki.GetImagesResult{}, fmt.Errorf("get images failed: %w", err)
+		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_get_images",
+			"title", args.Title,
+			"images_found", result.Count,
+		)
+		return nil, result, nil
+	})
+
+	// Upload file
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_upload_file",
+		Description: "Upload a file to the wiki from a URL. Requires authentication. Use file_url to specify the source. Set ignore_warnings=true to overwrite existing files.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Upload File",
+			ReadOnlyHint:    false,
+			DestructiveHint: ptr(false),
+			IdempotentHint:  false,
+			OpenWorldHint:   ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.UploadFileArgs) (*mcp.CallToolResult, wiki.UploadFileResult, error) {
+		defer recoverPanic(logger, "upload_file")
+		result, err := client.UploadFile(ctx, args)
+		if err != nil {
+			return nil, wiki.UploadFileResult{}, fmt.Errorf("upload file failed: %w", err)
+		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_upload_file",
+			"filename", args.Filename,
+			"success", result.Success,
 		)
 		return nil, result, nil
 	})

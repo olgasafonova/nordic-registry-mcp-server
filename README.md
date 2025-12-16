@@ -315,6 +315,12 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 - *"Show me the Getting Started guide"*
 - *"List all pages in the Documentation category"*
 
+### Sections & Related Content ✨
+- *"Show me the sections of the Installation Guide"*
+- *"Get the 'Troubleshooting' section from the FAQ page"*
+- *"Find pages related to the API Reference"*
+- *"What images are on the Product Overview page?"*
+
 ### Track Changes
 - *"What pages were updated this week?"*
 - *"Who edited the Release Notes page?"*
@@ -329,6 +335,10 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 - *"Strike out John Smith on the Team page"*
 - *"Replace 'version 2.0' with 'version 3.0' on Release Notes"*
 - *"Make 'API Gateway' bold on the Architecture page"*
+
+### File Uploads (requires auth) ✨
+- *"Upload this image from URL to the wiki"*
+- *"Add the logo from https://example.com/logo.png as Company_Logo.png"*
 
 ### Find Users
 - *"Who are the wiki admins?"*
@@ -478,6 +488,9 @@ server {
 |------|-------------|
 | `mediawiki_search` | Full-text search |
 | `mediawiki_get_page` | Get page content |
+| `mediawiki_get_sections` | Get section structure or specific section content ✨ |
+| `mediawiki_get_related` | Find related pages via categories/links ✨ |
+| `mediawiki_get_images` | Get images used on a page ✨ |
 | `mediawiki_list_pages` | List all pages |
 | `mediawiki_list_categories` | List categories |
 | `mediawiki_get_category_members` | Get pages in category |
@@ -543,6 +556,7 @@ server {
 | Tool | Description |
 |------|-------------|
 | `mediawiki_edit_page` | Create or edit pages |
+| `mediawiki_upload_file` | Upload files from URL ✨ |
 
 </details>
 
