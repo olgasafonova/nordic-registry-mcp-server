@@ -75,9 +75,21 @@ func (c *Client) Search(ctx context.Context, args SearchArgs) (SearchResult, err
 }
 
 // GetPage retrieves page content
+// Handles title normalization automatically (case, underscores, whitespace)
 func (c *Client) GetPage(ctx context.Context, args GetPageArgs) (PageContent, error) {
 	if args.Title == "" {
 		return PageContent{}, fmt.Errorf("title is required")
+	}
+
+	// Normalize the title to handle case variations
+	// MediaWiki normalizes titles internally, but we do it here for better cache hits
+	// and to avoid duplicate API calls for "Module overview" vs "Module Overview"
+	normalizedTitle := normalizePageTitle(args.Title)
+
+	// Check cache with normalized title
+	cacheKey := fmt.Sprintf("page_content:%s", normalizedTitle)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached.(PageContent), nil
 	}
 
 	format := args.Format
@@ -85,11 +97,29 @@ func (c *Client) GetPage(ctx context.Context, args GetPageArgs) (PageContent, er
 		format = "wikitext"
 	}
 
+	var result PageContent
+	var err error
+
 	if format == "html" {
-		return c.getPageHTML(ctx, args.Title)
+		result, err = c.getPageHTML(ctx, normalizedTitle)
+	} else {
+		result, err = c.getPageWikitext(ctx, normalizedTitle)
 	}
 
-	return c.getPageWikitext(ctx, args.Title)
+	if err != nil {
+		return PageContent{}, err
+	}
+
+	// Cache the result using the canonical title from API response
+	c.setCache(cacheKey, result, "page_content")
+
+	// Also cache under the original title if different (for future lookups)
+	if args.Title != normalizedTitle {
+		originalCacheKey := fmt.Sprintf("page_content:%s", args.Title)
+		c.setCache(originalCacheKey, result, "page_content")
+	}
+
+	return result, nil
 }
 
 func (c *Client) getPageWikitext(ctx context.Context, title string) (PageContent, error) {
@@ -381,9 +411,19 @@ func (c *Client) GetCategoryMembers(ctx context.Context, args CategoryMembersArg
 }
 
 // GetPageInfo gets metadata about a page
+// Handles title normalization automatically
 func (c *Client) GetPageInfo(ctx context.Context, args PageInfoArgs) (PageInfo, error) {
 	if args.Title == "" {
 		return PageInfo{}, fmt.Errorf("title is required")
+	}
+
+	// Normalize the title for consistent lookups
+	normalizedTitle := normalizePageTitle(args.Title)
+
+	// Check cache first
+	cacheKey := fmt.Sprintf("page_info:%s", normalizedTitle)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached.(PageInfo), nil
 	}
 
 	// Ensure logged in for wikis requiring auth for read
@@ -393,7 +433,7 @@ func (c *Client) GetPageInfo(ctx context.Context, args PageInfoArgs) (PageInfo, 
 
 	params := url.Values{}
 	params.Set("action", "query")
-	params.Set("titles", args.Title)
+	params.Set("titles", normalizedTitle)
 	params.Set("prop", "info|categories|links")
 	params.Set("inprop", "protection|url")
 	params.Set("cllimit", "50")
@@ -456,10 +496,13 @@ func (c *Client) GetPageInfo(ctx context.Context, args PageInfoArgs) (PageInfo, 
 			}
 		}
 
+		// Cache the result
+		c.setCache(cacheKey, info, "page_info")
+
 		return info, nil
 	}
 
-	return PageInfo{}, fmt.Errorf("page '%s' not found", args.Title)
+	return PageInfo{}, fmt.Errorf("page '%s' not found", normalizedTitle)
 }
 
 // EditPage creates or edits a page

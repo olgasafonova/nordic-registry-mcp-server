@@ -133,8 +133,8 @@ func TestSecurity_UnicodeNormalizationAttacks(t *testing.T) {
 
 func TestSecurity_LargeInputHandling(t *testing.T) {
 	// Test handling of very large inputs
-	// CharacterLimit is 150KB, so we need content larger than that to test truncation
-	largeInput := strings.Repeat("A", 200000) // 200KB (larger than 150KB limit)
+	// CharacterLimit is 250KB, so we need content larger than that to test truncation
+	largeInput := strings.Repeat("A", 300000) // 300KB (larger than 250KB limit)
 
 	// Test truncation
 	result, truncated := truncateContent(largeInput, CharacterLimit)

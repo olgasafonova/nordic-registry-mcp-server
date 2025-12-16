@@ -6,7 +6,7 @@ import "time"
 const (
 	DefaultLimit   = 50
 	MaxLimit       = 500
-	CharacterLimit = 150000 // 150KB - accommodates large documentation pages
+	CharacterLimit = 250000 // 250KB - accommodates large documentation pages in HTML format
 
 	// Edit limits
 	MaxEditSize = 200000 // 200KB max for edits (larger than read to allow updates)

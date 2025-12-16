@@ -56,6 +56,38 @@ func TestNormalizeCategoryName(t *testing.T) {
 	}
 }
 
+func TestNormalizePageTitle(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"Lowercase first letter", "module overview", "Module overview"},
+		{"Already capitalized", "Module Overview", "Module Overview"},
+		{"With underscores", "module_overview", "Module overview"},
+		{"Multiple underscores", "my_long_page_title", "My long page title"},
+		{"With namespace lowercase", "category:my cat", "Category:My cat"},
+		{"With namespace capitalized", "Category:My Cat", "Category:My Cat"},
+		{"Leading spaces", "  test page", "Test page"},
+		{"Trailing spaces", "test page  ", "Test page"},
+		{"Multiple spaces", "test  page", "Test page"},
+		{"Empty string", "", ""},
+		{"Single character", "a", "A"},
+		{"File namespace", "file:image.png", "File:Image.png"},
+		{"Already normalized", "Main Page", "Main Page"},
+		{"Mixed underscores and spaces", "test_page name", "Test page name"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizePageTitle(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizePageTitle(%q) = %q, expected %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestTruncateContent(t *testing.T) {
 	tests := []struct {
 		name              string
