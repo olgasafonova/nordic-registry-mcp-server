@@ -340,6 +340,12 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 - *"Upload this image from URL to the wiki"*
 - *"Add the logo from https://example.com/logo.png as Company_Logo.png"*
 
+### File Search ✨
+- *"Search for 'budget' in File:Annual-Report.pdf"*
+- *"Find mentions of 'API' in the changelog.txt file"*
+
+> **Note:** PDF search requires `poppler-utils` installed. See [PDF Search Setup](#pdf-search-setup).
+
 ### Find Users
 - *"Who are the wiki admins?"*
 - *"List all bot accounts"*
@@ -365,6 +371,29 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 **ChatGPT can't connect**
 → Ensure your server is publicly accessible (not just localhost)
 → Check the bearer token matches exactly
+
+**"PDF search requires 'pdftotext'"**
+→ Install poppler-utils for your platform (see [PDF Search Setup](#pdf-search-setup))
+
+---
+
+## PDF Search Setup
+
+PDF search requires the `pdftotext` tool from poppler-utils. Text file search (TXT, MD, CSV, etc.) works without any dependencies.
+
+| Platform | Install Command |
+|----------|-----------------|
+| macOS | `brew install poppler` |
+| Ubuntu/Debian | `apt install poppler-utils` |
+| RHEL/CentOS | `yum install poppler-utils` |
+| Windows | `choco install poppler` |
+
+**Windows alternative:** Download binaries from [poppler-windows releases](https://github.com/oschwartz10612/poppler-windows/releases) and add to PATH.
+
+**Verify installation:**
+```bash
+pdftotext -v
+```
 
 ---
 
@@ -557,6 +586,19 @@ server {
 |------|-------------|
 | `mediawiki_edit_page` | Create or edit pages |
 | `mediawiki_upload_file` | Upload files from URL ✨ |
+
+</details>
+
+<details>
+<summary><strong>File Search ✨</strong></summary>
+
+| Tool | Description |
+|------|-------------|
+| `mediawiki_search_in_file` | Search text in PDFs and text files |
+
+**Supported formats:** PDF (text-based), TXT, MD, CSV, JSON, XML, HTML
+
+**PDF requires:** `poppler-utils` installed (see [PDF Search Setup](#pdf-search-setup))
 
 </details>
 
