@@ -17,6 +17,161 @@ The AI reads your wiki directly and gives you accurate, up-to-date answers.
 
 ---
 
+## Public 360° Wiki Setup (Tietoevry)
+
+If you're connecting to the **Public 360° Wiki** at `wiki.software-innovation.com`, follow these steps:
+
+### Step 1: Get Your Bot Password
+
+1. Go to [Special:BotPasswords](https://wiki.software-innovation.com/wiki/Special:BotPasswords)
+2. Log in with your Tietoevry account if prompted
+3. Enter a bot name: `wiki-MCP` (or any name you like)
+4. Check these permissions:
+   - ✅ **Basic rights**
+   - ✅ **Edit existing pages** (if you need to edit)
+   - ✅ **Create, edit, and move pages** (optional)
+5. Click **Create**
+6. **Save the generated password** - you won't see it again!
+
+Your username format: `YourEmail#wiki-MCP` (e.g., `john.doe@tietoevry.com#wiki-MCP`)
+
+### Step 2: Download the Server
+
+```bash
+git clone https://github.com/olgasafonova/mediawiki-mcp-server.git
+cd mediawiki-mcp-server
+go build -o mediawiki-mcp-server .
+```
+
+Or download the pre-built binary from [GitHub Releases](https://github.com/olgasafonova/mediawiki-mcp-server/releases).
+
+### Step 3: Configure Your AI Tool
+
+<details>
+<summary><strong>Claude Code CLI</strong></summary>
+
+```bash
+claude mcp add mediawiki /path/to/mediawiki-mcp-server \
+  -e MEDIAWIKI_URL="https://wiki.software-innovation.com/api.php" \
+  -e MEDIAWIKI_USERNAME="your.email@tietoevry.com#wiki-MCP" \
+  -e MEDIAWIKI_PASSWORD="your-bot-password-here"
+```
+
+Restart Claude Code or run `claude mcp list` to verify.
+</details>
+
+<details>
+<summary><strong>Claude Desktop (Mac)</strong></summary>
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mediawiki": {
+      "command": "/path/to/mediawiki-mcp-server",
+      "env": {
+        "MEDIAWIKI_URL": "https://wiki.software-innovation.com/api.php",
+        "MEDIAWIKI_USERNAME": "your.email@tietoevry.com#wiki-MCP",
+        "MEDIAWIKI_PASSWORD": "your-bot-password-here"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop.
+</details>
+
+<details>
+<summary><strong>Claude Desktop (Windows)</strong></summary>
+
+Edit `%APPDATA%\Claude\claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mediawiki": {
+      "command": "C:\\path\\to\\mediawiki-mcp-server.exe",
+      "env": {
+        "MEDIAWIKI_URL": "https://wiki.software-innovation.com/api.php",
+        "MEDIAWIKI_USERNAME": "your.email@tietoevry.com#wiki-MCP",
+        "MEDIAWIKI_PASSWORD": "your-bot-password-here"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop.
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+**Mac:** `~/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+
+**Windows:** `%APPDATA%\Cursor\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json`
+
+```json
+{
+  "mcpServers": {
+    "mediawiki": {
+      "command": "/path/to/mediawiki-mcp-server",
+      "env": {
+        "MEDIAWIKI_URL": "https://wiki.software-innovation.com/api.php",
+        "MEDIAWIKI_USERNAME": "your.email@tietoevry.com#wiki-MCP",
+        "MEDIAWIKI_PASSWORD": "your-bot-password-here"
+      }
+    }
+  }
+}
+```
+
+Restart Cursor.
+</details>
+
+<details>
+<summary><strong>VS Code (with Cline extension)</strong></summary>
+
+1. Install the **Cline** extension from VS Code marketplace
+2. Open Cline settings and add MCP server with these environment variables:
+   - `MEDIAWIKI_URL`: `https://wiki.software-innovation.com/api.php`
+   - `MEDIAWIKI_USERNAME`: `your.email@tietoevry.com#wiki-MCP`
+   - `MEDIAWIKI_PASSWORD`: `your-bot-password-here`
+
+Or edit the Cline MCP settings file directly (same location as Cursor).
+</details>
+
+<details>
+<summary><strong>n8n (via MCP nodes)</strong></summary>
+
+n8n can connect to MCP servers using the **MCP Client** node or custom Function nodes.
+
+1. Set environment variables on your n8n instance:
+   ```
+   MEDIAWIKI_URL=https://wiki.software-innovation.com/api.php
+   MEDIAWIKI_USERNAME=your.email@tietoevry.com#wiki-MCP
+   MEDIAWIKI_PASSWORD=your-bot-password-here
+   ```
+
+2. Use the **Execute Command** node to run the MCP server, or integrate via the MCP Client community node.
+
+See [n8n MCP documentation](https://docs.n8n.io/) for detailed integration options.
+</details>
+
+### Step 4: Test It
+
+Ask your AI: *"Search the wiki for release notes"* or *"What categories exist on our wiki?"*
+
+**Example prompts for Public 360° Wiki:**
+- *"Find all pages about eFormidling"*
+- *"What does the wiki say about AutoSaver?"*
+- *"Show me the category structure"*
+- *"Check for broken links on the API documentation page"*
+
+---
+
 ## Quick Start
 
 Choose your platform:
