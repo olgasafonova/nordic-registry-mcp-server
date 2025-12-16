@@ -34,7 +34,7 @@ func recoverPanic(logger *slog.Logger, operation string) {
 
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.11.0" // Added: PDF and file text search
+	ServerVersion = "1.12.0" // Added: PDF and file text search (via pdftotext)
 )
 
 // =============================================================================
