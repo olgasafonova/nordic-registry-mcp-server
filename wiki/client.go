@@ -10,10 +10,17 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+// CacheEntry holds cached data with expiration
+type CacheEntry struct {
+	Data      interface{}
+	ExpiresAt time.Time
+}
 
 // Client handles communication with the MediaWiki API
 type Client struct {
@@ -29,6 +36,10 @@ type Client struct {
 
 	// Rate limiting - semaphore to control concurrent requests
 	semaphore chan struct{}
+
+	// Response cache
+	cache    sync.Map // key (string) -> *CacheEntry
+	cacheTTL map[string]time.Duration
 }
 
 // MaxConcurrentRequests limits parallel API calls to prevent overwhelming the server
@@ -41,15 +52,75 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 	// Initialize semaphore for rate limiting
 	sem := make(chan struct{}, MaxConcurrentRequests)
 
+	// Configure HTTP transport for better connection reuse and performance
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  false, // Enable gzip compression
+		ForceAttemptHTTP2:   true,  // Use HTTP/2 when available
+	}
+
+	// Initialize cache TTLs for different operations
+	cacheTTL := map[string]time.Duration{
+		"wiki_info":    60 * time.Minute, // Wiki info rarely changes
+		"page_info":    2 * time.Minute,  // Page metadata
+		"page_content": 5 * time.Minute,  // Page content
+		"categories":   10 * time.Minute, // Category lists
+		"search":       1 * time.Minute,  // Search results
+	}
+
 	return &Client{
 		config: config,
 		httpClient: &http.Client{
-			Timeout: config.Timeout,
-			Jar:     jar,
+			Timeout:   config.Timeout,
+			Jar:       jar,
+			Transport: transport,
 		},
 		logger:    logger,
 		semaphore: sem,
+		cacheTTL:  cacheTTL,
 	}
+}
+
+// getCached retrieves a cached value if it exists and hasn't expired
+func (c *Client) getCached(key string) (interface{}, bool) {
+	if entry, ok := c.cache.Load(key); ok {
+		ce := entry.(*CacheEntry)
+		if time.Now().Before(ce.ExpiresAt) {
+			return ce.Data, true
+		}
+		// Expired, delete it
+		c.cache.Delete(key)
+	}
+	return nil, false
+}
+
+// setCache stores a value in the cache with the specified TTL
+func (c *Client) setCache(key string, data interface{}, ttlKey string) {
+	ttl := 5 * time.Minute // default
+	if t, ok := c.cacheTTL[ttlKey]; ok {
+		ttl = t
+	}
+	c.cache.Store(key, &CacheEntry{
+		Data:      data,
+		ExpiresAt: time.Now().Add(ttl),
+	})
+}
+
+// invalidateCache removes a specific key from the cache
+func (c *Client) invalidateCache(key string) {
+	c.cache.Delete(key)
+}
+
+// InvalidateCachePrefix removes all cache entries with keys starting with prefix
+func (c *Client) InvalidateCachePrefix(prefix string) {
+	c.cache.Range(func(key, value interface{}) bool {
+		if strings.HasPrefix(key.(string), prefix) {
+			c.cache.Delete(key)
+		}
+		return true
+	})
 }
 
 // apiRequest makes a request to the MediaWiki API with rate limiting
@@ -89,6 +160,8 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("User-Agent", c.config.UserAgent)
+		// Note: Don't set Accept-Encoding manually - Go's http.Transport handles
+		// compression automatically when DisableCompression is false
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -108,7 +181,30 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 			continue
 		}
 
+		// Handle different status codes appropriately
 		if resp.StatusCode != http.StatusOK {
+			// Don't retry client errors (4xx) except rate limiting (429)
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 429 {
+				return nil, fmt.Errorf("client error %d: %s", resp.StatusCode, string(body))
+			}
+
+			// Handle rate limiting with Retry-After header
+			if resp.StatusCode == 429 {
+				if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+					if seconds, parseErr := strconv.Atoi(retryAfter); parseErr == nil {
+						c.logger.Warn("Rate limited, waiting",
+							"retry_after", seconds,
+							"attempt", attempt+1)
+						select {
+						case <-time.After(time.Duration(seconds) * time.Second):
+						case <-ctx.Done():
+							return nil, fmt.Errorf("context cancelled during rate limit wait: %w", ctx.Err())
+						}
+						continue
+					}
+				}
+			}
+
 			lastErr = fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 			c.logger.Warn("API returned non-OK status",
 				"status", resp.StatusCode,
@@ -297,9 +393,10 @@ func normalizeCategoryName(name string) string {
 	return name
 }
 
-// HTML sanitization patterns for XSS prevention
+// HTML sanitization patterns for XSS prevention - optimized with combined regexes
+// Note: Go's regexp doesn't support backreferences, so we use separate patterns for each tag
 var (
-	// Remove dangerous tags entirely (including content)
+	// Patterns for dangerous tags with content (separate patterns since Go doesn't support backrefs)
 	scriptTagRegex  = regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
 	styleTagRegex   = regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
 	iframeTagRegex  = regexp.MustCompile(`(?is)<iframe[^>]*>.*?</iframe>`)
@@ -307,25 +404,24 @@ var (
 	embedTagRegex   = regexp.MustCompile(`(?is)<embed[^>]*>.*?</embed>`)
 	appletTagRegex  = regexp.MustCompile(`(?is)<applet[^>]*>.*?</applet>`)
 	formTagRegex    = regexp.MustCompile(`(?is)<form[^>]*>.*?</form>`)
-	metaTagRegex    = regexp.MustCompile(`(?is)<meta[^>]*>`)
-	linkTagRegex    = regexp.MustCompile(`(?is)<link[^>]*>`)
-	baseTagRegex    = regexp.MustCompile(`(?is)<base[^>]*>`)
+
+	// Combined pattern for self-closing dangerous tags (single pass for 3 tag types)
+	dangerousSelfClosingTagsRegex = regexp.MustCompile(`(?is)<(?:meta|link|base)[^>]*>`)
 
 	// Remove event handler attributes (onclick, onerror, onload, etc.)
-	eventHandlerRegex = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
+	eventHandlerRegex = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)`)
 
-	// Remove javascript: and data: URLs in href/src attributes
-	jsURLRegex   = regexp.MustCompile(`(?i)(href|src|action)\s*=\s*["']?\s*javascript:[^"'>\s]*["']?`)
-	dataURLRegex = regexp.MustCompile(`(?i)(href|src)\s*=\s*["']?\s*data:[^"'>\s]*["']?`)
+	// Combined pattern for dangerous URL schemes (javascript: and data:)
+	dangerousURLRegex = regexp.MustCompile(`(?i)(href|src|action)\s*=\s*["']?\s*(?:javascript|data):[^"'>\s]*["']?`)
 
 	// Remove style attributes that could contain expressions
-	styleAttrRegex = regexp.MustCompile(`(?i)\s+style\s*=\s*("[^"]*"|'[^']*')`)
+	styleAttrRegex = regexp.MustCompile(`(?i)\s+style\s*=\s*(?:"[^"]*"|'[^']*')`)
 )
 
 // sanitizeHTML removes potentially dangerous HTML elements and attributes
 // to prevent XSS attacks when HTML content is displayed by clients
 func sanitizeHTML(html string) string {
-	// Remove dangerous tags (with their content)
+	// Remove dangerous tags with content
 	html = scriptTagRegex.ReplaceAllString(html, "")
 	html = styleTagRegex.ReplaceAllString(html, "")
 	html = iframeTagRegex.ReplaceAllString(html, "")
@@ -333,16 +429,15 @@ func sanitizeHTML(html string) string {
 	html = embedTagRegex.ReplaceAllString(html, "")
 	html = appletTagRegex.ReplaceAllString(html, "")
 	html = formTagRegex.ReplaceAllString(html, "")
-	html = metaTagRegex.ReplaceAllString(html, "")
-	html = linkTagRegex.ReplaceAllString(html, "")
-	html = baseTagRegex.ReplaceAllString(html, "")
+
+	// Remove self-closing dangerous tags (meta, link, base)
+	html = dangerousSelfClosingTagsRegex.ReplaceAllString(html, "")
 
 	// Remove event handlers
 	html = eventHandlerRegex.ReplaceAllString(html, "")
 
-	// Remove dangerous URL schemes
-	html = jsURLRegex.ReplaceAllString(html, "$1=\"\"")
-	html = dataURLRegex.ReplaceAllString(html, "$1=\"\"")
+	// Remove dangerous URL schemes (javascript:, data:)
+	html = dangerousURLRegex.ReplaceAllString(html, "$1=\"\"")
 
 	// Remove style attributes (can contain CSS expressions)
 	html = styleAttrRegex.ReplaceAllString(html, "")

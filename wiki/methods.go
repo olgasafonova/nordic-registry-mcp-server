@@ -705,6 +705,12 @@ func (c *Client) Parse(ctx context.Context, args ParseArgs) (ParseResult, error)
 
 // GetWikiInfo gets information about the wiki
 func (c *Client) GetWikiInfo(ctx context.Context, args WikiInfoArgs) (WikiInfo, error) {
+	// Check cache first
+	cacheKey := "wiki_info"
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached.(WikiInfo), nil
+	}
+
 	// Ensure logged in for wikis requiring auth for read
 	if err := c.EnsureLoggedIn(ctx); err != nil {
 		return WikiInfo{}, err
@@ -748,6 +754,9 @@ func (c *Client) GetWikiInfo(ctx context.Context, args WikiInfoArgs) (WikiInfo, 
 			Admins:      getInt(stats, "admins"),
 		}
 	}
+
+	// Cache the result
+	c.setCache(cacheKey, info, "wiki_info")
 
 	return info, nil
 }
@@ -855,6 +864,7 @@ func (c *Client) GetExternalLinks(ctx context.Context, args GetExternalLinksArgs
 }
 
 // GetExternalLinksBatch retrieves external links from multiple wiki pages
+// Optimized to process pages in parallel using goroutines
 func (c *Client) GetExternalLinksBatch(ctx context.Context, args GetExternalLinksBatchArgs) (ExternalLinksBatchResult, error) {
 	if len(args.Titles) == 0 {
 		return ExternalLinksBatchResult{}, fmt.Errorf("at least one title is required")
@@ -866,31 +876,63 @@ func (c *Client) GetExternalLinksBatch(ctx context.Context, args GetExternalLink
 		args.Titles = args.Titles[:maxBatch]
 	}
 
-	result := ExternalLinksBatchResult{
-		Pages: make([]PageExternalLinks, 0, len(args.Titles)),
+	// Process pages in parallel
+	type pageResult struct {
+		index int
+		data  PageExternalLinks
 	}
 
-	// Process pages sequentially to respect rate limiting
-	for _, title := range args.Titles {
-		pageLinks, err := c.GetExternalLinks(ctx, GetExternalLinksArgs{Title: title})
-		if err != nil {
-			result.Pages = append(result.Pages, PageExternalLinks{
-				Title: title,
-				Links: make([]ExternalLink, 0), // Initialize as empty slice to avoid JSON null
-				Error: err.Error(),
-			})
-			continue
-		}
+	results := make(chan pageResult, len(args.Titles))
+	var wg sync.WaitGroup
 
-		result.Pages = append(result.Pages, PageExternalLinks{
-			Title: pageLinks.Title,
-			Links: pageLinks.Links,
-			Count: pageLinks.Count,
-		})
-		result.TotalLinks += pageLinks.Count
+	for i, title := range args.Titles {
+		wg.Add(1)
+		go func(idx int, t string) {
+			defer wg.Done()
+
+			pageLinks, err := c.GetExternalLinks(ctx, GetExternalLinksArgs{Title: t})
+			if err != nil {
+				results <- pageResult{
+					index: idx,
+					data: PageExternalLinks{
+						Title: t,
+						Links: make([]ExternalLink, 0),
+						Error: err.Error(),
+					},
+				}
+				return
+			}
+
+			results <- pageResult{
+				index: idx,
+				data: PageExternalLinks{
+					Title: pageLinks.Title,
+					Links: pageLinks.Links,
+					Count: pageLinks.Count,
+				},
+			}
+		}(i, title)
 	}
 
-	return result, nil
+	// Close results channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results maintaining order
+	pageResults := make([]PageExternalLinks, len(args.Titles))
+	totalLinks := 0
+
+	for pr := range results {
+		pageResults[pr.index] = pr.data
+		totalLinks += pr.data.Count
+	}
+
+	return ExternalLinksBatchResult{
+		Pages:      pageResults,
+		TotalLinks: totalLinks,
+	}, nil
 }
 
 // CheckLinks checks if URLs are accessible (broken link detection)
@@ -1330,6 +1372,7 @@ func (c *Client) CheckTranslations(ctx context.Context, args CheckTranslationsAr
 }
 
 // FindBrokenInternalLinks finds internal wiki links that point to non-existent pages
+// Optimized to use batch page existence checks instead of individual API calls
 func (c *Client) FindBrokenInternalLinks(ctx context.Context, args FindBrokenInternalLinksArgs) (FindBrokenInternalLinksResult, error) {
 	if err := c.EnsureLoggedIn(ctx); err != nil {
 		return FindBrokenInternalLinksResult{}, err
@@ -1366,24 +1409,30 @@ func (c *Client) FindBrokenInternalLinks(ctx context.Context, args FindBrokenInt
 	// Regex to match internal wiki links: [[Target]] or [[Target|Display]]
 	linkRegex := regexp.MustCompile(`\[\[([^\]|#]+)(?:[|#][^\]]*)?]]`)
 
-	for _, pageTitle := range pagesToCheck {
-		pageResult := PageBrokenLinksResult{
-			Title:       pageTitle,
-			BrokenLinks: make([]BrokenLink, 0),
-		}
+	// First pass: collect all unique link targets from all pages
+	type linkLocation struct {
+		pageTitle string
+		target    string
+		line      int
+		context   string
+	}
+	var allLinkLocations []linkLocation
+	allTargets := make(map[string]bool)
+	pageContents := make(map[string]string)
 
-		// Get page content
+	for _, pageTitle := range pagesToCheck {
 		page, err := c.GetPage(ctx, GetPageArgs{Title: pageTitle, Format: "wikitext"})
 		if err != nil {
-			pageResult.Error = err.Error()
-			result.Pages = append(result.Pages, pageResult)
+			result.Pages = append(result.Pages, PageBrokenLinksResult{
+				Title:       pageTitle,
+				BrokenLinks: make([]BrokenLink, 0),
+				Error:       err.Error(),
+			})
 			continue
 		}
+		pageContents[pageTitle] = page.Content
 
-		// Find all internal links
 		lines := strings.Split(page.Content, "\n")
-		checkedTargets := make(map[string]bool) // Avoid duplicate checks
-
 		for lineNum, line := range lines {
 			matches := linkRegex.FindAllStringSubmatch(line, -1)
 			for _, match := range matches {
@@ -1403,28 +1452,78 @@ func (c *Client) FindBrokenInternalLinks(ctx context.Context, args FindBrokenInt
 					continue
 				}
 
-				// Skip if already checked
-				if checkedTargets[target] {
-					continue
-				}
-				checkedTargets[target] = true
-
-				// Check if target page exists
-				info, err := c.GetPageInfo(ctx, PageInfoArgs{Title: target})
-				if err != nil || !info.Exists {
-					brokenLink := BrokenLink{
-						Target:  target,
-						Line:    lineNum + 1,
-						Context: extractContext(line, strings.Index(line, match[0]), strings.Index(line, match[0])+len(match[0]), 30),
-					}
-					pageResult.BrokenLinks = append(pageResult.BrokenLinks, brokenLink)
-				}
+				allTargets[target] = true
+				allLinkLocations = append(allLinkLocations, linkLocation{
+					pageTitle: pageTitle,
+					target:    target,
+					line:      lineNum + 1,
+					context:   extractContext(line, strings.Index(line, match[0]), strings.Index(line, match[0])+len(match[0]), 30),
+				})
 			}
 		}
+	}
 
-		pageResult.BrokenCount = len(pageResult.BrokenLinks)
-		result.BrokenCount += pageResult.BrokenCount
-		result.Pages = append(result.Pages, pageResult)
+	// Second pass: batch check all targets at once
+	targetList := make([]string, 0, len(allTargets))
+	for target := range allTargets {
+		targetList = append(targetList, target)
+	}
+
+	existenceMap, err := c.checkPagesExist(ctx, targetList)
+	if err != nil {
+		return FindBrokenInternalLinksResult{}, fmt.Errorf("failed to check page existence: %w", err)
+	}
+
+	// Third pass: build results using the existence map
+	pageResults := make(map[string]*PageBrokenLinksResult)
+	for _, pageTitle := range pagesToCheck {
+		if _, hasContent := pageContents[pageTitle]; hasContent {
+			pageResults[pageTitle] = &PageBrokenLinksResult{
+				Title:       pageTitle,
+				BrokenLinks: make([]BrokenLink, 0),
+			}
+		}
+	}
+
+	seenLinks := make(map[string]map[string]bool) // page -> target -> seen
+	for _, loc := range allLinkLocations {
+		if pageResults[loc.pageTitle] == nil {
+			continue
+		}
+
+		// Deduplicate links within the same page
+		if seenLinks[loc.pageTitle] == nil {
+			seenLinks[loc.pageTitle] = make(map[string]bool)
+		}
+		if seenLinks[loc.pageTitle][loc.target] {
+			continue
+		}
+		seenLinks[loc.pageTitle][loc.target] = true
+
+		// Check if the target exists
+		if exists, ok := existenceMap[loc.target]; !ok || !exists {
+			pageResults[loc.pageTitle].BrokenLinks = append(pageResults[loc.pageTitle].BrokenLinks, BrokenLink{
+				Target:  loc.target,
+				Line:    loc.line,
+				Context: loc.context,
+			})
+		}
+	}
+
+	// Finalize results
+	for _, pageTitle := range pagesToCheck {
+		if pr, ok := pageResults[pageTitle]; ok {
+			pr.BrokenCount = len(pr.BrokenLinks)
+			result.BrokenCount += pr.BrokenCount
+			result.Pages = append(result.Pages, *pr)
+		}
+	}
+
+	// Add pages that had errors (already added above)
+	for _, pr := range result.Pages {
+		if pr.Error != "" {
+			continue // Already counted
+		}
 	}
 
 	result.PagesChecked = len(result.Pages)
@@ -1805,6 +1904,85 @@ func (c *Client) GetUserContributions(ctx context.Context, args GetUserContribut
 	// Check for continuation
 	if _, ok := resp["continue"]; ok {
 		result.HasMore = true
+	}
+
+	return result, nil
+}
+
+// checkPagesExist checks if multiple pages exist using MediaWiki's multi-value API
+// Returns a map of page title -> exists (bool)
+// This is much more efficient than calling GetPageInfo for each page individually
+func (c *Client) checkPagesExist(ctx context.Context, titles []string) (map[string]bool, error) {
+	if len(titles) == 0 {
+		return make(map[string]bool), nil
+	}
+
+	result := make(map[string]bool, len(titles))
+
+	// MediaWiki API supports up to 50 titles per request
+	const maxTitlesPerRequest = 50
+
+	for i := 0; i < len(titles); i += maxTitlesPerRequest {
+		end := i + maxTitlesPerRequest
+		if end > len(titles) {
+			end = len(titles)
+		}
+		batch := titles[i:end]
+
+		// Join titles with pipe separator for MediaWiki API
+		params := url.Values{}
+		params.Set("action", "query")
+		params.Set("titles", strings.Join(batch, "|"))
+
+		resp, err := c.apiRequest(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+
+		query, ok := resp["query"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		pages, ok := query["pages"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Build a normalized title map (MediaWiki may normalize titles)
+		normalized := make(map[string]string)
+		if normList, ok := query["normalized"].([]interface{}); ok {
+			for _, n := range normList {
+				norm := n.(map[string]interface{})
+				from := getString(norm, "from")
+				to := getString(norm, "to")
+				normalized[to] = from
+			}
+		}
+
+		// Check each page in the response
+		for _, pageData := range pages {
+			page := pageData.(map[string]interface{})
+			title := getString(page, "title")
+
+			// Check if page exists (missing key indicates non-existence)
+			_, missing := page["missing"]
+			exists := !missing
+
+			result[title] = exists
+
+			// Also map the original (unnormalized) title if applicable
+			if originalTitle, ok := normalized[title]; ok {
+				result[originalTitle] = exists
+			}
+		}
+	}
+
+	// Set any titles we didn't get a response for as non-existent
+	for _, title := range titles {
+		if _, ok := result[title]; !ok {
+			result[title] = false
+		}
 	}
 
 	return result, nil
