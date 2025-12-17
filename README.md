@@ -17,6 +17,7 @@ Once connected, just ask your AI:
 | *"Who edited the Release Notes last week?"* | Shows revision history |
 | *"Are there broken links on the Docs page?"* | Checks all external URLs |
 | *"Strike out John Smith on the Team page"* | Applies formatting (requires auth) |
+| *"Convert this README to wiki format"* | Transforms Markdown → MediaWiki markup ✨ |
 
 ---
 
@@ -448,6 +449,16 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 
 > **Note:** PDF search requires `poppler-utils` installed. See [PDF Search Setup](#pdf-search-setup).
 
+### Convert Markdown ✨
+- *"Convert this README to wiki format"*
+- *"Transform my release notes from Markdown to MediaWiki"*
+- *"Convert with Tieto branding and CSS"* (use theme="tieto", add_css=true)
+
+**Themes:**
+- `tieto` - Tieto brand colors (Hero Blue headings, yellow code highlights)
+- `neutral` - Clean output without custom colors (default)
+- `dark` - Dark mode optimized
+
 ### Find Users
 - *"Who are the wiki admins?"*
 - *"List all bot accounts"*
@@ -747,6 +758,35 @@ server {
 
 </details>
 
+<details>
+<summary><strong>Markdown Conversion ✨</strong></summary>
+
+| Tool | Description |
+|------|-------------|
+| `mediawiki_convert_markdown` | Convert Markdown text to MediaWiki markup |
+
+**Themes:**
+- `tieto` - Tieto brand colors (Hero Blue #021e57 headings, yellow code highlights)
+- `neutral` - Clean output without custom colors (default)
+- `dark` - Dark mode optimized
+
+**Options:**
+- `add_css` - Include CSS styling block for branded appearance
+- `reverse_changelog` - Reorder changelog entries newest-first
+- `prettify_checks` - Replace plain checkmarks (✓) with emoji (✅)
+
+**Example:**
+```
+Input:  "# Hello\n**bold** and *italic*"
+Output: "= Hello =\n'''bold''' and ''italic''"
+```
+
+**Workflow for adding Markdown content to wiki:**
+1. Convert: `mediawiki_convert_markdown` → get wikitext
+2. Save: `mediawiki_edit_page` → publish to wiki
+
+</details>
+
 ---
 
 ## Public 360° Wiki (Tieto)
@@ -803,6 +843,10 @@ mediawiki-mcp-server/
 │   ├── client.go              # HTTP client
 │   ├── methods.go             # MediaWiki API operations
 │   └── types.go               # Request/response types
+├── converter/                 # Markdown to MediaWiki converter ✨
+│   ├── converter.go           # Conversion logic
+│   ├── converter_test.go      # Tests
+│   └── themes.go              # Theme definitions (tieto, neutral, dark)
 ├── wiki_editing_guidelines.go # AI guidance for editing
 └── README.md
 ```
