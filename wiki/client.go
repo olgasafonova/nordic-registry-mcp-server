@@ -52,6 +52,10 @@ type Client struct {
 	cacheTTL   map[string]time.Duration
 	cacheCount int64    // Atomic counter for cache size
 	cacheMu    sync.Mutex // Protects eviction operations
+
+	// Graceful shutdown
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 // MaxConcurrentRequests limits parallel API calls to prevent overwhelming the server
@@ -92,6 +96,7 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 		logger:    logger,
 		semaphore: sem,
 		cacheTTL:  cacheTTL,
+		stopCh:    make(chan struct{}),
 	}
 
 	// Start background cache cleanup routine
@@ -100,13 +105,27 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 	return client
 }
 
+// Close gracefully shuts down the client, stopping background goroutines
+func (c *Client) Close() {
+	c.stopOnce.Do(func() {
+		close(c.stopCh)
+		c.logger.Debug("Client shutdown initiated")
+	})
+}
+
 // cacheCleanupLoop periodically cleans up expired entries and enforces size limits
 func (c *Client) cacheCleanupLoop() {
 	ticker := time.NewTicker(CacheCleanupInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.cleanupCache()
+	for {
+		select {
+		case <-c.stopCh:
+			c.logger.Debug("Cache cleanup loop stopped")
+			return
+		case <-ticker.C:
+			c.cleanupCache()
+		}
 	}
 }
 
@@ -461,7 +480,10 @@ func (c *Client) login(ctx context.Context) error {
 		return fmt.Errorf("unexpected login response")
 	}
 
-	result := login["result"].(string)
+	result, ok := login["result"].(string)
+	if !ok {
+		return fmt.Errorf("login result not a string")
+	}
 	if result != "Success" {
 		reason := login["reason"]
 		// Check for BotPasswordSessionProvider in the reason
@@ -530,7 +552,10 @@ func (c *Client) loginFresh(ctx context.Context) error {
 		return fmt.Errorf("unexpected login response")
 	}
 
-	result := login["result"].(string)
+	result, ok := login["result"].(string)
+	if !ok {
+		return fmt.Errorf("login result not a string")
+	}
 	if result != "Success" {
 		reason := login["reason"]
 		if reason != nil {
@@ -571,9 +596,18 @@ func (c *Client) getCSRFToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get CSRF token: %w", err)
 	}
 
-	query := resp["query"].(map[string]interface{})
-	tokens := query["tokens"].(map[string]interface{})
-	csrfToken := tokens["csrftoken"].(string)
+	query, ok := resp["query"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected response format: missing query")
+	}
+	tokens, ok := query["tokens"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected response format: missing tokens")
+	}
+	csrfToken, ok := tokens["csrftoken"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected response format: missing csrftoken")
+	}
 
 	c.mu.Lock()
 	c.csrfToken = csrfToken
@@ -726,4 +760,88 @@ func sanitizeHTML(html string) string {
 	html = styleAttrRegex.ReplaceAllString(html, "")
 
 	return html
+}
+
+// =============================================================================
+// Safe Type Assertion Helpers for API Response Parsing
+// =============================================================================
+
+// getMap safely extracts a map from an interface, returning nil if not a map
+func getMap(v interface{}) map[string]interface{} {
+	if m, ok := v.(map[string]interface{}); ok {
+		return m
+	}
+	return nil
+}
+
+// getString safely extracts a string from an interface, returning empty string if not a string
+func getString(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// getFloat64 safely extracts a float64 from an interface, returning 0 if not a float64
+func getFloat64(v interface{}) float64 {
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	return 0
+}
+
+// getInt safely extracts an int from a float64 interface (JSON numbers are float64)
+func getInt(v interface{}) int {
+	if f, ok := v.(float64); ok {
+		return int(f)
+	}
+	return 0
+}
+
+// getBool safely extracts a bool from an interface, returning false if not a bool
+func getBool(v interface{}) bool {
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return false
+}
+
+// getSlice safely extracts a slice from an interface, returning nil if not a slice
+func getSlice(v interface{}) []interface{} {
+	if s, ok := v.([]interface{}); ok {
+		return s
+	}
+	return nil
+}
+
+// getNestedMap safely navigates nested maps using a path of keys
+// Returns nil if any key is missing or value is not a map
+func getNestedMap(data map[string]interface{}, keys ...string) map[string]interface{} {
+	current := data
+	for _, key := range keys {
+		if current == nil {
+			return nil
+		}
+		next, ok := current[key].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		current = next
+	}
+	return current
+}
+
+// getNestedString safely extracts a string from a nested path
+func getNestedString(data map[string]interface{}, keys ...string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	if len(keys) == 1 {
+		return getString(data[keys[0]])
+	}
+	nested := getNestedMap(data, keys[:len(keys)-1]...)
+	if nested == nil {
+		return ""
+	}
+	return getString(nested[keys[len(keys)-1]])
 }

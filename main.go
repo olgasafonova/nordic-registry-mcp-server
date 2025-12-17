@@ -48,6 +48,8 @@ type RateLimiter struct {
 	rate     int           // requests per interval
 	interval time.Duration // interval duration
 	cleanup  time.Duration // cleanup old entries
+	stopCh   chan struct{} // graceful shutdown signal
+	stopOnce sync.Once     // ensure single shutdown
 }
 
 type clientLimiter struct {
@@ -62,22 +64,37 @@ func NewRateLimiter(rate int, interval time.Duration) *RateLimiter {
 		rate:     rate,
 		interval: interval,
 		cleanup:  interval * 10,
+		stopCh:   make(chan struct{}),
 	}
 	go rl.cleanupLoop()
 	return rl
 }
 
+// Close gracefully shuts down the rate limiter cleanup loop
+func (rl *RateLimiter) Close() {
+	rl.stopOnce.Do(func() {
+		close(rl.stopCh)
+	})
+}
+
 func (rl *RateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(rl.cleanup)
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		for ip, client := range rl.clients {
-			if now.Sub(client.lastCheck) > rl.cleanup {
-				delete(rl.clients, ip)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-rl.stopCh:
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for ip, client := range rl.clients {
+				if now.Sub(client.lastCheck) > rl.cleanup {
+					delete(rl.clients, ip)
+				}
 			}
+			rl.mu.Unlock()
 		}
-		rl.mu.Unlock()
 	}
 }
 

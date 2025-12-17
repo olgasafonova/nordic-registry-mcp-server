@@ -140,20 +140,30 @@ func (c *Client) Search(ctx context.Context, args SearchArgs) (SearchResult, err
 		return SearchResult{}, err
 	}
 
-	query := resp["query"].(map[string]interface{})
-	searchInfo := query["searchinfo"].(map[string]interface{})
-	totalHits := int(searchInfo["totalhits"].(float64))
+	query := getMap(resp["query"])
+	if query == nil {
+		return SearchResult{}, fmt.Errorf("unexpected response format: missing query")
+	}
 
-	searchResults := query["search"].([]interface{})
+	searchInfo := getMap(query["searchinfo"])
+	var totalHits int
+	if searchInfo != nil {
+		totalHits = getInt(searchInfo["totalhits"])
+	}
+
+	searchResults := getSlice(query["search"])
 	results := make([]SearchHit, 0, len(searchResults))
 
 	for _, sr := range searchResults {
-		item := sr.(map[string]interface{})
+		item := getMap(sr)
+		if item == nil {
+			continue
+		}
 		hit := SearchHit{
-			PageID:  int(item["pageid"].(float64)),
-			Title:   item["title"].(string),
-			Snippet: stripHTMLTags(item["snippet"].(string)),
-			Size:    int(item["size"].(float64)),
+			PageID:  getInt(item["pageid"]),
+			Title:   getString(item["title"]),
+			Snippet: stripHTMLTags(getString(item["snippet"])),
+			Size:    getInt(item["size"]),
 		}
 		results = append(results, hit)
 	}
@@ -430,15 +440,21 @@ func (c *Client) ListPages(ctx context.Context, args ListPagesArgs) (ListPagesRe
 		return ListPagesResult{}, err
 	}
 
-	query := resp["query"].(map[string]interface{})
-	allpages := query["allpages"].([]interface{})
+	query := getMap(resp["query"])
+	if query == nil {
+		return ListPagesResult{}, fmt.Errorf("unexpected response format: missing query")
+	}
 
+	allpages := getSlice(query["allpages"])
 	pages := make([]PageSummary, 0, len(allpages))
 	for _, p := range allpages {
-		page := p.(map[string]interface{})
+		page := getMap(p)
+		if page == nil {
+			continue
+		}
 		pages = append(pages, PageSummary{
-			PageID: int(page["pageid"].(float64)),
-			Title:  page["title"].(string),
+			PageID: getInt(page["pageid"]),
+			Title:  getString(page["title"]),
 		})
 	}
 
@@ -448,8 +464,8 @@ func (c *Client) ListPages(ctx context.Context, args ListPagesArgs) (ListPagesRe
 	}
 
 	// Check for continuation
-	if cont, ok := resp["continue"].(map[string]interface{}); ok {
-		if apcontinue, ok := cont["apcontinue"].(string); ok {
+	if cont := getMap(resp["continue"]); cont != nil {
+		if apcontinue := getString(cont["apcontinue"]); apcontinue != "" {
 			result.HasMore = true
 			result.ContinueFrom = apcontinue
 		}
@@ -486,19 +502,21 @@ func (c *Client) ListCategories(ctx context.Context, args ListCategoriesArgs) (L
 		return ListCategoriesResult{}, err
 	}
 
-	query := resp["query"].(map[string]interface{})
-	allcats := query["allcategories"].([]interface{})
+	query := getMap(resp["query"])
+	if query == nil {
+		return ListCategoriesResult{}, fmt.Errorf("unexpected response format: missing query")
+	}
 
+	allcats := getSlice(query["allcategories"])
 	categories := make([]CategoryInfo, 0, len(allcats))
 	for _, cat := range allcats {
-		c := cat.(map[string]interface{})
-		members := 0
-		if size, ok := c["size"].(float64); ok {
-			members = int(size)
+		catMap := getMap(cat)
+		if catMap == nil {
+			continue
 		}
 		categories = append(categories, CategoryInfo{
-			Title:   c["*"].(string),
-			Members: members,
+			Title:   getString(catMap["*"]),
+			Members: getInt(catMap["size"]),
 		})
 	}
 
@@ -507,8 +525,8 @@ func (c *Client) ListCategories(ctx context.Context, args ListCategoriesArgs) (L
 	}
 
 	// Check for continuation
-	if cont, ok := resp["continue"].(map[string]interface{}); ok {
-		if accontinue, ok := cont["accontinue"].(string); ok {
+	if cont := getMap(resp["continue"]); cont != nil {
+		if accontinue := getString(cont["accontinue"]); accontinue != "" {
 			result.HasMore = true
 			result.ContinueFrom = accontinue
 		}
@@ -550,15 +568,21 @@ func (c *Client) GetCategoryMembers(ctx context.Context, args CategoryMembersArg
 		return CategoryMembersResult{}, err
 	}
 
-	query := resp["query"].(map[string]interface{})
-	members := query["categorymembers"].([]interface{})
+	query := getMap(resp["query"])
+	if query == nil {
+		return CategoryMembersResult{}, fmt.Errorf("unexpected response format: missing query")
+	}
 
+	members := getSlice(query["categorymembers"])
 	pages := make([]PageSummary, 0, len(members))
 	for _, m := range members {
-		member := m.(map[string]interface{})
+		member := getMap(m)
+		if member == nil {
+			continue
+		}
 		pages = append(pages, PageSummary{
-			PageID: int(member["pageid"].(float64)),
-			Title:  member["title"].(string),
+			PageID: getInt(member["pageid"]),
+			Title:  getString(member["title"]),
 		})
 	}
 
@@ -568,8 +592,8 @@ func (c *Client) GetCategoryMembers(ctx context.Context, args CategoryMembersArg
 	}
 
 	// Check for continuation
-	if cont, ok := resp["continue"].(map[string]interface{}); ok {
-		if cmcontinue, ok := cont["cmcontinue"].(string); ok {
+	if cont := getMap(resp["continue"]); cont != nil {
+		if cmcontinue := getString(cont["cmcontinue"]); cmcontinue != "" {
 			result.HasMore = true
 			result.ContinueFrom = cmcontinue
 		}
@@ -630,10 +654,10 @@ func (c *Client) GetPageInfo(ctx context.Context, args PageInfoArgs) (PageInfo, 
 			Title:        page["title"].(string),
 			PageID:       int(page["pageid"].(float64)),
 			Namespace:    int(page["ns"].(float64)),
-			ContentModel: getString(page, "contentmodel"),
-			PageLanguage: getString(page, "pagelanguage"),
+			ContentModel: getString(page["contentmodel"]),
+			PageLanguage: getString(page["pagelanguage"]),
 			Length:       int(page["length"].(float64)),
-			Touched:      getString(page, "touched"),
+			Touched:      getString(page["touched"]),
 			LastRevision: int(page["lastrevid"].(float64)),
 			Exists:       true,
 		}
@@ -743,7 +767,7 @@ If you want to clear a page, use a single space or redirect instead.`,
 	}
 
 	edit := resp["edit"].(map[string]interface{})
-	result := getString(edit, "result")
+	result := getString(edit["result"])
 
 	if result != "Success" {
 		return EditResult{
@@ -755,7 +779,7 @@ If you want to clear a page, use a single space or redirect instead.`,
 
 	editResult := EditResult{
 		Success:    true,
-		Title:      getString(edit, "title"),
+		Title:      getString(edit["title"]),
 		PageID:     int(edit["pageid"].(float64)),
 		RevisionID: int(edit["newrevid"].(float64)),
 		NewPage:    edit["new"] != nil,
@@ -819,14 +843,14 @@ func (c *Client) GetRecentChanges(ctx context.Context, args RecentChangesArgs) (
 		ts, _ := time.Parse(time.RFC3339, change["timestamp"].(string))
 
 		changes = append(changes, RecentChange{
-			Type:       getString(change, "type"),
-			Title:      getString(change, "title"),
-			PageID:     getInt(change, "pageid"),
-			RevisionID: getInt(change, "revid"),
-			User:       getString(change, "user"),
+			Type:       getString(change["type"]),
+			Title:      getString(change["title"]),
+			PageID:     getInt(change["pageid"]),
+			RevisionID: getInt(change["revid"]),
+			User:       getString(change["user"]),
 			Timestamp:  ts,
-			Comment:    getString(change, "comment"),
-			SizeDiff:   getInt(change, "newlen") - getInt(change, "oldlen"),
+			Comment:    getString(change["comment"]),
+			SizeDiff:   getInt(change["newlen"]) - getInt(change["oldlen"]),
 			New:        change["new"] != nil,
 			Minor:      change["minor"] != nil,
 			Bot:        change["bot"] != nil,
@@ -950,28 +974,28 @@ func (c *Client) GetWikiInfo(ctx context.Context, args WikiInfoArgs) (WikiInfo, 
 	general := query["general"].(map[string]interface{})
 
 	info := WikiInfo{
-		SiteName:    getString(general, "sitename"),
-		MainPage:    getString(general, "mainpage"),
-		Base:        getString(general, "base"),
-		Generator:   getString(general, "generator"),
-		PHPVersion:  getString(general, "phpversion"),
-		Language:    getString(general, "lang"),
-		ArticlePath: getString(general, "articlepath"),
-		Server:      getString(general, "server"),
-		Timezone:    getString(general, "timezone"),
+		SiteName:    getString(general["sitename"]),
+		MainPage:    getString(general["mainpage"]),
+		Base:        getString(general["base"]),
+		Generator:   getString(general["generator"]),
+		PHPVersion:  getString(general["phpversion"]),
+		Language:    getString(general["lang"]),
+		ArticlePath: getString(general["articlepath"]),
+		Server:      getString(general["server"]),
+		Timezone:    getString(general["timezone"]),
 		WriteAPI:    general["writeapi"] != nil,
 	}
 
 	// Statistics
 	if stats, ok := query["statistics"].(map[string]interface{}); ok {
 		info.Statistics = &WikiStats{
-			Pages:       getInt(stats, "pages"),
-			Articles:    getInt(stats, "articles"),
-			Edits:       getInt(stats, "edits"),
-			Images:      getInt(stats, "images"),
-			Users:       getInt(stats, "users"),
-			ActiveUsers: getInt(stats, "activeusers"),
-			Admins:      getInt(stats, "admins"),
+			Pages:       getInt(stats["pages"]),
+			Articles:    getInt(stats["articles"]),
+			Edits:       getInt(stats["edits"]),
+			Images:      getInt(stats["images"]),
+			Users:       getInt(stats["users"]),
+			ActiveUsers: getInt(stats["activeusers"]),
+			Admins:      getInt(stats["admins"]),
 		}
 	}
 
@@ -979,22 +1003,6 @@ func (c *Client) GetWikiInfo(ctx context.Context, args WikiInfoArgs) (WikiInfo, 
 	c.setCache(cacheKey, info, "wiki_info")
 
 	return info, nil
-}
-
-// Helper functions
-
-func getString(m map[string]interface{}, key string) string {
-	if v, ok := m[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func getInt(m map[string]interface{}, key string) int {
-	if v, ok := m[key].(float64); ok {
-		return int(v)
-	}
-	return 0
 }
 
 var htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
@@ -1057,9 +1065,9 @@ func (c *Client) GetExternalLinks(ctx context.Context, args GetExternalLinksArgs
 		if extlinks, ok := page["extlinks"].([]interface{}); ok {
 			for _, el := range extlinks {
 				link := el.(map[string]interface{})
-				linkURL := getString(link, "*")
+				linkURL := getString(link["*"])
 				if linkURL == "" {
-					linkURL = getString(link, "url")
+					linkURL = getString(link["url"])
 				}
 				if linkURL != "" {
 					protocol := ""
@@ -1847,12 +1855,12 @@ func (c *Client) FindOrphanedPages(ctx context.Context, args FindOrphanedPagesAr
 		page := r.(map[string]interface{})
 
 		// Filter by namespace if specified
-		ns := getInt(page, "ns")
+		ns := getInt(page["ns"])
 		if args.Namespace >= 0 && ns != args.Namespace {
 			continue
 		}
 
-		title := getString(page, "title")
+		title := getString(page["title"])
 
 		// Filter by prefix if specified
 		if args.Prefix != "" && !strings.HasPrefix(title, args.Prefix) {
@@ -1861,7 +1869,7 @@ func (c *Client) FindOrphanedPages(ctx context.Context, args FindOrphanedPagesAr
 
 		orphaned = append(orphaned, OrphanedPage{
 			Title:  title,
-			PageID: getInt(page, "value"),
+			PageID: getInt(page["value"]),
 		})
 	}
 
@@ -1921,9 +1929,9 @@ func (c *Client) GetBacklinks(ctx context.Context, args GetBacklinksArgs) (GetBa
 	for _, bl := range backlinks {
 		link := bl.(map[string]interface{})
 		info := BacklinkInfo{
-			PageID:    getInt(link, "pageid"),
-			Title:     getString(link, "title"),
-			Namespace: getInt(link, "ns"),
+			PageID:    getInt(link["pageid"]),
+			Title:     getString(link["title"]),
+			Namespace: getInt(link["ns"]),
 		}
 		if _, isRedirect := link["redirect"]; isRedirect {
 			info.IsRedirect = true
@@ -1998,7 +2006,7 @@ func (c *Client) GetRevisions(ctx context.Context, args GetRevisionsArgs) (GetRe
 
 		page := pageData.(map[string]interface{})
 		result.PageID = pageID
-		result.Title = getString(page, "title")
+		result.Title = getString(page["title"])
 
 		revisions, ok := page["revisions"].([]interface{})
 		if !ok {
@@ -2009,12 +2017,12 @@ func (c *Client) GetRevisions(ctx context.Context, args GetRevisionsArgs) (GetRe
 		for i, rev := range revisions {
 			r := rev.(map[string]interface{})
 			info := RevisionInfo{
-				RevID:     getInt(r, "revid"),
-				ParentID:  getInt(r, "parentid"),
-				User:      getString(r, "user"),
-				Timestamp: getString(r, "timestamp"),
-				Size:      getInt(r, "size"),
-				Comment:   getString(r, "comment"),
+				RevID:     getInt(r["revid"]),
+				ParentID:  getInt(r["parentid"]),
+				User:      getString(r["user"]),
+				Timestamp: getString(r["timestamp"]),
+				Size:      getInt(r["size"]),
+				Comment:   getString(r["comment"]),
 			}
 
 			if _, isMinor := r["minor"]; isMinor {
@@ -2084,15 +2092,15 @@ func (c *Client) CompareRevisions(ctx context.Context, args CompareRevisionsArgs
 	}
 
 	result := CompareRevisionsResult{
-		FromTitle:     getString(compare, "fromtitle"),
-		FromRevID:     getInt(compare, "fromrevid"),
-		ToTitle:       getString(compare, "totitle"),
-		ToRevID:       getInt(compare, "torevid"),
-		Diff:          getString(compare, "*"),
-		FromUser:      getString(compare, "fromuser"),
-		ToUser:        getString(compare, "touser"),
-		FromTimestamp: getString(compare, "fromtimestamp"),
-		ToTimestamp:   getString(compare, "totimestamp"),
+		FromTitle:     getString(compare["fromtitle"]),
+		FromRevID:     getInt(compare["fromrevid"]),
+		ToTitle:       getString(compare["totitle"]),
+		ToRevID:       getInt(compare["torevid"]),
+		Diff:          getString(compare["*"]),
+		FromUser:      getString(compare["fromuser"]),
+		ToUser:        getString(compare["touser"]),
+		FromTimestamp: getString(compare["fromtimestamp"]),
+		ToTimestamp:   getString(compare["totimestamp"]),
 	}
 
 	// Clean up the diff HTML for readability
@@ -2155,15 +2163,15 @@ func (c *Client) GetUserContributions(ctx context.Context, args GetUserContribut
 	for _, c := range contribs {
 		contrib := c.(map[string]interface{})
 		uc := UserContribution{
-			PageID:    getInt(contrib, "pageid"),
-			Title:     getString(contrib, "title"),
-			Namespace: getInt(contrib, "ns"),
-			RevID:     getInt(contrib, "revid"),
-			ParentID:  getInt(contrib, "parentid"),
-			Timestamp: getString(contrib, "timestamp"),
-			Comment:   getString(contrib, "comment"),
-			Size:      getInt(contrib, "size"),
-			SizeDiff:  getInt(contrib, "sizediff"),
+			PageID:    getInt(contrib["pageid"]),
+			Title:     getString(contrib["title"]),
+			Namespace: getInt(contrib["ns"]),
+			RevID:     getInt(contrib["revid"]),
+			ParentID:  getInt(contrib["parentid"]),
+			Timestamp: getString(contrib["timestamp"]),
+			Comment:   getString(contrib["comment"]),
+			Size:      getInt(contrib["size"]),
+			SizeDiff:  getInt(contrib["sizediff"]),
 		}
 
 		if _, isMinor := contrib["minor"]; isMinor {
@@ -2723,8 +2731,8 @@ func (c *Client) checkPagesExist(ctx context.Context, titles []string) (map[stri
 		if normList, ok := query["normalized"].([]interface{}); ok {
 			for _, n := range normList {
 				norm := n.(map[string]interface{})
-				from := getString(norm, "from")
-				to := getString(norm, "to")
+				from := getString(norm["from"])
+				to := getString(norm["to"])
 				normalized[to] = from
 			}
 		}
@@ -2732,7 +2740,7 @@ func (c *Client) checkPagesExist(ctx context.Context, titles []string) (map[stri
 		// Check each page in the response
 		for _, pageData := range pages {
 			page := pageData.(map[string]interface{})
-			title := getString(page, "title")
+			title := getString(page["title"])
 
 			// Check if page exists (missing key indicates non-existence)
 			_, missing := page["missing"]
@@ -2804,10 +2812,10 @@ func (c *Client) ListUsers(ctx context.Context, args ListUsersArgs) (ListUsersRe
 		user := u.(map[string]interface{})
 
 		userInfo := UserInfo{
-			UserID:       getInt(user, "userid"),
-			Name:         getString(user, "name"),
-			EditCount:    getInt(user, "editcount"),
-			Registration: getString(user, "registration"),
+			UserID:       getInt(user["userid"]),
+			Name:         getString(user["name"]),
+			EditCount:    getInt(user["editcount"]),
+			Registration: getString(user["registration"]),
 		}
 
 		// Extract groups
@@ -3273,18 +3281,18 @@ func (c *Client) getImageInfo(ctx context.Context, titles []string) ([]ImageInfo
 
 		for _, p := range pages {
 			page := p.(map[string]interface{})
-			title := getString(page, "title")
+			title := getString(page["title"])
 
 			imgInfo := ImageInfo{Title: title}
 
 			if imageinfo, ok := page["imageinfo"].([]interface{}); ok && len(imageinfo) > 0 {
 				info := imageinfo[0].(map[string]interface{})
-				imgInfo.URL = getString(info, "url")
-				imgInfo.ThumbURL = getString(info, "thumburl")
-				imgInfo.Width = getInt(info, "width")
-				imgInfo.Height = getInt(info, "height")
-				imgInfo.Size = getInt(info, "size")
-				imgInfo.MimeType = getString(info, "mime")
+				imgInfo.URL = getString(info["url"])
+				imgInfo.ThumbURL = getString(info["thumburl"])
+				imgInfo.Width = getInt(info["width"])
+				imgInfo.Height = getInt(info["height"])
+				imgInfo.Size = getInt(info["size"])
+				imgInfo.MimeType = getString(info["mime"])
 			}
 
 			allImages = append(allImages, imgInfo)
@@ -3455,14 +3463,14 @@ func (c *Client) parseUploadResponse(resp map[string]interface{}, filename strin
 		Filename: filename,
 	}
 
-	status := getString(upload, "result")
+	status := getString(upload["result"])
 	switch status {
 	case "Success":
 		result.Success = true
 		result.Message = "File uploaded successfully"
 		if imageinfo, ok := upload["imageinfo"].(map[string]interface{}); ok {
-			result.URL = getString(imageinfo, "url")
-			result.Size = getInt(imageinfo, "size")
+			result.URL = getString(imageinfo["url"])
+			result.Size = getInt(imageinfo["size"])
 		}
 	case "Warning":
 		result.Success = false
@@ -3594,8 +3602,8 @@ func (c *Client) getFileURL(ctx context.Context, filename string) (string, strin
 		}
 
 		info := imageinfo[0].(map[string]interface{})
-		fileURL := getString(info, "url")
-		mimeType := getString(info, "mime")
+		fileURL := getString(info["url"])
+		mimeType := getString(info["mime"])
 
 		if fileURL == "" {
 			return "", "", fmt.Errorf("no download URL for '%s'", filename)
