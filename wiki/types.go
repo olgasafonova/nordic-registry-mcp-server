@@ -789,3 +789,60 @@ type FileSearchMatch struct {
 	Line    int    `json:"line,omitempty"`
 	Context string `json:"context"`
 }
+
+// ========== Find Similar Pages Types ==========
+
+type FindSimilarPagesArgs struct {
+	Page     string  `json:"page" jsonschema:"required" jsonschema_description:"Page title to find similar pages for"`
+	Limit    int     `json:"limit,omitempty" jsonschema_description:"Maximum similar pages to return (default 10, max 50)"`
+	Category string  `json:"category,omitempty" jsonschema_description:"Limit search to pages in this category"`
+	MinScore float64 `json:"min_score,omitempty" jsonschema_description:"Minimum similarity score 0-1 (default 0.1)"`
+}
+
+type FindSimilarPagesResult struct {
+	SourcePage    string        `json:"source_page"`
+	SimilarPages  []SimilarPage `json:"similar_pages"`
+	TotalCompared int           `json:"total_compared"`
+	Message       string        `json:"message,omitempty"`
+}
+
+type SimilarPage struct {
+	Title           string   `json:"title"`
+	SimilarityScore float64  `json:"similarity_score"`
+	CommonTerms     []string `json:"common_terms"`
+	IsLinked        bool     `json:"is_linked"`
+	LinksBack       bool     `json:"links_back"`
+	Recommendation  string   `json:"recommendation"`
+}
+
+// ========== Compare Topic Types ==========
+
+type CompareTopicArgs struct {
+	Topic    string `json:"topic" jsonschema:"required" jsonschema_description:"Topic or term to compare across pages"`
+	Category string `json:"category,omitempty" jsonschema_description:"Limit search to pages in this category"`
+	Limit    int    `json:"limit,omitempty" jsonschema_description:"Maximum pages to compare (default 20, max 50)"`
+}
+
+type CompareTopicResult struct {
+	Topic           string          `json:"topic"`
+	PagesFound      int             `json:"pages_found"`
+	PageMentions    []TopicMention  `json:"page_mentions"`
+	Inconsistencies []Inconsistency `json:"inconsistencies,omitempty"`
+	Summary         string          `json:"summary"`
+}
+
+type TopicMention struct {
+	PageTitle  string   `json:"page_title"`
+	Mentions   int      `json:"mentions"`
+	Contexts   []string `json:"contexts"`
+	LastEdited string   `json:"last_edited"`
+}
+
+type Inconsistency struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	PageA       string `json:"page_a"`
+	PageB       string `json:"page_b"`
+	ValueA      string `json:"value_a"`
+	ValueB      string `json:"value_b"`
+}

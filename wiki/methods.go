@@ -3577,3 +3577,342 @@ func aggregateChanges(changes []RecentChange, by string) *AggregatedChanges {
 		Items:        items,
 	}
 }
+
+// FindSimilarPages finds pages similar to the given page based on content similarity
+func (c *Client) FindSimilarPages(ctx context.Context, args FindSimilarPagesArgs) (FindSimilarPagesResult, error) {
+	if args.Page == "" {
+		return FindSimilarPagesResult{}, fmt.Errorf("page is required")
+	}
+
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return FindSimilarPagesResult{}, err
+	}
+
+	limit := normalizeLimit(args.Limit, 10, 50)
+	minScore := args.MinScore
+	if minScore <= 0 {
+		minScore = 0.1
+	}
+
+	normalizedTitle := normalizePageTitle(args.Page)
+
+	// 1. Get source page content
+	sourceContent, err := c.GetPage(ctx, GetPageArgs{Title: normalizedTitle})
+	if err != nil {
+		return FindSimilarPagesResult{}, fmt.Errorf("failed to get source page: %w", err)
+	}
+
+	// 2. Extract key terms from source
+	sourceTerms := extractKeyTerms(sourceContent.Content)
+	if len(sourceTerms) == 0 {
+		return FindSimilarPagesResult{
+			SourcePage: normalizedTitle,
+			Message:    "Source page has no significant terms for comparison",
+		}, nil
+	}
+
+	// 3. Get top terms for search query
+	topTerms := extractTopTerms(sourceContent.Content, 5)
+	searchQuery := strings.Join(topTerms, " ")
+
+	// 4. Get candidate pages
+	var candidatePages []string
+	if args.Category != "" {
+		// Search within category
+		catResult, err := c.GetCategoryMembers(ctx, CategoryMembersArgs{
+			Category: args.Category,
+			Limit:    100,
+		})
+		if err == nil {
+			for _, member := range catResult.Members {
+				if member.Title != normalizedTitle {
+					candidatePages = append(candidatePages, member.Title)
+				}
+			}
+		}
+	} else {
+		// Search wiki for similar pages
+		searchResult, err := c.Search(ctx, SearchArgs{
+			Query: searchQuery,
+			Limit: 50,
+		})
+		if err == nil {
+			for _, hit := range searchResult.Results {
+				if hit.Title != normalizedTitle {
+					candidatePages = append(candidatePages, hit.Title)
+				}
+			}
+		}
+	}
+
+	if len(candidatePages) == 0 {
+		return FindSimilarPagesResult{
+			SourcePage: normalizedTitle,
+			Message:    "No candidate pages found for comparison",
+		}, nil
+	}
+
+	// 5. Get source page links (for link status checking)
+	sourceLinks := make(map[string]bool)
+	linksInfo, err := c.getPageLinks(ctx, normalizedTitle, 500)
+	if err == nil {
+		for _, link := range linksInfo {
+			sourceLinks[link.Title] = true
+		}
+	}
+
+	// 6. Compare each candidate
+	type scoredPage struct {
+		title     string
+		score     float64
+		terms     []string
+		isLinked  bool
+		linksBack bool
+	}
+
+	scored := make([]scoredPage, 0)
+
+	for _, candidateTitle := range candidatePages {
+		// Get candidate content
+		candContent, err := c.GetPage(ctx, GetPageArgs{Title: candidateTitle})
+		if err != nil {
+			continue
+		}
+
+		// Extract terms and calculate similarity
+		candTerms := extractKeyTerms(candContent.Content)
+		similarity := calculateJaccardSimilarity(sourceTerms, candTerms)
+
+		if similarity >= minScore {
+			commonTerms := findCommonTerms(sourceTerms, candTerms, 10)
+
+			// Check if source links to candidate
+			isLinked := sourceLinks[candidateTitle]
+
+			// Check if candidate links back
+			linksBack := false
+			candLinks, err := c.getPageLinks(ctx, candidateTitle, 500)
+			if err == nil {
+				for _, link := range candLinks {
+					if link.Title == normalizedTitle {
+						linksBack = true
+						break
+					}
+				}
+			}
+
+			scored = append(scored, scoredPage{
+				title:     candidateTitle,
+				score:     similarity,
+				terms:     commonTerms,
+				isLinked:  isLinked,
+				linksBack: linksBack,
+			})
+		}
+	}
+
+	// 7. Sort by score descending
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].score > scored[j].score
+	})
+
+	// 8. Build result
+	similarPages := make([]SimilarPage, 0, limit)
+	for i, sp := range scored {
+		if i >= limit {
+			break
+		}
+
+		// Generate recommendation
+		var recommendation string
+		if sp.score > 0.6 && !sp.isLinked && !sp.linksBack {
+			recommendation = "Possible duplicate - high similarity but no links between pages"
+		} else if !sp.isLinked && !sp.linksBack {
+			recommendation = "Consider cross-linking - related content but no links"
+		} else if sp.isLinked && !sp.linksBack {
+			recommendation = fmt.Sprintf("Add backlink from '%s' to '%s'", sp.title, normalizedTitle)
+		} else if !sp.isLinked && sp.linksBack {
+			recommendation = fmt.Sprintf("Add link from '%s' to '%s'", normalizedTitle, sp.title)
+		} else {
+			recommendation = "Already cross-linked"
+		}
+
+		similarPages = append(similarPages, SimilarPage{
+			Title:           sp.title,
+			SimilarityScore: sp.score,
+			CommonTerms:     sp.terms,
+			IsLinked:        sp.isLinked,
+			LinksBack:       sp.linksBack,
+			Recommendation:  recommendation,
+		})
+	}
+
+	return FindSimilarPagesResult{
+		SourcePage:    normalizedTitle,
+		SimilarPages:  similarPages,
+		TotalCompared: len(candidatePages),
+	}, nil
+}
+
+// CompareTopic compares how a topic is described across multiple pages
+func (c *Client) CompareTopic(ctx context.Context, args CompareTopicArgs) (CompareTopicResult, error) {
+	if args.Topic == "" {
+		return CompareTopicResult{}, fmt.Errorf("topic is required")
+	}
+
+	if err := c.EnsureLoggedIn(ctx); err != nil {
+		return CompareTopicResult{}, err
+	}
+
+	limit := normalizeLimit(args.Limit, 20, 50)
+
+	// 1. Find pages mentioning the topic
+	var pageTitles []string
+	if args.Category != "" {
+		// Search within category
+		catResult, err := c.GetCategoryMembers(ctx, CategoryMembersArgs{
+			Category: args.Category,
+			Limit:    100,
+		})
+		if err == nil {
+			for _, member := range catResult.Members {
+				pageTitles = append(pageTitles, member.Title)
+			}
+		}
+	} else {
+		// Search wiki
+		searchResult, err := c.Search(ctx, SearchArgs{
+			Query: args.Topic,
+			Limit: limit * 2, // Get extra in case some don't have the term
+		})
+		if err != nil {
+			return CompareTopicResult{}, fmt.Errorf("search failed: %w", err)
+		}
+		for _, hit := range searchResult.Results {
+			pageTitles = append(pageTitles, hit.Title)
+		}
+	}
+
+	if len(pageTitles) == 0 {
+		return CompareTopicResult{
+			Topic:   args.Topic,
+			Summary: fmt.Sprintf("No pages found mentioning '%s'", args.Topic),
+		}, nil
+	}
+
+	// 2. Analyze each page
+	mentions := make([]TopicMention, 0)
+	allValues := make(map[string][]struct {
+		page  string
+		value string
+	})
+
+	for _, title := range pageTitles {
+		if len(mentions) >= limit {
+			break
+		}
+
+		// Get page content
+		pageContent, err := c.GetPage(ctx, GetPageArgs{Title: title})
+		if err != nil {
+			continue
+		}
+
+		// Check if topic actually appears in content
+		topicLower := strings.ToLower(args.Topic)
+		contentLower := strings.ToLower(pageContent.Content)
+		if !strings.Contains(contentLower, topicLower) {
+			continue
+		}
+
+		// Count mentions
+		mentionCount := strings.Count(contentLower, topicLower)
+
+		// Extract contexts
+		contexts := extractContextsForTerm(pageContent.Content, args.Topic, 3)
+
+		// Get page info for last edited
+		pageInfo, _ := c.GetPageInfo(ctx, PageInfoArgs{Title: title})
+
+		mentions = append(mentions, TopicMention{
+			PageTitle:  title,
+			Mentions:   mentionCount,
+			Contexts:   contexts,
+			LastEdited: pageInfo.Touched,
+		})
+
+		// Extract values for inconsistency detection
+		values := extractValues(pageContent.Content)
+		for _, v := range values {
+			// Only track values that appear near the topic
+			for _, ctxStr := range contexts {
+				if strings.Contains(strings.ToLower(ctxStr), strings.ToLower(v.Context)) ||
+					strings.Contains(strings.ToLower(v.Context), topicLower) {
+					allValues[v.Type] = append(allValues[v.Type], struct {
+						page  string
+						value string
+					}{title, v.Value})
+					break
+				}
+			}
+		}
+	}
+
+	// 3. Detect inconsistencies
+	inconsistencies := make([]Inconsistency, 0)
+	for valueType, pageValues := range allValues {
+		if len(pageValues) < 2 {
+			continue
+		}
+
+		// Compare values between pages
+		for i := 0; i < len(pageValues)-1; i++ {
+			for j := i + 1; j < len(pageValues); j++ {
+				// Skip same page comparisons
+				if pageValues[i].page == pageValues[j].page {
+					continue
+				}
+
+				// Normalize values for comparison
+				v1 := normalizeValue(pageValues[i].value)
+				v2 := normalizeValue(pageValues[j].value)
+
+				if v1 != v2 && v1 != "" && v2 != "" {
+					inconsistencies = append(inconsistencies, Inconsistency{
+						Type:        valueType,
+						Description: fmt.Sprintf("%s values differ", valueType),
+						PageA:       pageValues[i].page,
+						PageB:       pageValues[j].page,
+						ValueA:      pageValues[i].value,
+						ValueB:      pageValues[j].value,
+					})
+				}
+			}
+		}
+	}
+
+	// 4. Generate summary
+	summary := fmt.Sprintf("Found %d pages mentioning '%s'", len(mentions), args.Topic)
+	if len(inconsistencies) > 0 {
+		summary += fmt.Sprintf(". Detected %d potential inconsistencies", len(inconsistencies))
+	}
+
+	return CompareTopicResult{
+		Topic:           args.Topic,
+		PagesFound:      len(mentions),
+		PageMentions:    mentions,
+		Inconsistencies: inconsistencies,
+		Summary:         summary,
+	}, nil
+}
+
+// normalizeValue extracts the core numeric value for comparison
+func normalizeValue(value string) string {
+	// Extract just numbers for comparison
+	re := regexp.MustCompile(`\d+(?:\.\d+)?`)
+	matches := re.FindAllString(value, -1)
+	if len(matches) > 0 {
+		return matches[0]
+	}
+	return strings.TrimSpace(strings.ToLower(value))
+}

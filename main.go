@@ -34,7 +34,7 @@ func recoverPanic(logger *slog.Logger, operation string) {
 
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.13.0" // Added: aggregate_by parameter for get_recent_changes
+	ServerVersion = "1.14.0" // Added: find_similar_pages and compare_topic content discovery tools
 )
 
 // =============================================================================
@@ -1449,6 +1449,58 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 			"query", args.Query,
 			"matches_found", result.MatchCount,
 			"searchable", result.Searchable,
+		)
+		return nil, result, nil
+	})
+
+	// ========== Content Discovery Tools ==========
+
+	// Find similar pages
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_find_similar_pages",
+		Description: "Find pages similar to a given page based on content similarity. Use to discover related content that should be cross-linked, identify potential duplicates, or find pages covering similar topics. Returns similarity scores and linking recommendations.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:          "Find Similar Pages",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.FindSimilarPagesArgs) (*mcp.CallToolResult, wiki.FindSimilarPagesResult, error) {
+		defer recoverPanic(logger, "find_similar_pages")
+		result, err := client.FindSimilarPages(ctx, args)
+		if err != nil {
+			return nil, wiki.FindSimilarPagesResult{}, fmt.Errorf("find similar pages failed: %w", err)
+		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_find_similar_pages",
+			"source_page", args.Page,
+			"similar_found", len(result.SimilarPages),
+			"total_compared", result.TotalCompared,
+		)
+		return nil, result, nil
+	})
+
+	// Compare topic across pages
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mediawiki_compare_topic",
+		Description: "Compare how a topic is described across multiple wiki pages. Use to find inconsistencies in documentation (e.g., different timeout values, conflicting version numbers). Returns page mentions with context and detects value mismatches.",
+		Annotations: &mcp.ToolAnnotations{
+			Title:          "Compare Topic",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  ptr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.CompareTopicArgs) (*mcp.CallToolResult, wiki.CompareTopicResult, error) {
+		defer recoverPanic(logger, "compare_topic")
+		result, err := client.CompareTopic(ctx, args)
+		if err != nil {
+			return nil, wiki.CompareTopicResult{}, fmt.Errorf("compare topic failed: %w", err)
+		}
+		logger.Info("Tool executed",
+			"tool", "mediawiki_compare_topic",
+			"topic", args.Topic,
+			"pages_found", result.PagesFound,
+			"inconsistencies", len(result.Inconsistencies),
 		)
 		return nil, result, nil
 	})
