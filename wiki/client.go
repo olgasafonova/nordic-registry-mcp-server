@@ -24,6 +24,7 @@ type CacheEntry struct {
 	ExpiresAt  time.Time
 	AccessedAt time.Time // For LRU eviction
 	Key        string    // Store key for eviction
+	mu         sync.Mutex
 }
 
 // Cache size limits to prevent unbounded memory growth
@@ -170,9 +171,12 @@ func (c *Client) evictLRU(count int) {
 
 	c.cache.Range(func(key, value interface{}) bool {
 		ce := value.(*CacheEntry)
+		ce.mu.Lock()
+		accessedAt := ce.AccessedAt
+		ce.mu.Unlock()
 		entries = append(entries, entryInfo{
 			key:        key.(string),
-			accessedAt: ce.AccessedAt,
+			accessedAt: accessedAt,
 		})
 		return true
 	})
@@ -202,7 +206,9 @@ func (c *Client) getCached(key string) (interface{}, bool) {
 		now := time.Now()
 		if now.Before(ce.ExpiresAt) {
 			// Update access time for LRU tracking
+			ce.mu.Lock()
 			ce.AccessedAt = now
+			ce.mu.Unlock()
 			return ce.Data, true
 		}
 		// Expired, delete it
