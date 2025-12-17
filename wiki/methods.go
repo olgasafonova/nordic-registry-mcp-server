@@ -2210,6 +2210,9 @@ func (c *Client) FindReplace(ctx context.Context, args FindReplaceArgs) (FindRep
 		return result, nil
 	}
 
+	// Capture old revision before edit
+	oldRevision := page.Revision
+
 	// Apply the edit
 	newContent := strings.Join(newLines, "\n")
 	summary := args.Summary
@@ -2230,6 +2233,9 @@ func (c *Client) FindReplace(ctx context.Context, args FindReplaceArgs) (FindRep
 	result.Success = editResult.Success
 	result.RevisionID = editResult.RevisionID
 	result.Message = fmt.Sprintf("Replaced %d occurrence(s)", result.ReplaceCount)
+
+	// Add revision info and undo instructions
+	result.Revision, result.Undo = c.buildEditRevisionInfo(page.Title, oldRevision, editResult.RevisionID)
 
 	return result, nil
 }
@@ -2294,6 +2300,8 @@ func (c *Client) ApplyFormatting(ctx context.Context, args ApplyFormattingArgs) 
 		Preview:     args.Preview,
 		Changes:     frResult.Changes,
 		RevisionID:  frResult.RevisionID,
+		Revision:    frResult.Revision,
+		Undo:        frResult.Undo,
 		Message:     frResult.Message,
 	}, nil
 }
@@ -2357,6 +2365,8 @@ func (c *Client) BulkReplace(ctx context.Context, args BulkReplaceArgs) (BulkRep
 			pageResult.MatchCount = frResult.MatchCount
 			pageResult.ReplaceCount = frResult.ReplaceCount
 			pageResult.RevisionID = frResult.RevisionID
+			pageResult.Revision = frResult.Revision
+			pageResult.Undo = frResult.Undo
 			if args.Preview {
 				pageResult.Changes = frResult.Changes
 			}
@@ -2531,6 +2541,35 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// buildEditRevisionInfo creates revision info and undo instructions for an edit
+func (c *Client) buildEditRevisionInfo(title string, oldRevision, newRevision int) (*EditRevisionInfo, *UndoInfo) {
+	if oldRevision == 0 || newRevision == 0 {
+		return nil, nil
+	}
+
+	// Derive wiki base URL from API URL (replace api.php with index.php)
+	wikiBaseURL := strings.TrimSuffix(c.config.BaseURL, "api.php") + "index.php"
+
+	// Build diff URL
+	diffURL := fmt.Sprintf("%s?diff=%d&oldid=%d", wikiBaseURL, newRevision, oldRevision)
+
+	// Build undo URL
+	encodedTitle := url.QueryEscape(strings.ReplaceAll(title, " ", "_"))
+	undoURL := fmt.Sprintf("%s?title=%s&action=edit&undoafter=%d&undo=%d", wikiBaseURL, encodedTitle, oldRevision, newRevision)
+
+	// Build undo instruction
+	undoInstruction := fmt.Sprintf("To undo: use wiki URL or revert to revision %d", oldRevision)
+
+	return &EditRevisionInfo{
+			OldRevision: int64(oldRevision),
+			NewRevision: int64(newRevision),
+			DiffURL:     diffURL,
+		}, &UndoInfo{
+			Instruction: undoInstruction,
+			WikiURL:     undoURL,
+		}
 }
 
 // Helper function to calculate string similarity (Jaccard-like)

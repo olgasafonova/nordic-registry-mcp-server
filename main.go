@@ -34,7 +34,7 @@ func recoverPanic(logger *slog.Logger, operation string) {
 
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.14.1" // Fix: nil slice JSON serialization in content discovery tools
+	ServerVersion = "1.15.0" // Phase 1: revision info and undo instructions in edit responses
 )
 
 // =============================================================================

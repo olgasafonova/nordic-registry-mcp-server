@@ -150,6 +150,19 @@ type EditResult struct {
 	Message    string `json:"message"`
 }
 
+// EditRevisionInfo contains revision tracking info for edit operations
+type EditRevisionInfo struct {
+	OldRevision int64  `json:"old_revision,omitempty"`
+	NewRevision int64  `json:"new_revision,omitempty"`
+	DiffURL     string `json:"diff_url,omitempty"`
+}
+
+// UndoInfo provides instructions for undoing an edit
+type UndoInfo struct {
+	Instruction string `json:"instruction,omitempty"`
+	WikiURL     string `json:"wiki_url,omitempty"`
+}
+
 // ========== Recent Changes Types ==========
 
 type RecentChangesArgs struct {
@@ -533,14 +546,16 @@ type FindReplaceArgs struct {
 }
 
 type FindReplaceResult struct {
-	Success       bool     `json:"success"`
-	Title         string   `json:"title"`
-	MatchCount    int      `json:"match_count"`
-	ReplaceCount  int      `json:"replace_count"`
-	Preview       bool     `json:"preview"`
-	Changes       []TextChange `json:"changes,omitempty"`
-	RevisionID    int      `json:"revision_id,omitempty"`
-	Message       string   `json:"message"`
+	Success       bool             `json:"success"`
+	Title         string           `json:"title"`
+	MatchCount    int              `json:"match_count"`
+	ReplaceCount  int              `json:"replace_count"`
+	Preview       bool             `json:"preview"`
+	Changes       []TextChange     `json:"changes,omitempty"`
+	RevisionID    int              `json:"revision_id,omitempty"`
+	Revision      *EditRevisionInfo `json:"revision,omitempty"`
+	Undo          *UndoInfo        `json:"undo,omitempty"`
+	Message       string           `json:"message"`
 }
 
 type TextChange struct {
@@ -562,15 +577,17 @@ type ApplyFormattingArgs struct {
 }
 
 type ApplyFormattingResult struct {
-	Success      bool        `json:"success"`
-	Title        string      `json:"title"`
-	Format       string      `json:"format_applied"`
-	MatchCount   int         `json:"match_count"`
-	FormatCount  int         `json:"format_count"`
-	Preview      bool        `json:"preview"`
-	Changes      []TextChange `json:"changes,omitempty"`
-	RevisionID   int         `json:"revision_id,omitempty"`
-	Message      string      `json:"message"`
+	Success      bool              `json:"success"`
+	Title        string            `json:"title"`
+	Format       string            `json:"format_applied"`
+	MatchCount   int               `json:"match_count"`
+	FormatCount  int               `json:"format_count"`
+	Preview      bool              `json:"preview"`
+	Changes      []TextChange      `json:"changes,omitempty"`
+	RevisionID   int               `json:"revision_id,omitempty"`
+	Revision     *EditRevisionInfo `json:"revision,omitempty"`
+	Undo         *UndoInfo         `json:"undo,omitempty"`
+	Message      string            `json:"message"`
 }
 
 // ========== Bulk Replace Types ==========
@@ -596,12 +613,14 @@ type BulkReplaceResult struct {
 }
 
 type PageReplaceResult struct {
-	Title        string       `json:"title"`
-	MatchCount   int          `json:"match_count"`
-	ReplaceCount int          `json:"replace_count"`
-	Changes      []TextChange `json:"changes,omitempty"`
-	RevisionID   int          `json:"revision_id,omitempty"`
-	Error        string       `json:"error,omitempty"`
+	Title        string            `json:"title"`
+	MatchCount   int               `json:"match_count"`
+	ReplaceCount int               `json:"replace_count"`
+	Changes      []TextChange      `json:"changes,omitempty"`
+	RevisionID   int               `json:"revision_id,omitempty"`
+	Revision     *EditRevisionInfo `json:"revision,omitempty"`
+	Undo         *UndoInfo         `json:"undo,omitempty"`
+	Error        string            `json:"error,omitempty"`
 }
 
 // ========== Search in Page Types ==========

@@ -501,6 +501,88 @@ func TestExtractValues(t *testing.T) {
 
 // Tests for result type JSON serialization
 
+func TestEditRevisionInfo_SerializesCorrectly(t *testing.T) {
+	info := EditRevisionInfo{
+		OldRevision: 1234,
+		NewRevision: 1235,
+		DiffURL:     "https://wiki.example.com/index.php?diff=1235&oldid=1234",
+	}
+
+	jsonBytes, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(jsonBytes)
+
+	if !strings.Contains(jsonStr, `"old_revision":1234`) {
+		t.Errorf("old_revision not found in JSON: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"new_revision":1235`) {
+		t.Errorf("new_revision not found in JSON: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"diff_url"`) {
+		t.Errorf("diff_url not found in JSON: %s", jsonStr)
+	}
+}
+
+func TestUndoInfo_SerializesCorrectly(t *testing.T) {
+	info := UndoInfo{
+		Instruction: "To undo: revert to revision 1234",
+		WikiURL:     "https://wiki.example.com/index.php?title=Test&action=edit&undo=1235",
+	}
+
+	jsonBytes, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(jsonBytes)
+
+	if !strings.Contains(jsonStr, `"instruction"`) {
+		t.Errorf("instruction not found in JSON: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"wiki_url"`) {
+		t.Errorf("wiki_url not found in JSON: %s", jsonStr)
+	}
+}
+
+func TestFindReplaceResult_IncludesRevisionInfo(t *testing.T) {
+	result := FindReplaceResult{
+		Success:      true,
+		Title:        "Test Page",
+		MatchCount:   3,
+		ReplaceCount: 3,
+		Preview:      false,
+		RevisionID:   1235,
+		Revision: &EditRevisionInfo{
+			OldRevision: 1234,
+			NewRevision: 1235,
+			DiffURL:     "https://wiki.example.com/index.php?diff=1235&oldid=1234",
+		},
+		Undo: &UndoInfo{
+			Instruction: "To undo: revert to revision 1234",
+			WikiURL:     "https://wiki.example.com/index.php?title=Test_Page&action=edit&undo=1235",
+		},
+		Message: "Replaced 3 occurrences",
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(jsonBytes)
+
+	// Check revision info is present
+	if !strings.Contains(jsonStr, `"revision":{`) {
+		t.Errorf("revision object not found in JSON: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"undo":{`) {
+		t.Errorf("undo object not found in JSON: %s", jsonStr)
+	}
+}
+
 func TestFindSimilarPagesResult_EmptySliceSerializesAsArray(t *testing.T) {
 	result := FindSimilarPagesResult{
 		SourcePage:    "Test Page",
