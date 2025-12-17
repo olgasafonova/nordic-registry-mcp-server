@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -811,9 +812,7 @@ func (c *Client) GetRecentChanges(ctx context.Context, args RecentChangesArgs) (
 		})
 	}
 
-	result := RecentChangesResult{
-		Changes: changes,
-	}
+	result := RecentChangesResult{}
 
 	// Check for continuation
 	if cont, ok := resp["continue"].(map[string]interface{}); ok {
@@ -823,6 +822,17 @@ func (c *Client) GetRecentChanges(ctx context.Context, args RecentChangesArgs) (
 		}
 	}
 
+	// Handle aggregation if requested
+	if args.AggregateBy != "" {
+		aggregated := aggregateChanges(changes, args.AggregateBy)
+		if aggregated != nil {
+			result.Aggregated = aggregated
+			return result, nil
+		}
+		// Invalid aggregate_by value, fall through to return raw changes
+	}
+
+	result.Changes = changes
 	return result, nil
 }
 
@@ -3529,4 +3539,41 @@ func (c *Client) downloadFile(ctx context.Context, fileURL string) ([]byte, erro
 	}
 
 	return data, nil
+}
+
+// aggregateChanges groups recent changes by the specified field and returns counts
+func aggregateChanges(changes []RecentChange, by string) *AggregatedChanges {
+	counts := make(map[string]int)
+
+	for _, change := range changes {
+		var key string
+		switch by {
+		case "user":
+			key = change.User
+		case "page":
+			key = change.Title
+		case "type":
+			key = change.Type
+		default:
+			return nil // Invalid aggregation type
+		}
+		counts[key]++
+	}
+
+	// Convert map to sorted slice (by count descending)
+	items := make([]AggregateCount, 0, len(counts))
+	for key, count := range counts {
+		items = append(items, AggregateCount{Key: key, Count: count})
+	}
+
+	// Sort by count descending
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Count > items[j].Count
+	})
+
+	return &AggregatedChanges{
+		By:           by,
+		TotalChanges: len(changes),
+		Items:        items,
+	}
 }

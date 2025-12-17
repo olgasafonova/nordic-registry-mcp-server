@@ -34,7 +34,7 @@ func recoverPanic(logger *slog.Logger, operation string) {
 
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.12.0" // Added: PDF and file text search (via pdftotext)
+	ServerVersion = "1.13.0" // Added: aggregate_by parameter for get_recent_changes
 )
 
 // =============================================================================
@@ -820,7 +820,7 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 	// Get recent changes
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mediawiki_get_recent_changes",
-		Description: "Get recent changes to the wiki. Useful for monitoring activity.",
+		Description: "Get recent changes to the wiki. Useful for monitoring activity. Use aggregate_by='user' to get most active users, 'page' for most edited pages, or 'type' for change type distribution. Aggregation returns compact counts instead of raw changes - recommended for large result sets.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:          "Get Recent Changes",
 			ReadOnlyHint:   true,
@@ -833,11 +833,20 @@ func registerTools(server *mcp.Server, client *wiki.Client, logger *slog.Logger)
 		if err != nil {
 			return nil, wiki.RecentChangesResult{}, fmt.Errorf("failed to get recent changes: %w", err)
 		}
-		logger.Info("Tool executed",
-			"tool", "mediawiki_get_recent_changes",
-			"changes_returned", len(result.Changes),
-			"has_more", result.HasMore,
-		)
+		if result.Aggregated != nil {
+			logger.Info("Tool executed",
+				"tool", "mediawiki_get_recent_changes",
+				"aggregated_by", result.Aggregated.By,
+				"total_changes", result.Aggregated.TotalChanges,
+				"unique_keys", len(result.Aggregated.Items),
+			)
+		} else {
+			logger.Info("Tool executed",
+				"tool", "mediawiki_get_recent_changes",
+				"changes_returned", len(result.Changes),
+				"has_more", result.HasMore,
+			)
+		}
 		return nil, result, nil
 	})
 

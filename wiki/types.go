@@ -159,12 +159,25 @@ type RecentChangesArgs struct {
 	ContinueFrom string `json:"continue_from,omitempty" jsonschema_description:"Continue token for pagination"`
 	Start        string `json:"start,omitempty" jsonschema_description:"Start timestamp (ISO 8601)"`
 	End          string `json:"end,omitempty" jsonschema_description:"End timestamp (ISO 8601)"`
+	AggregateBy  string `json:"aggregate_by,omitempty" jsonschema_description:"Aggregate results by: 'user', 'page', or 'type'. Returns counts instead of raw changes. Recommended for large result sets."`
 }
 
 type RecentChangesResult struct {
-	Changes      []RecentChange `json:"changes"`
-	HasMore      bool           `json:"has_more"`
-	ContinueFrom string         `json:"continue_from,omitempty"`
+	Changes      []RecentChange     `json:"changes,omitempty"`
+	HasMore      bool               `json:"has_more"`
+	ContinueFrom string             `json:"continue_from,omitempty"`
+	Aggregated   *AggregatedChanges `json:"aggregated,omitempty"`
+}
+
+type AggregatedChanges struct {
+	By           string           `json:"by"`
+	TotalChanges int              `json:"total_changes"`
+	Items        []AggregateCount `json:"items"`
+}
+
+type AggregateCount struct {
+	Key   string `json:"key"`
+	Count int    `json:"count"`
 }
 
 type RecentChange struct {
