@@ -423,11 +423,15 @@ claude mcp add mediawiki /path/to/mediawiki-mcp-server \
 - *"What pages were updated this week?"*
 - *"Who edited the Release Notes page?"*
 - *"Show me the diff between the last two versions"*
+- *"Who are the most active editors this month?"* ✨
+- *"Which pages get edited most frequently?"* ✨
 
 ### Check Quality
 - *"Are there broken links on this page?"*
 - *"Find orphaned pages with no links to them"*
 - *"Check terminology consistency in the Product category"*
+- *"Find pages similar to the Installation Guide"* ✨
+- *"Compare how 'API version' is documented across pages"* ✨
 
 ### Quick Edits (requires auth)
 - *"Strike out John Smith on the Team page"*
@@ -623,7 +627,6 @@ server {
 | `mediawiki_list_categories` | List categories |
 | `mediawiki_get_category_members` | Get pages in category |
 | `mediawiki_get_page_info` | Get page metadata |
-| `mediawiki_get_recent_changes` | Recent activity |
 | `mediawiki_get_wiki_info` | Wiki statistics |
 | `mediawiki_list_users` | List users by group |
 | `mediawiki_parse` | Preview wikitext |
@@ -655,6 +658,28 @@ server {
 </details>
 
 <details>
+<summary><strong>Content Discovery ✨</strong></summary>
+
+| Tool | Description |
+|------|-------------|
+| `mediawiki_find_similar_pages` | Find pages with similar content based on term overlap |
+| `mediawiki_compare_topic` | Compare how a topic is described across multiple pages |
+
+**find_similar_pages** - Identifies related content that should be cross-linked or potential duplicates:
+```
+"Find pages similar to the API Reference page"
+→ Returns similarity scores, common terms, and linking recommendations
+```
+
+**compare_topic** - Detects inconsistencies in documentation (different values, conflicting info):
+```
+"Compare how 'timeout' is described across all pages"
+→ Returns page mentions with context snippets and value mismatches
+```
+
+</details>
+
+<details>
 <summary><strong>History</strong></summary>
 
 | Tool | Description |
@@ -662,6 +687,12 @@ server {
 | `mediawiki_get_revisions` | Page edit history |
 | `mediawiki_compare_revisions` | Diff between versions |
 | `mediawiki_get_user_contributions` | User's edit history |
+| `mediawiki_get_recent_changes` | Recent wiki activity with aggregation ✨ |
+
+**Aggregation ✨** - Use `aggregate_by` parameter to get compact summaries:
+- `aggregate_by: "user"` → Most active editors
+- `aggregate_by: "page"` → Most edited pages
+- `aggregate_by: "type"` → Change type distribution (edit, new, log)
 
 </details>
 
@@ -675,6 +706,21 @@ server {
 | `mediawiki_bulk_replace` | Replace across multiple pages |
 | `mediawiki_search_in_page` | Search within a page |
 | `mediawiki_resolve_title` | Fuzzy title matching |
+
+**Edit Response Info ✨** - All edit operations return revision tracking and undo instructions:
+```json
+{
+  "revision": {
+    "old_revision": 1234,
+    "new_revision": 1235,
+    "diff_url": "https://wiki.../index.php?diff=1235&oldid=1234"
+  },
+  "undo": {
+    "instruction": "To undo: use wiki URL or revert to revision 1234",
+    "wiki_url": "https://wiki.../index.php?title=...&action=edit&undo=1235"
+  }
+}
+```
 
 </details>
 
