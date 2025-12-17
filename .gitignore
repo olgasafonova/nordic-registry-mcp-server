@@ -28,3 +28,6 @@ Thumbs.db
 # Environment files
 .env
 .env.local
+
+# Internal development notes (keep locally, not in repo)
+notes/
