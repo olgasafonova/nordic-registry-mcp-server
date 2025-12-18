@@ -35,7 +35,7 @@ func recoverPanic(logger *slog.Logger, operation string) {
 
 const (
 	ServerName    = "mediawiki-mcp-server"
-	ServerVersion = "1.17.0" // Added Markdown to MediaWiki converter tool
+	ServerVersion = "1.17.2" // Fixed enum struct tag crash on Windows
 )
 
 // =============================================================================
@@ -48,7 +48,7 @@ type ConvertMarkdownArgs struct {
 	Markdown string `json:"markdown" jsonschema:"required" jsonschema_description:"The Markdown text to convert to MediaWiki markup"`
 
 	// Theme selects the color scheme: "tieto", "neutral" (default), or "dark"
-	Theme string `json:"theme,omitempty" jsonschema:"enum=tieto,enum=neutral,enum=dark" jsonschema_description:"Color theme: tieto (brand colors), neutral (no styling), dark (dark mode)"`
+	Theme string `json:"theme,omitempty" jsonschema_description:"Color theme: 'tieto' (brand colors), 'neutral' (no styling, default), or 'dark' (dark mode)"`
 
 	// AddCSS includes CSS styling block in output for branded appearance
 	AddCSS *bool `json:"add_css,omitempty" jsonschema_description:"Include CSS styling block for branded appearance"`
