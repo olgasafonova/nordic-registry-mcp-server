@@ -1,0 +1,386 @@
+package tools
+
+// AllTools contains all tool specifications for the MediaWiki MCP server.
+// Tools are organized by category for easier maintenance.
+var AllTools = []ToolSpec{
+	// ==========================================================================
+	// SEARCH TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_search",
+		Method:      "Search",
+		Title:       "Search Wiki",
+		Category:    "search",
+		Description: "Search ACROSS the entire wiki. Use when user doesn't know which page contains info, e.g., 'find pages about API' or 'where is X documented?'. For searching within a specific known page, use mediawiki_search_in_page instead.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_search_in_page",
+		Method:      "SearchInPage",
+		Title:       "Search in Page",
+		Category:    "search",
+		Description: "Search WITHIN a known page (not across wiki). Use when user says 'find X on page Y' or 'does page Y mention X'. More efficient than get_page + manual search. Also use before find_replace to preview matches.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_search_in_file",
+		Method:      "SearchInFile",
+		Title:       "Search in File",
+		Category:    "search",
+		Description: "Search for text within wiki files. Supports text-based PDFs and text files (TXT, MD, CSV, JSON, XML, HTML). For PDFs, extracts text and searches; scanned/image PDFs are not supported (requires OCR).",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_resolve_title",
+		Method:      "ResolveTitle",
+		Title:       "Resolve Title",
+		Category:    "search",
+		Description: "RECOVERY tool when page not found. Wiki titles are case-sensitive! If 'Module overview' fails, this finds 'Module Overview'. Also handles typos and partial matches. Use BEFORE retrying get_page with a guessed title.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// READ TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_get_page",
+		Method:      "GetPage",
+		Title:       "Get Page Content",
+		Category:    "read",
+		Description: "Retrieve wiki page content. Returns wikitext by default; set format='html' for rendered HTML. Large pages are truncated at 25KB.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_list_pages",
+		Method:      "ListPages",
+		Title:       "List Pages",
+		Category:    "read",
+		Description: "List wiki pages with optional prefix filter. Returns page titles and IDs. Use 'continue_from' token from previous response for pagination.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_page_info",
+		Method:      "GetPageInfo",
+		Title:       "Get Page Info",
+		Category:    "read",
+		Description: "Get metadata about a page including last edit, size, and protection status.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_sections",
+		Method:      "GetSections",
+		Title:       "Get Sections",
+		Category:    "read",
+		Description: "Get the section structure of a page, or retrieve content from a specific section. Use without section parameter to list all sections with their indices. Use with section parameter to get that section's content.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_related",
+		Method:      "GetRelated",
+		Title:       "Get Related Pages",
+		Category:    "read",
+		Description: "Find pages related to a given page. Uses shared categories, outgoing links, and backlinks to determine relevance. Method options: 'categories' (default), 'links', 'backlinks', or 'all'.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_images",
+		Method:      "GetImages",
+		Title:       "Get Images",
+		Category:    "read",
+		Description: "Get all images and files used on a wiki page. Returns image titles, URLs, dimensions, and file sizes.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_parse",
+		Method:      "Parse",
+		Title:       "Parse Wikitext",
+		Category:    "read",
+		Description: "Parse wikitext and return rendered HTML. Useful for previewing content before saving.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_wiki_info",
+		Method:      "GetWikiInfo",
+		Title:       "Get Wiki Info",
+		Category:    "read",
+		Description: "Get information about the wiki including name, version, and statistics.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// CATEGORY TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_list_categories",
+		Method:      "ListCategories",
+		Title:       "List Categories",
+		Category:    "categories",
+		Description: "List all categories in the wiki with pagination.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_category_members",
+		Method:      "GetCategoryMembers",
+		Title:       "Get Category Members",
+		Category:    "categories",
+		Description: "Get all pages that belong to a specific category.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// HISTORY TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_get_recent_changes",
+		Method:      "GetRecentChanges",
+		Title:       "Get Recent Changes",
+		Category:    "history",
+		Description: "Get recent changes to the wiki. Useful for monitoring activity. Use aggregate_by='user' to get most active users, 'page' for most edited pages, or 'type' for change type distribution. Aggregation returns compact counts instead of raw changes - recommended for large result sets.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_revisions",
+		Method:      "GetRevisions",
+		Title:       "Get Revisions",
+		Category:    "history",
+		Description: "Get revision history (edit log) for a page. Shows who edited the page, when, and edit summaries. Useful for tracking changes and reviewing history.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_compare_revisions",
+		Method:      "CompareRevisions",
+		Title:       "Compare Revisions",
+		Category:    "history",
+		Description: "Compare two revisions and get the diff. Can compare by revision IDs or page titles (uses latest revision). Returns HTML-formatted diff showing additions and deletions.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_user_contributions",
+		Method:      "GetUserContributions",
+		Title:       "Get User Contributions",
+		Category:    "history",
+		Description: "Get edit history for a specific user. Shows all pages they've edited, with timestamps and edit summaries. Useful for reviewing user activity.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// LINK TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_get_external_links",
+		Method:      "GetExternalLinks",
+		Title:       "Get External Links",
+		Category:    "links",
+		Description: "Get all external links (URLs) from a wiki page. Useful for finding outbound links and checking for broken links.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_external_links_batch",
+		Method:      "GetExternalLinksBatch",
+		Title:       "Get External Links (Batch)",
+		Category:    "links",
+		Description: "Batch retrieve external URLs from up to 10 wiki pages. More efficient than multiple single-page calls. Returns links grouped by source page.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_check_links",
+		Method:      "CheckLinks",
+		Title:       "Check Links",
+		Category:    "links",
+		Description: "Verify URL accessibility via HTTP HEAD/GET requests. Returns status codes and identifies broken links. Max 20 URLs per call, 10s default timeout.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_get_backlinks",
+		Method:      "GetBacklinks",
+		Title:       "Get Backlinks",
+		Category:    "links",
+		Description: "Get pages that link to a specific page ('What links here'). Useful for understanding page relationships and impact of changes.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_find_broken_internal_links",
+		Method:      "FindBrokenInternalLinks",
+		Title:       "Find Broken Internal Links",
+		Category:    "links",
+		Description: "Find internal wiki links that point to non-existent pages. Scans page content for [[links]] and verifies each target exists. Returns broken links with line numbers and context.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_find_orphaned_pages",
+		Method:      "FindOrphanedPages",
+		Title:       "Find Orphaned Pages",
+		Category:    "links",
+		Description: "Find pages with no incoming links from other pages. These 'lonely pages' may be hard to discover through normal wiki navigation.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// QUALITY TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_check_terminology",
+		Method:      "CheckTerminology",
+		Title:       "Check Terminology",
+		Category:    "quality",
+		Description: "Scan pages for terminology violations using a wiki-hosted glossary table. Specify pages directly or scan entire category. Default glossary: 'Brand Terminology Glossary'.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_check_translations",
+		Method:      "CheckTranslations",
+		Title:       "Check Translations",
+		Category:    "quality",
+		Description: "Find pages missing in specific languages. Check if base pages have translations in all required languages. Supports different naming patterns: subpages (Page/lang), suffixes (Page (lang)), or prefixes (lang:Page).",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// DISCOVERY TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_find_similar_pages",
+		Method:      "FindSimilarPages",
+		Title:       "Find Similar Pages",
+		Category:    "discovery",
+		Description: "Find pages similar to a given page based on content similarity. Use to discover related content that should be cross-linked, identify potential duplicates, or find pages covering similar topics. Returns similarity scores and linking recommendations.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_compare_topic",
+		Method:      "CompareTopic",
+		Title:       "Compare Topic",
+		Category:    "discovery",
+		Description: "Compare how a topic is described across multiple wiki pages. Use to find inconsistencies in documentation (e.g., different timeout values, conflicting version numbers). Returns page mentions with context and detects value mismatches.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// USER TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_list_users",
+		Method:      "ListUsers",
+		Title:       "List Users",
+		Category:    "users",
+		Description: "List wiki users, optionally filtered by group. Use group='sysop' for admins, 'bureaucrat' for bureaucrats, 'bot' for bots. Returns user names, groups, edit counts, and registration dates.",
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
+
+	// ==========================================================================
+	// WRITE TOOLS
+	// ==========================================================================
+	{
+		Name:        "mediawiki_edit_page",
+		Method:      "EditPage",
+		Title:       "Edit Page",
+		Category:    "write",
+		Description: "Create new pages or rewrite entire page content. WARNING: For simple edits (changing text, formatting), use mediawiki_find_replace or mediawiki_apply_formatting instead. This tool overwrites entire page content unless 'section' is specified.",
+		ReadOnly:    false,
+		Destructive: true,
+		Idempotent:  false,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_find_replace",
+		Method:      "FindReplace",
+		Title:       "Find and Replace",
+		Category:    "write",
+		Description: "PREFERRED for simple text changes. Replace specific text in a page without fetching/rewriting the whole page. Examples: fix typos, update names, correct terminology. Always use preview=true first to verify matches.",
+		ReadOnly:    false,
+		Destructive: true,
+		Idempotent:  false,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_apply_formatting",
+		Method:      "ApplyFormatting",
+		Title:       "Apply Formatting",
+		Category:    "write",
+		Description: "BEST for formatting requests. Apply strikethrough/bold/italic/underline/code to specific text. Use when user says 'strike out', 'cross out', 'make bold', 'italicize'. Example: 'strike out John Smith' -> format='strikethrough', text='John Smith'.",
+		ReadOnly:    false,
+		Destructive: true,
+		Idempotent:  false,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_bulk_replace",
+		Method:      "BulkReplace",
+		Title:       "Bulk Replace",
+		Category:    "write",
+		Description: "Update text across MULTIPLE pages at once. Use when user says 'update everywhere', 'fix on all pages', 'change brand name across docs'. Specify pages=[] list OR category='CategoryName'. ALWAYS preview=true first!",
+		ReadOnly:    false,
+		Destructive: true,
+		Idempotent:  false,
+		OpenWorld:   true,
+	},
+	{
+		Name:        "mediawiki_upload_file",
+		Method:      "UploadFile",
+		Title:       "Upload File",
+		Category:    "write",
+		Description: "Upload a file to the wiki from a URL. Requires authentication. Use file_url to specify the source. Set ignore_warnings=true to overwrite existing files.",
+		ReadOnly:    false,
+		Destructive: false, // Creates, doesn't destroy
+		Idempotent:  false,
+		OpenWorld:   true,
+	},
+}

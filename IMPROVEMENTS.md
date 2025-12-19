@@ -13,6 +13,7 @@ This document tracks improvements identified during the code review session on 2
 | v1.17.7 | Godoc Comments | Added documentation to all 80+ exported types in `types.go` |
 | v1.17.8 | Split methods.go | Refactored 4,235-line file into 9 focused modules |
 | v1.18.0 | Audit Logging | JSON-line logging for all write operations (edits, uploads) |
+| v1.19.0 | Tool Registry | Metadata-driven tool registration, main.go reduced 862 lines |
 
 ## Remaining Improvements
 
@@ -65,48 +66,22 @@ wiki/
 
 ---
 
-#### 2. Tool Registration Abstraction (~6 hours)
-**Current state:** 33 repetitive tool registration blocks in `main.go` (~1,100 lines)
+#### 2. Tool Registration Abstraction - ✅ COMPLETED (v1.19.0)
 
-**Each registration looks like:**
-```go
-registerToolHandler(server, &ToolDefinition{
-    Name: "mediawiki_search",
-    Description: "...",
-    // ... 20+ lines of metadata
-}, func(ctx context.Context, req *mcp.CallToolRequest, args wiki.SearchArgs) (*mcp.CallToolResult, wiki.SearchResult, error) {
-    // handler
-})
-```
+**Completed (2025-12-19):**
 
-**Proposed solution:** Metadata-driven registry
-```go
-type ToolSpec struct {
-    Name        string
-    Method      string  // e.g., "Search"
-    Description string
-    Category    string
-    ReadOnly    bool
-}
+Implemented metadata-driven tool registry in new `tools/` package:
 
-var toolRegistry = []ToolSpec{
-    {"mediawiki_search", "Search", "Full-text search", "search", true},
-    {"mediawiki_get_page", "GetPage", "Get page content", "read", true},
-    // ... all tools defined declaratively
-}
+| File | Lines | Purpose |
+|------|-------|---------|
+| `tools/registry.go` | 40 | `ToolSpec` type definition |
+| `tools/definitions.go` | 386 | Declarative specs for all 31 tools |
+| `tools/handlers.go` | 316 | Type-safe registration with generics |
 
-func registerAllTools(server *mcp.Server, client *wiki.Client) {
-    for _, spec := range toolRegistry {
-        registerTool(server, spec, client) // uses reflection
-    }
-}
-```
-
-**Benefits:**
-- Reduce main.go by ~800 lines
-- Easier to add new tools
-- Consistent tool metadata
-- Single source of truth
+**Results:**
+- `main.go` reduced from 1,801 → 939 lines (**-862 lines**, 48% reduction)
+- Tool registration now 3 lines: `registry := tools.NewHandlerRegistry(client, logger); registry.RegisterAll(server)`
+- Adding new tools requires only: add method to wiki.Client + add ToolSpec to AllTools
 
 ---
 
@@ -118,17 +93,31 @@ All exported types now have proper documentation. The 34 Client methods in `meth
 ---
 
 #### 4. Bump Test Coverage (~8 hours)
-**Current state:**
+**Current state (2025-12-19):**
 - `converter/`: 82.2% ✓
-- `wiki/`: 26.6% → target 40%
+- `wiki/`: 27.1% → target 40%
 - `main`: 12.7%
 
-**Priority test additions:**
-1. Cache eviction under load
-2. Concurrent request handling
-3. CSRF token refresh on expiry
-4. Rate limiter race conditions
-5. Content validation edge cases
+**Untested files (0% coverage):**
+| File | Functions | Priority |
+|------|-----------|----------|
+| `write.go` | EditPage, FindReplace, ApplyFormatting, BulkReplace, UploadFile | High - destructive ops |
+| `users.go` | ListUsers | Low - simple |
+
+**Partially tested (add more cases):**
+| File | Missing Coverage |
+|------|------------------|
+| `search.go` | CompareTopic (0%), normalizeValue (0%) |
+| `links.go` | Most link operations (CheckLinks, FindBrokenInternalLinks) |
+| `history.go` | GetRecentChanges, GetRevisions, CompareRevisions |
+| `read.go` | GetPage, GetSections, GetPageInfo, Parse |
+
+**Test priorities:**
+1. **write.go mocks** - Mock HTTP responses for edit/upload operations
+2. **Cache tests** - Eviction under load, concurrent access
+3. **CSRF token tests** - Token refresh on expiry
+4. **Rate limiter** - Race conditions, concurrent requests
+5. **Validation edge cases** - Unicode, size limits, malformed input
 
 ---
 
