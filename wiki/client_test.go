@@ -21,6 +21,31 @@ func createTestClient(t *testing.T) *Client {
 	return NewClient(config, logger)
 }
 
+func TestSetAuditLogger(t *testing.T) {
+	client := createTestClient(t)
+	defer client.Close()
+
+	// Initially should be nil
+	if client.auditLogger != nil {
+		t.Error("Expected auditLogger to be nil initially")
+	}
+
+	// Set a NullAuditLogger
+	nullLogger := NullAuditLogger{}
+	client.SetAuditLogger(nullLogger)
+
+	if client.auditLogger == nil {
+		t.Error("Expected auditLogger to be set")
+	}
+
+	// Set to nil
+	client.SetAuditLogger(nil)
+
+	if client.auditLogger != nil {
+		t.Error("Expected auditLogger to be nil after setting nil")
+	}
+}
+
 func TestNewClient(t *testing.T) {
 	client := createTestClient(t)
 	defer client.Close()

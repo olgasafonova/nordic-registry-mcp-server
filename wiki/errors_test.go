@@ -298,6 +298,36 @@ func TestValidateContentSize(t *testing.T) {
 	}
 }
 
+func TestRateLimitError_Error(t *testing.T) {
+	err := &RateLimitError{
+		Operation:  "edit",
+		RetryAfter: 30,
+		Limit:      10,
+		Current:    15,
+	}
+
+	errStr := err.Error()
+
+	if !strings.Contains(errStr, "Rate limit exceeded") {
+		t.Error("Should indicate rate limit exceeded")
+	}
+	if !strings.Contains(errStr, "edit") {
+		t.Error("Should contain operation")
+	}
+	if !strings.Contains(errStr, "15") {
+		t.Error("Should contain current count")
+	}
+	if !strings.Contains(errStr, "10") {
+		t.Error("Should contain limit")
+	}
+	if !strings.Contains(errStr, "30 seconds") {
+		t.Error("Should contain retry time")
+	}
+	if !strings.Contains(errStr, "batch endpoints") {
+		t.Error("Should suggest batch endpoints")
+	}
+}
+
 func TestConfigError_Error(t *testing.T) {
 	err := &ConfigError{
 		Field:      "MEDIAWIKI_URL",
