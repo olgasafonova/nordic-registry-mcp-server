@@ -5,6 +5,67 @@ import (
 	"strings"
 )
 
+// Error codes for programmatic error handling
+type ErrorCode string
+
+const (
+	// SSRF error codes
+	SSRFCodePrivateIP    ErrorCode = "SSRF_PRIVATE_IP"
+	SSRFCodeDNSError     ErrorCode = "SSRF_DNS_ERROR"
+	SSRFCodeRedirect     ErrorCode = "SSRF_REDIRECT_BLOCKED"
+	SSRFCodeInvalidURL   ErrorCode = "SSRF_INVALID_URL"
+
+	// Rate limit error codes
+	RateLimitCodeExceeded ErrorCode = "RATE_LIMIT_EXCEEDED"
+	RateLimitCodeBlocked  ErrorCode = "RATE_LIMIT_BLOCKED"
+
+	// Validation error codes
+	ValidationCodeInvalid   ErrorCode = "VALIDATION_INVALID"
+	ValidationCodeTooLarge  ErrorCode = "VALIDATION_TOO_LARGE"
+	ValidationCodeDangerous ErrorCode = "VALIDATION_DANGEROUS"
+
+	// Authentication error codes
+	AuthCodeInvalidCredentials ErrorCode = "AUTH_INVALID_CREDENTIALS"
+	AuthCodeTokenExpired       ErrorCode = "AUTH_TOKEN_EXPIRED"
+	AuthCodePermissionDenied   ErrorCode = "AUTH_PERMISSION_DENIED"
+
+	// Not found error codes
+	NotFoundCodePage     ErrorCode = "NOT_FOUND_PAGE"
+	NotFoundCodeCategory ErrorCode = "NOT_FOUND_CATEGORY"
+)
+
+// SSRFError represents a blocked SSRF attempt with structured error code
+type SSRFError struct {
+	Code    ErrorCode
+	URL     string
+	Reason  string
+	Blocked bool
+	IP      string // The IP that was blocked (if applicable)
+}
+
+func (e *SSRFError) Error() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("[%s] SSRF protection blocked request", e.Code))
+
+	if e.URL != "" {
+		sb.WriteString(fmt.Sprintf("\nURL: %s", e.URL))
+	}
+	if e.IP != "" {
+		sb.WriteString(fmt.Sprintf("\nBlocked IP: %s", e.IP))
+	}
+	sb.WriteString(fmt.Sprintf("\nReason: %s", e.Reason))
+
+	sb.WriteString("\n\nThis is a security protection against Server-Side Request Forgery (SSRF).")
+	sb.WriteString("\nInternal/private network addresses are not allowed for external link checking.")
+
+	return sb.String()
+}
+
+// ErrorCode returns the structured error code for programmatic handling
+func (e *SSRFError) ErrorCode() ErrorCode {
+	return e.Code
+}
+
 // ValidationError represents a content or input validation failure with recovery guidance
 type ValidationError struct {
 	Field      string

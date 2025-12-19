@@ -489,3 +489,67 @@ func TestSecurity_DNSRebindingProtection_InvalidAddresses(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurity_DNSFailureClosed(t *testing.T) {
+	// Test that DNS failures result in blocked requests (fail-closed behavior)
+	// Using a hostname that will definitely fail DNS resolution
+	nonExistentHosts := []string{
+		"this-domain-definitely-does-not-exist-12345.invalid",
+		"nonexistent.test.invalid",
+		".invalid", // Malformed
+	}
+
+	for _, host := range nonExistentHosts {
+		t.Run(host, func(t *testing.T) {
+			isPrivate, err := isPrivateHost(host)
+
+			// Should be treated as private (blocked) due to fail-closed behavior
+			if !isPrivate {
+				t.Errorf("Expected DNS failure for %q to be treated as private (blocked), but it was allowed", host)
+			}
+
+			// Should return an SSRFError with DNS error code
+			if err != nil {
+				ssrfErr, ok := err.(*SSRFError)
+				if !ok {
+					t.Errorf("Expected SSRFError for DNS failure, got %T: %v", err, err)
+				} else if ssrfErr.Code != SSRFCodeDNSError {
+					t.Errorf("Expected error code %s, got %s", SSRFCodeDNSError, ssrfErr.Code)
+				}
+			}
+		})
+	}
+}
+
+func TestSecurity_SSRFErrorCodes(t *testing.T) {
+	// Test that SSRFError produces correct error codes
+	testCases := []struct {
+		code     ErrorCode
+		expected string
+	}{
+		{SSRFCodePrivateIP, "SSRF_PRIVATE_IP"},
+		{SSRFCodeDNSError, "SSRF_DNS_ERROR"},
+		{SSRFCodeRedirect, "SSRF_REDIRECT_BLOCKED"},
+		{SSRFCodeInvalidURL, "SSRF_INVALID_URL"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(string(tc.code), func(t *testing.T) {
+			err := &SSRFError{
+				Code:   tc.code,
+				URL:    "http://example.com",
+				Reason: "test reason",
+			}
+
+			// Check error code
+			if err.ErrorCode() != tc.code {
+				t.Errorf("Expected error code %s, got %s", tc.code, err.ErrorCode())
+			}
+
+			// Check error message contains the code
+			if !strings.Contains(err.Error(), tc.expected) {
+				t.Errorf("Expected error message to contain %q, got: %s", tc.expected, err.Error())
+			}
+		})
+	}
+}

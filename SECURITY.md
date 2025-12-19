@@ -106,6 +106,24 @@ safeDialer.Control = func(network, address string, c syscall.RawConn) error {
 
 Redirects are also validated to prevent SSRF via redirect chains. If a public URL redirects to a private IP, the connection is blocked.
 
+**Fail-Closed DNS Handling:**
+
+DNS resolution failures are treated as potentially malicious and blocked. This prevents attacks where:
+- An attacker's DNS times out initially, then resolves to a private IP
+- DNS returns empty responses
+- Malformed hostnames bypass validation
+
+**Structured Error Codes:**
+
+SSRF errors include programmatic error codes for automated handling:
+
+| Code | Description |
+|------|-------------|
+| `SSRF_PRIVATE_IP` | URL resolves to private/internal IP |
+| `SSRF_DNS_ERROR` | DNS resolution failed (blocked) |
+| `SSRF_REDIRECT_BLOCKED` | Redirect target is private |
+| `SSRF_INVALID_URL` | URL format is invalid |
+
 ---
 
 ## Security Recommendations

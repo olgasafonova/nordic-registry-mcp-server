@@ -126,18 +126,35 @@ func isPrivateIP(ip net.IP) bool {
 }
 
 // isPrivateHost checks if a hostname resolves to any private IP
-// Returns an error if the host resolves to a private IP
+// Returns (true, nil) if private, (false, nil) if public, (true, error) if DNS fails
+// SECURITY: Fails closed - DNS errors are treated as potentially private (blocked)
 func isPrivateHost(hostname string) (bool, error) {
 	// First, try to parse as an IP directly
 	if ip := net.ParseIP(hostname); ip != nil {
 		return isPrivateIP(ip), nil
 	}
 
-	// Resolve hostname
+	// Resolve hostname with timeout
 	ips, err := net.LookupIP(hostname)
 	if err != nil {
-		// DNS resolution failed - could be temporary, let the HTTP client handle it
-		return false, nil
+		// SECURITY: Fail closed - DNS errors could hide SSRF attempts
+		// An attacker could use DNS that times out initially then resolves to private IP
+		return true, &SSRFError{
+			Code:    SSRFCodeDNSError,
+			URL:     hostname,
+			Reason:  fmt.Sprintf("DNS resolution failed: %v", err),
+			Blocked: true,
+		}
+	}
+
+	// Check for empty response (shouldn't happen, but fail closed)
+	if len(ips) == 0 {
+		return true, &SSRFError{
+			Code:    SSRFCodeDNSError,
+			URL:     hostname,
+			Reason:  "DNS returned no IP addresses",
+			Blocked: true,
+		}
 	}
 
 	// Check all resolved IPs - if ANY is private, block it
@@ -1319,14 +1336,20 @@ func (c *Client) CheckLinks(ctx context.Context, args CheckLinksArgs) (CheckLink
 			parsedURL, err := url.Parse(checkURL)
 			if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
 				linkResult.Status = "invalid_url"
-				linkResult.Error = "Invalid URL format"
+				linkResult.Error = fmt.Sprintf("[%s] Invalid URL format", SSRFCodeInvalidURL)
 				linkResult.Broken = true
 			} else if hostname := parsedURL.Hostname(); hostname != "" {
 				// SSRF protection: block private/internal IPs
-				isPrivate, _ := isPrivateHost(hostname)
+				isPrivate, ssrfErr := isPrivateHost(hostname)
 				if isPrivate {
 					linkResult.Status = "blocked"
-					linkResult.Error = "URLs pointing to private/internal networks are not allowed"
+					if ssrfErr != nil {
+						// DNS error - use the structured error message
+						linkResult.Error = ssrfErr.Error()
+					} else {
+						// Private IP detected
+						linkResult.Error = fmt.Sprintf("[%s] URLs pointing to private/internal networks are not allowed", SSRFCodePrivateIP)
+					}
 					linkResult.Broken = true
 				} else {
 					// Create per-request context with timeout
