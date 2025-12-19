@@ -532,17 +532,20 @@ func main() {
 
 ### User asks about QUALITY/LINKS:
 
-1. "Check for broken links"
+1. "Run a wiki health check" or "Audit the wiki" or "Check wiki quality"
+   -> USE: mediawiki_audit (runs all checks in parallel, returns health score 0-100)
+
+2. "Check for broken links"
    -> External URLs: mediawiki_check_links
    -> Internal wiki links: mediawiki_find_broken_internal_links
 
-2. "Check terminology/brand consistency"
+3. "Check terminology/brand consistency"
    -> USE: mediawiki_check_terminology
 
-3. "Find orphaned/unlinked pages"
+4. "Find orphaned/unlinked pages"
    -> USE: mediawiki_find_orphaned_pages
 
-4. "What links to [page]?"
+5. "What links to [page]?"
    -> USE: mediawiki_get_backlinks
 
 ### User wants to CONVERT content:

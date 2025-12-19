@@ -667,6 +667,7 @@ server {
 | `mediawiki_check_terminology` | Check naming consistency |
 | `mediawiki_check_translations` | Find missing translations |
 | `mediawiki_find_orphaned_pages` | Find unlinked pages |
+| `mediawiki_audit` | Comprehensive health audit (parallel checks, health score) |
 
 </details>
 
