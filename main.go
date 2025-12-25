@@ -21,7 +21,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/olgasafonova/mediawiki-mcp-server/converter"
 	"github.com/olgasafonova/mediawiki-mcp-server/tools"
+	"github.com/olgasafonova/mediawiki-mcp-server/tracing"
 	"github.com/olgasafonova/mediawiki-mcp-server/wiki"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // recoverPanic wraps a function with panic recovery and returns an error instead of crashing
@@ -445,6 +447,19 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 
+	// Initialize OpenTelemetry tracing
+	tracingConfig := tracing.DefaultConfig()
+	tracingConfig.ServiceVersion = ServerVersion
+	shutdownTracing, err := tracing.Setup(context.Background(), tracingConfig)
+	if err != nil {
+		logger.Warn("Failed to initialize tracing", "error", err)
+	} else if tracingConfig.Enabled {
+		defer shutdownTracing(context.Background())
+		logger.Info("OpenTelemetry tracing enabled",
+			"endpoint", tracingConfig.OTLPEndpoint,
+			"service", tracingConfig.ServiceName)
+	}
+
 	// Load configuration from environment
 	config, err := wiki.LoadConfig()
 	if err != nil {
@@ -690,6 +705,9 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, `{"status":"ready","wiki_url":"%s"}`, wikiURL)
 	})
+
+	// Prometheus metrics endpoint (no auth required - for monitoring systems)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// All other routes go through secured MCP handler
 	mux.Handle("/", securedHandler)

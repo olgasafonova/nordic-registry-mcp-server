@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/olgasafonova/mediawiki-mcp-server/metrics"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -208,7 +209,11 @@ func (c *Client) evictLRU(count int) {
 		evicted++
 	}
 
-	atomic.AddInt64(&c.cacheCount, -int64(evicted))
+	if evicted > 0 {
+		newCount := atomic.AddInt64(&c.cacheCount, -int64(evicted))
+		metrics.SetCacheSize(newCount)
+		metrics.CacheEvictions.Add(float64(evicted))
+	}
 }
 
 // getCached retrieves a cached value if it exists and hasn't expired
@@ -221,12 +226,16 @@ func (c *Client) getCached(key string) (interface{}, bool) {
 			ce.mu.Lock()
 			ce.AccessedAt = now
 			ce.mu.Unlock()
+			metrics.RecordCacheAccess(true)
 			return ce.Data, true
 		}
 		// Expired, delete it
 		c.cache.Delete(key)
-		atomic.AddInt64(&c.cacheCount, -1)
+		newCount := atomic.AddInt64(&c.cacheCount, -1)
+		metrics.SetCacheSize(newCount)
+		metrics.CacheEvictions.Inc()
 	}
+	metrics.RecordCacheAccess(false)
 	return nil, false
 }
 
@@ -252,6 +261,7 @@ func (c *Client) setCache(key string, data interface{}, ttlKey string) {
 	// Only increment count for new entries
 	if !existed {
 		newCount := atomic.AddInt64(&c.cacheCount, 1)
+		metrics.SetCacheSize(newCount)
 
 		// Trigger eviction if over limit (async to not block caller)
 		if newCount > MaxCacheEntries {
@@ -271,18 +281,31 @@ func (c *Client) InvalidateCachePrefix(prefix string) {
 		return true
 	})
 	if deletedCount > 0 {
-		atomic.AddInt64(&c.cacheCount, -deletedCount)
+		newCount := atomic.AddInt64(&c.cacheCount, -deletedCount)
+		metrics.SetCacheSize(newCount)
+		metrics.CacheEvictions.Add(float64(deletedCount))
 	}
 }
 
 // apiRequest makes a request to the MediaWiki API with rate limiting
 func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]interface{}, error) {
+	action := params.Get("action")
+	start := time.Now()
+
 	// Acquire semaphore slot (rate limiting)
 	select {
 	case c.semaphore <- struct{}{}:
 		defer func() { <-c.semaphore }()
-	case <-ctx.Done():
-		return nil, fmt.Errorf("context cancelled while waiting for rate limiter: %w", ctx.Err())
+	default:
+		// Semaphore full, we'll wait but record it
+		metrics.RateLimitWaits.Inc()
+		select {
+		case c.semaphore <- struct{}{}:
+			defer func() { <-c.semaphore }()
+		case <-ctx.Done():
+			metrics.RateLimitRejections.Inc()
+			return nil, fmt.Errorf("context cancelled while waiting for rate limiter: %w", ctx.Err())
+		}
 	}
 
 	// Check context before proceeding
@@ -295,6 +318,7 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 	var lastErr error
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
+			metrics.WikiAPIRetries.WithLabelValues(action).Inc()
 			// Exponential backoff with context awareness
 			backoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
 			select {
@@ -373,12 +397,18 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 		if errObj, ok := result["error"].(map[string]interface{}); ok {
 			code, _ := errObj["code"].(string)
 			info, _ := errObj["info"].(string)
+			duration := time.Since(start).Seconds()
+			metrics.RecordAPICall(action, duration, false, code)
 			return nil, fmt.Errorf("API error [%s]: %s", code, info)
 		}
 
+		duration := time.Since(start).Seconds()
+		metrics.RecordAPICall(action, duration, true, "")
 		return result, nil
 	}
 
+	duration := time.Since(start).Seconds()
+	metrics.RecordAPICall(action, duration, false, "max_retries_exceeded")
 	return nil, lastErr
 }
 

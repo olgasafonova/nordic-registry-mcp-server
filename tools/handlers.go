@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/olgasafonova/mediawiki-mcp-server/metrics"
+	"github.com/olgasafonova/mediawiki-mcp-server/tracing"
 	"github.com/olgasafonova/mediawiki-mcp-server/wiki"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // HandlerRegistry provides type-safe tool registration by mapping
@@ -153,7 +158,7 @@ func (h *HandlerRegistry) buildTool(spec ToolSpec) *mcp.Tool {
 }
 
 // register is a generic helper that registers a tool with the MCP server.
-// It wraps the client method with panic recovery and logging.
+// It wraps the client method with panic recovery, metrics, tracing, and logging.
 func register[Args, Result any](
 	h *HandlerRegistry,
 	server *mcp.Server,
@@ -164,12 +169,36 @@ func register[Args, Result any](
 	mcp.AddTool(server, tool, func(ctx context.Context, req *mcp.CallToolRequest, args Args) (*mcp.CallToolResult, Result, error) {
 		defer h.recoverPanic(spec.Name)
 
+		// Start trace span
+		ctx, span := tracing.StartSpan(ctx, "mcp.tool."+spec.Name)
+		defer span.End()
+
+		span.SetAttributes(
+			attribute.String("mcp.tool.name", spec.Name),
+			attribute.String("mcp.tool.category", spec.Category),
+			attribute.Bool("mcp.tool.readonly", spec.ReadOnly),
+		)
+
+		// Track in-flight requests
+		metrics.RequestInFlight.WithLabelValues(spec.Name).Inc()
+		defer metrics.RequestInFlight.WithLabelValues(spec.Name).Dec()
+
+		start := time.Now()
 		result, err := method(ctx, args)
+		duration := time.Since(start).Seconds()
+
+		span.SetAttributes(attribute.Float64("mcp.tool.duration_seconds", duration))
+
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			metrics.RecordRequest(spec.Name, duration, false)
 			var zero Result
 			return nil, zero, fmt.Errorf("%s failed: %w", spec.Name, err)
 		}
 
+		span.SetStatus(codes.Ok, "")
+		metrics.RecordRequest(spec.Name, duration, true)
 		h.logExecution(spec, args, result)
 		return nil, result, nil
 	})
@@ -178,6 +207,7 @@ func register[Args, Result any](
 // recoverPanic recovers from panics in tool handlers.
 func (h *HandlerRegistry) recoverPanic(toolName string) {
 	if rec := recover(); rec != nil {
+		metrics.PanicsRecovered.WithLabelValues(toolName).Inc()
 		h.logger.Error("Panic recovered",
 			"tool", toolName,
 			"panic", rec,
