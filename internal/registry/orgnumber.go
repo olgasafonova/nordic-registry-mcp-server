@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+// Pre-compiled regex patterns for country detection
+var (
+	finlandPattern = regexp.MustCompile(`^\d{7}-\d$`)
+)
+
 // OrgNumberFormat describes the format of an organization number.
 type OrgNumberFormat struct {
 	Country   Country
@@ -28,7 +33,7 @@ func DetectCountry(orgNumber string) Country {
 
 	// Finland: 7 digits + hyphen + 1 digit (1234567-8)
 	// Check original format first (before cleaning removes hyphen)
-	if matched, _ := regexp.MatchString(`^\d{7}-\d$`, strings.TrimSpace(orgNumber)); matched {
+	if finlandPattern.MatchString(strings.TrimSpace(orgNumber)) {
 		return CountryFinland
 	}
 
