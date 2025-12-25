@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mediawiki-mcp:
+    build: .
+    image: mediawiki-mcp-server:latest
+    container_name: mediawiki-mcp-server
+    ports:
+      - "8080:8080"
+    environment:
+      # Required: Your wiki's API URL
+      - MEDIAWIKI_URL=${MEDIAWIKI_URL:-https://en.wikipedia.org/w/api.php}
+
+      # Optional: For editing (create at Special:BotPasswords)
+      - MEDIAWIKI_USERNAME=${MEDIAWIKI_USERNAME:-}
+      - MEDIAWIKI_PASSWORD=${MEDIAWIKI_PASSWORD:-}
+
+      # Optional: Bearer token for HTTP auth
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
+
+      # Optional: Request timeout
+      - MEDIAWIKI_TIMEOUT=${MEDIAWIKI_TIMEOUT:-30s}
+
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Security
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp

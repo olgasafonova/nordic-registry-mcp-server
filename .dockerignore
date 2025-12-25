@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+dist/
+*.exe
+mediawiki-mcp-server
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation (not needed in image)
+*.md
+!README.md
+docs/
+
+# Tests
+*_test.go
+testdata/
+
+# Local config
+.env
+.env.*

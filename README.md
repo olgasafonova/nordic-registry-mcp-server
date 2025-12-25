@@ -2,7 +2,24 @@
 
 Connect your AI assistant to any MediaWiki wiki. Search, read, and edit wiki content using natural language.
 
+[![CI](https://github.com/olgasafonova/mediawiki-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/olgasafonova/mediawiki-mcp-server/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/olgasafonova/mediawiki-mcp-server)](https://goreportcard.com/report/github.com/olgasafonova/mediawiki-mcp-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Works with:** Claude Desktop, Claude Code, Cursor, ChatGPT, n8n, and any MCP-compatible tool.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | Get running in 2 minutes |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [SECURITY.md](SECURITY.md) | Security policies |
+| [WIKI_USE_CASES.md](WIKI_USE_CASES.md) | Detailed workflows |
 
 ---
 
