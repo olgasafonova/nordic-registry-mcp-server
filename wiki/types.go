@@ -58,6 +58,49 @@ type PageContent struct {
 	Message   string `json:"message,omitempty"`
 }
 
+// ========== Batch Page Types ==========
+
+// GetPagesBatchArgs contains parameters for retrieving multiple pages at once.
+// This is more efficient than individual GetPage calls for bulk operations.
+type GetPagesBatchArgs struct {
+	Titles []string `json:"titles" jsonschema:"required" jsonschema_description:"List of page titles to retrieve (max 50)"`
+	Format string   `json:"format,omitempty" jsonschema_description:"Output format: 'wikitext' (default) or 'html'"`
+}
+
+// GetPagesBatchResult contains content from multiple pages.
+type GetPagesBatchResult struct {
+	Pages       []PageContentResult `json:"pages"`
+	TotalCount  int                 `json:"total_count"`
+	FoundCount  int                 `json:"found_count"`
+	MissingCount int                `json:"missing_count"`
+}
+
+// PageContentResult contains content for a single page in batch results.
+type PageContentResult struct {
+	Title     string `json:"title"`
+	PageID    int    `json:"page_id,omitempty"`
+	Content   string `json:"content,omitempty"`
+	Format    string `json:"format,omitempty"`
+	Revision  int    `json:"revision_id,omitempty"`
+	Timestamp string `json:"timestamp,omitempty"`
+	Exists    bool   `json:"exists"`
+	Error     string `json:"error,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
+// GetPagesInfoBatchArgs contains parameters for retrieving metadata for multiple pages.
+type GetPagesInfoBatchArgs struct {
+	Titles []string `json:"titles" jsonschema:"required" jsonschema_description:"List of page titles to get info for (max 50)"`
+}
+
+// GetPagesInfoBatchResult contains metadata for multiple pages.
+type GetPagesInfoBatchResult struct {
+	Pages        []PageInfo `json:"pages"`
+	TotalCount   int        `json:"total_count"`
+	ExistsCount  int        `json:"exists_count"`
+	MissingCount int        `json:"missing_count"`
+}
+
 // ========== List Pages Types ==========
 
 // ListPagesArgs contains parameters for listing wiki pages.

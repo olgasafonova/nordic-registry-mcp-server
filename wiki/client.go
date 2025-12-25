@@ -77,11 +77,23 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 
 	// Configure HTTP transport for better connection reuse and performance
 	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  false, // Enable gzip compression
-		ForceAttemptHTTP2:   true,  // Use HTTP/2 when available
+		// Connection pool settings
+		MaxIdleConns:        100,              // Total idle connections across all hosts
+		MaxIdleConnsPerHost: 20,               // Idle connections per host (increased for single-host pattern)
+		MaxConnsPerHost:     50,               // Maximum connections per host
+		IdleConnTimeout:     120 * time.Second, // Keep idle connections longer
+
+		// Timeouts for connection establishment and TLS
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second, // Max time to wait for response headers
+
+		// Compression and HTTP/2
+		DisableCompression: false, // Enable gzip compression
+		ForceAttemptHTTP2:  true,  // Use HTTP/2 when available
+
+		// Keep-alive probe settings
+		DisableKeepAlives: false, // Ensure keep-alives are enabled
 	}
 
 	// Initialize cache TTLs for different operations
@@ -118,6 +130,62 @@ func (c *Client) Close() {
 		close(c.stopCh)
 		c.logger.Debug("Client shutdown initiated")
 	})
+}
+
+// HealthStatus represents the result of a connectivity check
+type HealthStatus struct {
+	Connected     bool          `json:"connected"`
+	WikiURL       string        `json:"wiki_url"`
+	SiteName      string        `json:"site_name,omitempty"`
+	Generator     string        `json:"generator,omitempty"`
+	ResponseTime  time.Duration `json:"response_time_ms"`
+	Authenticated bool          `json:"authenticated"`
+	Error         string        `json:"error,omitempty"`
+}
+
+// Ping checks connectivity to the MediaWiki API and returns health status.
+// This is a lightweight check that doesn't require authentication and isn't cached.
+func (c *Client) Ping(ctx context.Context) HealthStatus {
+	start := time.Now()
+	status := HealthStatus{
+		WikiURL:       c.config.BaseURL,
+		Authenticated: c.isLoggedIn(),
+	}
+
+	// Make a simple siteinfo request
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("meta", "siteinfo")
+	params.Set("siprop", "general")
+	params.Set("format", "json")
+
+	resp, err := c.apiRequest(ctx, params)
+	status.ResponseTime = time.Since(start)
+
+	if err != nil {
+		status.Connected = false
+		status.Error = err.Error()
+		return status
+	}
+
+	status.Connected = true
+
+	// Extract basic site info
+	if query, ok := resp["query"].(map[string]interface{}); ok {
+		if general, ok := query["general"].(map[string]interface{}); ok {
+			status.SiteName = getString(general["sitename"])
+			status.Generator = getString(general["generator"])
+		}
+	}
+
+	return status
+}
+
+// isLoggedIn returns the current authentication state
+func (c *Client) isLoggedIn() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.loggedIn
 }
 
 // SetAuditLogger configures an audit logger for tracking write operations.

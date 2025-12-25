@@ -1353,3 +1353,139 @@ func TestCSRFToken(t *testing.T) {
 		t.Error("Expected non-empty CSRF token")
 	}
 }
+
+// Tests for Ping health check
+
+func TestPing_Success(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		action := r.FormValue("action")
+		meta := r.FormValue("meta")
+
+		if action == "query" && meta == "siteinfo" {
+			response := map[string]interface{}{
+				"query": map[string]interface{}{
+					"general": map[string]interface{}{
+						"sitename":  "Test Wiki",
+						"generator": "MediaWiki 1.40.0",
+					},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	ctx := context.Background()
+	status := client.Ping(ctx)
+
+	if !status.Connected {
+		t.Errorf("Expected Connected=true, got false. Error: %s", status.Error)
+	}
+	if status.SiteName != "Test Wiki" {
+		t.Errorf("Expected SiteName='Test Wiki', got %q", status.SiteName)
+	}
+	if status.Generator != "MediaWiki 1.40.0" {
+		t.Errorf("Expected Generator='MediaWiki 1.40.0', got %q", status.Generator)
+	}
+	if status.ResponseTime <= 0 {
+		t.Error("Expected positive ResponseTime")
+	}
+	if status.Error != "" {
+		t.Errorf("Expected no error, got: %s", status.Error)
+	}
+}
+
+func TestPing_ConnectionFailure(t *testing.T) {
+	// Create client with invalid URL that will fail to connect
+	config := &Config{
+		BaseURL:    "http://localhost:1", // Invalid port - connection refused
+		Timeout:    1 * time.Second,
+		MaxRetries: 0, // No retries for faster test
+		UserAgent:  "TestClient/1.0",
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	client := NewClient(config, logger)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	status := client.Ping(ctx)
+
+	if status.Connected {
+		t.Error("Expected Connected=false for invalid server")
+	}
+	if status.Error == "" {
+		t.Error("Expected error message for connection failure")
+	}
+	if status.WikiURL != config.BaseURL {
+		t.Errorf("Expected WikiURL=%q, got %q", config.BaseURL, status.WikiURL)
+	}
+}
+
+func TestPing_Authenticated(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		action := r.FormValue("action")
+		meta := r.FormValue("meta")
+
+		if action == "query" && meta == "siteinfo" {
+			response := map[string]interface{}{
+				"query": map[string]interface{}{
+					"general": map[string]interface{}{
+						"sitename":  "Test Wiki",
+						"generator": "MediaWiki 1.40.0",
+					},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	// Simulate logged in state
+	client.loggedIn = true
+
+	ctx := context.Background()
+	status := client.Ping(ctx)
+
+	if !status.Connected {
+		t.Errorf("Expected Connected=true, got false. Error: %s", status.Error)
+	}
+	if !status.Authenticated {
+		t.Error("Expected Authenticated=true when client is logged in")
+	}
+}
+
+func TestIsLoggedIn(t *testing.T) {
+	client := createTestClient(t)
+	defer client.Close()
+
+	// Initially not logged in
+	if client.isLoggedIn() {
+		t.Error("Expected isLoggedIn() to return false initially")
+	}
+
+	// Set logged in state
+	client.loggedIn = true
+	if !client.isLoggedIn() {
+		t.Error("Expected isLoggedIn() to return true after setting loggedIn=true")
+	}
+}

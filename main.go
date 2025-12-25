@@ -13,9 +13,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -629,7 +631,7 @@ Read operations work without authentication.`,
 	// Choose transport based on flags
 	if *httpAddr != "" {
 		// HTTP transport mode (for ChatGPT, n8n, and remote clients)
-		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, config.BaseURL)
+		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, config.BaseURL, client)
 	} else {
 		// stdio transport mode (default, for Claude Desktop, Cursor, etc.)
 		logger.Info("Starting MediaWiki MCP Server (stdio mode)",
@@ -638,14 +640,34 @@ Read operations work without authentication.`,
 			"wiki_url", config.BaseURL,
 		)
 
-		if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {
+		// Set up signal handling for graceful shutdown in stdio mode
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		// Create a cancellable context for the server
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		// Handle shutdown signal in background
+		go func() {
+			sig := <-sigChan
+			logger.Info("Shutdown signal received", "signal", sig.String())
+			cancel()
+		}()
+
+		// Run the server
+		if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && err != context.Canceled {
 			log.Fatalf("Server error: %v", err)
 		}
+
+		// Clean up resources
+		client.Close()
+		logger.Info("Shutdown complete")
 	}
 }
 
-// runHTTPServer starts the MCP server with HTTP transport
-func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies, wikiURL string) {
+// runHTTPServer starts the MCP server with HTTP transport and graceful shutdown
+func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies, wikiURL string, client *wiki.Client) {
 	// Parse allowed origins
 	var allowedOriginsList []string
 	if origins != "" {
@@ -686,6 +708,7 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 	mux := http.NewServeMux()
 
 	// Health endpoint (no auth required - for load balancers and monitoring)
+	// This is a simple liveness check that doesn't verify wiki connectivity
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
@@ -693,17 +716,34 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		_, _ = fmt.Fprintf(w, `{"status":"healthy","server":"%s","version":"%s"}`, ServerName, ServerVersion)
 	})
 
-	// Readiness endpoint (checks if wiki connection is configured)
+	// Readiness endpoint - verifies actual wiki connectivity
+	// Use short timeout to avoid blocking health checks
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
+
+		// Check if wiki URL is configured
 		if wikiURL == "" {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = fmt.Fprintf(w, `{"status":"not_ready","error":"wiki_url_not_configured"}`)
 			return
 		}
+
+		// Check actual wiki connectivity with timeout
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		health := client.Ping(ctx)
+		if !health.Connected {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = fmt.Fprintf(w, `{"status":"not_ready","wiki_url":"%s","error":"%s","response_time_ms":%d}`,
+				health.WikiURL, health.Error, health.ResponseTime.Milliseconds())
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, `{"status":"ready","wiki_url":"%s"}`, wikiURL)
+		_, _ = fmt.Fprintf(w, `{"status":"ready","wiki_url":"%s","site_name":"%s","generator":"%s","authenticated":%t,"response_time_ms":%d}`,
+			health.WikiURL, health.SiteName, health.Generator, health.Authenticated, health.ResponseTime.Milliseconds())
 	})
 
 	// Prometheus metrics endpoint (no auth required - for monitoring systems)
@@ -740,10 +780,52 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		logger.Warn("Server binding to external interface. Ensure you're behind HTTPS proxy in production.")
 	}
 
-	// Start the server
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start server in a goroutine
+	serverErrors := make(chan error, 1)
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErrors <- err
+		}
+		close(serverErrors)
+	}()
+
+	// Wait for shutdown signal or server error
+	select {
+	case err := <-serverErrors:
 		log.Fatalf("HTTP server error: %v", err)
+	case sig := <-sigChan:
+		logger.Info("Shutdown signal received", "signal", sig.String())
 	}
+
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	logger.Info("Initiating graceful shutdown...")
+
+	// Stop accepting new connections and wait for existing requests
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("HTTP server shutdown error", "error", err)
+	} else {
+		logger.Info("HTTP server stopped gracefully")
+	}
+
+	// Clean up resources
+	if securedHandler.rateLimiter != nil {
+		securedHandler.rateLimiter.Close()
+		logger.Info("Rate limiter stopped")
+	}
+
+	if client != nil {
+		client.Close()
+		logger.Info("Wiki client closed")
+	}
+
+	logger.Info("Shutdown complete")
 }
 
 // registerConverterTool registers the Markdown converter (not a wiki.Client method)
