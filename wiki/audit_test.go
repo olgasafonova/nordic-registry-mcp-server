@@ -3,6 +3,7 @@ package wiki
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -280,5 +281,262 @@ func TestAuditEntryJSONFormat(t *testing.T) {
 		if strings.Contains(minimalStr, field) {
 			t.Errorf("JSON should omit zero-value field %s: %s", field, minimalStr)
 		}
+	}
+}
+
+func TestNullAuditLogger_Log(t *testing.T) {
+	logger := NullAuditLogger{}
+	
+	// Should not panic and should do nothing
+	entry := AuditEntry{
+		Timestamp:   "2024-01-15T10:30:00Z",
+		Operation:   AuditOpEdit,
+		Title:       "Test Page",
+		ContentHash: "abc123",
+		WikiURL:     "https://example.com",
+		Success:     true,
+	}
+	
+	// This should be a no-op
+	logger.Log(entry)
+	
+	// Test Close as well
+	err := logger.Close()
+	if err != nil {
+		t.Errorf("Close returned error: %v", err)
+	}
+}
+
+func TestJSONAuditLogger_Log(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	auditLogger := NewWriterAuditLogger(&buf, logger)
+	
+	entry := AuditEntry{
+		Timestamp:   "2024-01-15T10:30:00Z",
+		Operation:   AuditOpEdit,
+		Title:       "Test Page",
+		ContentHash: "abc123",
+		WikiURL:     "https://example.com",
+		Success:     true,
+	}
+	
+	auditLogger.Log(entry)
+	
+	output := buf.String()
+	if !strings.Contains(output, "Test Page") {
+		t.Errorf("Expected output to contain 'Test Page', got: %s", output)
+	}
+	if !strings.Contains(output, "abc123") {
+		t.Errorf("Expected output to contain 'abc123', got: %s", output)
+	}
+}
+
+func TestJSONAuditLogger_Close_WithFile(t *testing.T) {
+	// Create a temp file
+	tmpFile, err := os.CreateTemp("", "audit_test_*.jsonl")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	auditLogger, err := NewFileAuditLogger(tmpPath, logger)
+	if err != nil {
+		t.Fatalf("Failed to create file audit logger: %v", err)
+	}
+
+	entry := AuditEntry{
+		Timestamp: "2024-01-15T10:30:00Z",
+		Operation: AuditOpEdit,
+		Title:     "Test Page",
+		Success:   true,
+	}
+	auditLogger.Log(entry)
+
+	err = auditLogger.Close()
+	if err != nil {
+		t.Errorf("Close returned error: %v", err)
+	}
+}
+
+func TestClientLogAudit(t *testing.T) {
+	// Test logAudit with a configured audit logger
+	var buf bytes.Buffer
+	slogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	auditLogger := NewWriterAuditLogger(&buf, slogger)
+
+	client := &Client{
+		auditLogger: auditLogger,
+	}
+
+	entry := AuditEntry{
+		Timestamp:   "2024-01-15T10:30:00Z",
+		Operation:   AuditOpEdit,
+		Title:       "Test Page",
+		ContentHash: "abc123",
+		WikiURL:     "https://example.com",
+		Success:     true,
+	}
+
+	client.logAudit(entry)
+
+	output := buf.String()
+	if !strings.Contains(output, "Test Page") {
+		t.Errorf("Expected audit log to contain 'Test Page', got: %s", output)
+	}
+}
+
+func TestClientLogAudit_NoLogger(t *testing.T) {
+	// Test logAudit without an audit logger (should not panic)
+	client := &Client{
+		auditLogger: nil,
+	}
+
+	entry := AuditEntry{
+		Timestamp: "2024-01-15T10:30:00Z",
+		Operation: AuditOpEdit,
+		Title:     "Test Page",
+		Success:   true,
+	}
+
+	// Should not panic
+	client.logAudit(entry)
+}
+
+func TestBuildAuditEntry(t *testing.T) {
+	client := &Client{
+		config: &Config{
+			BaseURL: "https://wiki.example.com/api.php",
+		},
+	}
+
+	entry := client.buildAuditEntry(
+		AuditOpEdit,
+		"Test Page",
+		"Content here",
+		"Edit summary",
+		true,  // minor
+		false, // bot
+		true,  // success
+		123,   // pageID
+		456,   // revisionID
+		"",    // errMsg
+	)
+
+	if entry.Title != "Test Page" {
+		t.Errorf("Title = %q, want 'Test Page'", entry.Title)
+	}
+	if entry.Operation != AuditOpEdit {
+		t.Errorf("Operation = %q, want %q", entry.Operation, AuditOpEdit)
+	}
+	if entry.PageID != 123 {
+		t.Errorf("PageID = %d, want 123", entry.PageID)
+	}
+	if entry.Minor != true {
+		t.Error("Expected Minor = true")
+	}
+	if entry.Success != true {
+		t.Error("Expected Success = true")
+	}
+	if entry.WikiURL != "https://wiki.example.com/api.php" {
+		t.Errorf("WikiURL = %q, want 'https://wiki.example.com/api.php'", entry.WikiURL)
+	}
+	if entry.ContentHash == "" {
+		t.Error("Expected non-empty ContentHash")
+	}
+}
+
+func TestBuildAuditEntry_WithError(t *testing.T) {
+	client := &Client{
+		config: &Config{
+			BaseURL: "https://wiki.example.com/api.php",
+		},
+	}
+
+	entry := client.buildAuditEntry(
+		AuditOpUpload,
+		"File:Test.png",
+		"",
+		"Upload test",
+		false, // minor
+		true,  // bot
+		false, // success
+		0,     // pageID
+		0,     // revisionID
+		"Upload failed: file too large",
+	)
+
+	if entry.Operation != AuditOpUpload {
+		t.Errorf("Operation = %q, want %q", entry.Operation, AuditOpUpload)
+	}
+	if entry.Success != false {
+		t.Error("Expected Success = false")
+	}
+	if entry.Error != "Upload failed: file too large" {
+		t.Errorf("Error = %q, want 'Upload failed: file too large'", entry.Error)
+	}
+	if entry.Bot != true {
+		t.Error("Expected Bot = true")
+	}
+}
+
+// failingWriter is a writer that always fails
+type failingWriter struct{}
+
+func (f failingWriter) Write(_ []byte) (n int, err error) {
+	return 0, fmt.Errorf("intentional write failure")
+}
+
+func TestJSONAuditLogger_WriteError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	auditLogger := NewWriterAuditLogger(failingWriter{}, logger)
+
+	entry := AuditEntry{
+		Timestamp:   "2024-01-15T10:30:00Z",
+		Operation:   AuditOpEdit,
+		Title:       "Test Page",
+		ContentHash: "abc123",
+		WikiURL:     "https://example.com",
+		Success:     true,
+	}
+
+	// Should not panic, just log the error
+	auditLogger.Log(entry)
+}
+
+func TestNullAuditLogger_Complete(t *testing.T) {
+	logger := NullAuditLogger{}
+
+	// Create a fully populated entry
+	entry := AuditEntry{
+		Timestamp:   "2024-01-15T10:30:00Z",
+		Operation:   AuditOpCreate,
+		Title:       "Complete Test Page",
+		PageID:      999,
+		RevisionID:  888,
+		ContentHash: "fullhash123",
+		ContentSize: 2048,
+		Summary:     "Complete test",
+		Minor:       true,
+		Bot:         true,
+		WikiURL:     "https://complete.example.com",
+		Success:     true,
+		Error:       "",
+	}
+
+	// Log should be no-op
+	logger.Log(entry)
+
+	// Multiple logs should still work
+	logger.Log(entry)
+	logger.Log(entry)
+
+	// Close should return nil
+	err := logger.Close()
+	if err != nil {
+		t.Errorf("Close returned error: %v", err)
 	}
 }

@@ -510,3 +510,63 @@ func TestCompareRevisions_MissingToRev(t *testing.T) {
 		t.Error("Expected error for missing to_rev/to_title")
 	}
 }
+
+func TestGetRevisions_WithAllOptions(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"pages": map[string]interface{}{
+					"1": map[string]interface{}{
+						"pageid":    float64(1),
+						"title":     "Test Page",
+						"revisions": []interface{}{},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	_, err := client.GetRevisions(context.Background(), GetRevisionsArgs{
+		Title: "Test Page",
+		Limit: 5,
+		User:  "TestUser",
+		Start: "2024-01-01T00:00:00Z",
+		End:   "2024-12-31T23:59:59Z",
+	})
+	if err != nil {
+		t.Fatalf("GetRevisions failed: %v", err)
+	}
+}
+
+func TestGetUserContributions_WithOptions(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"usercontribs": []interface{}{},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	_, err := client.GetUserContributions(context.Background(), GetUserContributionsArgs{
+		User:      "TestUser",
+		Limit:     10,
+		Namespace: 0,
+		Start:     "2024-01-01T00:00:00Z",
+		End:       "2024-12-31T23:59:59Z",
+	})
+	if err != nil {
+		t.Fatalf("GetUserContributions failed: %v", err)
+	}
+}

@@ -257,3 +257,25 @@ func generateRepeatedLines(line string, count int) string {
 	}
 	return result
 }
+
+func TestSearchInPDF_EmptyData(t *testing.T) {
+	matches, found, message, err := SearchInPDF([]byte{}, "test")
+	
+	if err != nil {
+		t.Fatalf("SearchInPDF failed: %v", err)
+	}
+	if found {
+		t.Error("Expected found = false for empty PDF")
+	}
+	if message != "Empty PDF data" {
+		t.Errorf("Expected 'Empty PDF data' message, got: %s", message)
+	}
+	if len(matches) != 0 {
+		t.Errorf("Expected no matches, got %d", len(matches))
+	}
+}
+
+func TestIsPdfToTextAvailable(t *testing.T) {
+	// This just exercises the function - result depends on whether pdftotext is installed
+	_ = isPdfToTextAvailable()
+}

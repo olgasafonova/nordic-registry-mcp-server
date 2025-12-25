@@ -707,3 +707,214 @@ func TestGetRecentChanges_Success(t *testing.T) {
 		t.Errorf("Changes[0].User = %q, want %q", result.Changes[0].User, "TestUser")
 	}
 }
+
+func TestGetRecentChanges_WithAggregation(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"recentchanges": []interface{}{
+					map[string]interface{}{
+						"type":      "edit",
+						"title":     "Page A",
+						"pageid":    float64(1),
+						"revid":     float64(100),
+						"user":      "UserA",
+						"timestamp": "2024-01-15T12:00:00Z",
+						"comment":   "Edit 1",
+					},
+					map[string]interface{}{
+						"type":      "edit",
+						"title":     "Page B",
+						"pageid":    float64(2),
+						"revid":     float64(101),
+						"user":      "UserA",
+						"timestamp": "2024-01-15T11:30:00Z",
+						"comment":   "Edit 2",
+					},
+					map[string]interface{}{
+						"type":      "edit",
+						"title":     "Page A",
+						"pageid":    float64(1),
+						"revid":     float64(102),
+						"user":      "UserB",
+						"timestamp": "2024-01-15T11:00:00Z",
+						"comment":   "Edit 3",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	result, err := client.GetRecentChanges(context.Background(), RecentChangesArgs{
+		Limit:       10,
+		AggregateBy: "user",
+	})
+	if err != nil {
+		t.Fatalf("GetRecentChanges failed: %v", err)
+	}
+
+	if result.Aggregated == nil {
+		t.Error("Expected Aggregated to be non-nil")
+	}
+}
+
+func TestGetRecentChanges_WithContinuation(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"recentchanges": []interface{}{
+					map[string]interface{}{
+						"type":      "edit",
+						"title":     "Page A",
+						"pageid":    float64(1),
+						"revid":     float64(100),
+						"user":      "User1",
+						"timestamp": "2024-01-15T12:00:00Z",
+					},
+				},
+			},
+			"continue": map[string]interface{}{
+				"rccontinue": "2024-01-15T11:00:00Z|123",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	result, err := client.GetRecentChanges(context.Background(), RecentChangesArgs{
+		Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("GetRecentChanges failed: %v", err)
+	}
+
+	if !result.HasMore {
+		t.Error("Expected HasMore = true")
+	}
+	if result.ContinueFrom == "" {
+		t.Error("Expected ContinueFrom to be set")
+	}
+}
+
+func TestGetRecentChanges_WithAllOptions(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+
+		// Verify parameters are passed
+		if r.FormValue("rcnamespace") == "" {
+			t.Error("Expected rcnamespace to be set")
+		}
+		if r.FormValue("rctype") == "" {
+			t.Error("Expected rctype to be set")
+		}
+		if r.FormValue("rcstart") == "" {
+			t.Error("Expected rcstart to be set")
+		}
+		if r.FormValue("rcend") == "" {
+			t.Error("Expected rcend to be set")
+		}
+
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"recentchanges": []interface{}{},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	_, err := client.GetRecentChanges(context.Background(), RecentChangesArgs{
+		Limit:        10,
+		Namespace:    0,
+		Type:         "edit",
+		Start:        "2024-01-15T00:00:00Z",
+		End:          "2024-01-14T00:00:00Z",
+		ContinueFrom: "test-token",
+	})
+	if err != nil {
+		t.Fatalf("GetRecentChanges failed: %v", err)
+	}
+}
+
+func TestGetPageInfo_WithAllFields(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"pages": map[string]interface{}{
+					"1": map[string]interface{}{
+						"pageid":        float64(1),
+						"title":         "Test Page",
+						"ns":            float64(0),
+						"touched":       "2024-01-15T12:00:00Z",
+						"lastrevid":     float64(100),
+						"length":        float64(5000),
+						"contentmodel":  "wikitext",
+						"pagelanguage":  "en",
+						"watchers":      float64(10),
+						"protection":    []interface{}{},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	result, err := client.GetPageInfo(context.Background(), PageInfoArgs{
+		Title: "Test Page",
+	})
+	if err != nil {
+		t.Fatalf("GetPageInfo failed: %v", err)
+	}
+	if result.Title != "Test Page" {
+		t.Errorf("Title = %q, want %q", result.Title, "Test Page")
+	}
+}
+
+func TestGetPageInfo_Missing(t *testing.T) {
+	server := mockMediaWikiServer(t, func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"query": map[string]interface{}{
+				"pages": map[string]interface{}{
+					"-1": map[string]interface{}{
+						"ns":      float64(0),
+						"title":   "Missing Page",
+						"missing": "",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	})
+	defer server.Close()
+
+	client := createMockClient(t, server)
+	defer client.Close()
+
+	result, err := client.GetPageInfo(context.Background(), PageInfoArgs{
+		Title: "Missing Page",
+	})
+	// Either returns error or result with Exists=false
+	if err == nil && result.Exists {
+		t.Error("Expected missing page to not exist")
+	}
+}
