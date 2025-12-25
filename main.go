@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"encoding/json"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/olgasafonova/mediawiki-mcp-server/converter"
 	"github.com/olgasafonova/mediawiki-mcp-server/tools"
@@ -640,6 +642,17 @@ Read operations work without authentication.`,
 			"wiki_url", config.BaseURL,
 		)
 
+		// Warm cache in background (don't block startup)
+		go func() {
+			warmCtx, warmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer warmCancel()
+			if err := client.WarmCacheWithDefaults(warmCtx); err != nil {
+				logger.Warn("Cache warming failed", "error", err)
+			} else {
+				logger.Info("Cache warming completed")
+			}
+		}()
+
 		// Set up signal handling for graceful shutdown in stdio mode
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -749,6 +762,63 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 	// Prometheus metrics endpoint (no auth required - for monitoring systems)
 	mux.Handle("/metrics", promhttp.Handler())
 
+	// Tools discovery endpoint (no auth required - for tool introspection)
+	mux.HandleFunc("/tools", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+
+		// Group tools by category
+		toolsByCategory := make(map[string][]map[string]interface{})
+		for _, tool := range tools.AllTools {
+			toolInfo := map[string]interface{}{
+				"name":        tool.Name,
+				"title":       tool.Title,
+				"description": tool.Description,
+				"read_only":   tool.ReadOnly,
+				"destructive": tool.Destructive,
+				"idempotent":  tool.Idempotent,
+			}
+			toolsByCategory[tool.Category] = append(toolsByCategory[tool.Category], toolInfo)
+		}
+
+		response := map[string]interface{}{
+			"server":     ServerName,
+			"version":    ServerVersion,
+			"tool_count": len(tools.AllTools),
+			"categories": toolsByCategory,
+		}
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.Error("Failed to encode tools response", "error", err)
+		}
+	})
+
+	// Circuit breaker status endpoint (no auth - for monitoring)
+	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+
+		cbStats := client.CircuitBreakerStatus()
+		dedupStats := client.DedupStats()
+
+		response := map[string]interface{}{
+			"server":  ServerName,
+			"version": ServerVersion,
+			"circuit_breaker": map[string]interface{}{
+				"state":               cbStats.State,
+				"consecutive_failures": cbStats.ConsecutiveFails,
+				"last_failure":        cbStats.LastFailure,
+			},
+			"dedup": map[string]interface{}{
+				"inflight_requests": dedupStats,
+			},
+		}
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.Error("Failed to encode status response", "error", err)
+		}
+	})
+
 	// All other routes go through secured MCP handler
 	mux.Handle("/", securedHandler)
 
@@ -771,6 +841,17 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		"rate_limit", rateLimit,
 		"allowed_origins", allowedOriginsList,
 	)
+
+	// Warm cache in background (don't block startup)
+	go func() {
+		warmCtx, warmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer warmCancel()
+		if err := client.WarmCacheWithDefaults(warmCtx); err != nil {
+			logger.Warn("Cache warming failed", "error", err)
+		} else {
+			logger.Info("Cache warming completed")
+		}
+	}()
 
 	// Security warnings
 	if authToken == "" {

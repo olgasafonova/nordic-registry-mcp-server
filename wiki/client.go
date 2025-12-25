@@ -57,6 +57,12 @@ type Client struct {
 	cacheCount int64      // Atomic counter for cache size
 	cacheMu    sync.Mutex // Protects eviction operations
 
+	// Request deduplication - coalesce identical in-flight requests
+	dedup *RequestDeduplicator
+
+	// Circuit breaker - fail fast when wiki is unresponsive
+	circuitBreaker *CircuitBreaker
+
 	// Graceful shutdown
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -112,10 +118,12 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 			Jar:       jar,
 			Transport: transport,
 		},
-		logger:    logger,
-		semaphore: sem,
-		cacheTTL:  cacheTTL,
-		stopCh:    make(chan struct{}),
+		logger:         logger,
+		semaphore:      sem,
+		cacheTTL:       cacheTTL,
+		dedup:          NewRequestDeduplicator(),
+		circuitBreaker: NewCircuitBreaker(),
+		stopCh:         make(chan struct{}),
 	}
 
 	// Start background cache cleanup routine
@@ -130,6 +138,86 @@ func (c *Client) Close() {
 		close(c.stopCh)
 		c.logger.Debug("Client shutdown initiated")
 	})
+}
+
+// CircuitBreakerStatus returns the current circuit breaker state
+func (c *Client) CircuitBreakerStatus() CircuitBreakerStats {
+	return c.circuitBreaker.Stats()
+}
+
+// DedupStats returns request deduplication statistics
+func (c *Client) DedupStats() int {
+	return c.dedup.Stats()
+}
+
+// WarmCache pre-loads commonly accessed pages into the cache.
+// Call this after creating the client to improve first-request latency.
+func (c *Client) WarmCache(ctx context.Context, titles []string) error {
+	if len(titles) == 0 {
+		return nil
+	}
+
+	c.logger.Info("Warming cache", "pages", len(titles))
+
+	// Use batch API to fetch multiple pages efficiently
+	const batchSize = 50
+	for i := 0; i < len(titles); i += batchSize {
+		end := i + batchSize
+		if end > len(titles) {
+			end = len(titles)
+		}
+		batch := titles[i:end]
+
+		// Fetch page info for the batch
+		params := url.Values{}
+		params.Set("action", "query")
+		params.Set("titles", strings.Join(batch, "|"))
+		params.Set("prop", "info|revisions")
+		params.Set("rvprop", "content|timestamp")
+		params.Set("rvslots", "main")
+
+		resp, err := c.apiRequest(ctx, params)
+		if err != nil {
+			c.logger.Warn("Cache warming failed for batch", "error", err)
+			continue
+		}
+
+		// Cache each page result
+		if query, ok := resp["query"].(map[string]interface{}); ok {
+			if pages, ok := query["pages"].(map[string]interface{}); ok {
+				for _, pageData := range pages {
+					page := pageData.(map[string]interface{})
+					title := getString(page["title"])
+					if title != "" {
+						cacheKey := "page:" + normalizePageTitle(title)
+						c.setCache(cacheKey, page, "page_content")
+					}
+				}
+			}
+		}
+	}
+
+	c.logger.Info("Cache warming complete", "cached", atomic.LoadInt64(&c.cacheCount))
+	return nil
+}
+
+// WarmCacheWithDefaults pre-loads common wiki pages like Main_Page and help pages.
+// This is a convenience method that fetches typical high-traffic pages.
+func (c *Client) WarmCacheWithDefaults(ctx context.Context) error {
+	// First, get site info (often needed)
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("meta", "siteinfo")
+	params.Set("siprop", "general|namespaces|statistics")
+
+	resp, err := c.apiRequest(ctx, params)
+	if err == nil {
+		c.setCache("wiki_info", resp, "wiki_info")
+	}
+
+	// Try to warm cache with common pages (best effort)
+	defaultPages := []string{"Main_Page", "Main Page"}
+	return c.WarmCache(ctx, defaultPages)
 }
 
 // HealthStatus represents the result of a connectivity check
@@ -355,10 +443,20 @@ func (c *Client) InvalidateCachePrefix(prefix string) {
 	}
 }
 
-// apiRequest makes a request to the MediaWiki API with rate limiting
+// apiRequest makes a request to the MediaWiki API with rate limiting and circuit breaker
 func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]interface{}, error) {
 	action := params.Get("action")
 	start := time.Now()
+
+	// Check circuit breaker before proceeding
+	if !c.circuitBreaker.Allow() {
+		stats := c.circuitBreaker.Stats()
+		return nil, &ErrCircuitOpen{
+			State:    stats.State,
+			RetryAt:  stats.LastFailure.Add(30 * time.Second),
+			Failures: stats.ConsecutiveFails,
+		}
+	}
 
 	// Acquire semaphore slot (rate limiting)
 	select {
@@ -467,16 +565,20 @@ func (c *Client) apiRequest(ctx context.Context, params url.Values) (map[string]
 			info, _ := errObj["info"].(string)
 			duration := time.Since(start).Seconds()
 			metrics.RecordAPICall(action, duration, false, code)
+			// API errors don't indicate connectivity issues, so record success for circuit breaker
+			c.circuitBreaker.RecordSuccess()
 			return nil, fmt.Errorf("API error [%s]: %s", code, info)
 		}
 
 		duration := time.Since(start).Seconds()
 		metrics.RecordAPICall(action, duration, true, "")
+		c.circuitBreaker.RecordSuccess()
 		return result, nil
 	}
 
 	duration := time.Since(start).Seconds()
 	metrics.RecordAPICall(action, duration, false, "max_retries_exceeded")
+	c.circuitBreaker.RecordFailure()
 	return nil, lastErr
 }
 

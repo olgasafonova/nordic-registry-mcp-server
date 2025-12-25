@@ -393,3 +393,145 @@ func ValidateContentSize(content, title string, maxSize int) error {
 	}
 	return nil
 }
+
+// WikiError provides contextual error messages with recovery suggestions.
+// This helps LLM clients understand what went wrong and how to fix it.
+type WikiError struct {
+	Code         string   // Machine-readable error code
+	Message      string   // Human-readable error message
+	Details      string   // Additional context about the error
+	Suggestion   string   // How to resolve the error
+	Alternatives []string // Alternative tools or approaches
+	Input        string   // The input that caused the error (for debugging)
+}
+
+func (e *WikiError) Error() string {
+	var sb strings.Builder
+	sb.WriteString(e.Message)
+
+	if e.Details != "" {
+		sb.WriteString("\n\nDetails: ")
+		sb.WriteString(e.Details)
+	}
+
+	if e.Suggestion != "" {
+		sb.WriteString("\n\nSuggestion: ")
+		sb.WriteString(e.Suggestion)
+	}
+
+	if len(e.Alternatives) > 0 {
+		sb.WriteString("\n\nAlternatives:\n")
+		for _, alt := range e.Alternatives {
+			sb.WriteString("  - ")
+			sb.WriteString(alt)
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String()
+}
+
+// NewPageNotFoundError creates an error for when a page doesn't exist
+func NewPageNotFoundError(title string) *WikiError {
+	return &WikiError{
+		Code:    "page_not_found",
+		Message: fmt.Sprintf("Page '%s' does not exist", title),
+		Details: "The requested page was not found in the wiki. Page titles are case-sensitive.",
+		Suggestion: "Use mediawiki_resolve_title to find the correct title, or mediawiki_search to find related pages",
+		Alternatives: []string{
+			"mediawiki_resolve_title - finds pages with similar titles (handles typos and case differences)",
+			"mediawiki_search - searches across all wiki content",
+			"mediawiki_list_pages - lists pages with a given prefix",
+		},
+		Input: title,
+	}
+}
+
+// NewCategoryNotFoundError creates an error for missing categories
+func NewCategoryNotFoundError(category string) *WikiError {
+	return &WikiError{
+		Code:    "category_not_found",
+		Message: fmt.Sprintf("Category '%s' not found or empty", category),
+		Details: "The category doesn't exist or contains no pages.",
+		Suggestion: "Check the category name (case-sensitive) or use mediawiki_list_categories to find available categories",
+		Alternatives: []string{
+			"mediawiki_list_categories - list all categories in the wiki",
+			"mediawiki_search - search for pages that might belong to similar categories",
+		},
+		Input: category,
+	}
+}
+
+// NewNoResultsError creates an error when search returns no results
+func NewNoResultsError(query string) *WikiError {
+	return &WikiError{
+		Code:    "no_results",
+		Message: fmt.Sprintf("No results found for '%s'", query),
+		Details: "The search returned no matching pages.",
+		Suggestion: "Try different search terms, broader queries, or check spelling",
+		Alternatives: []string{
+			"mediawiki_list_pages - browse pages by prefix",
+			"mediawiki_list_categories - explore content by category",
+			"mediawiki_resolve_title - find pages with similar titles",
+		},
+		Input: query,
+	}
+}
+
+// NewBatchTooLargeError creates an error when batch size exceeds limits
+func NewBatchTooLargeError(requested, max int) *WikiError {
+	return &WikiError{
+		Code:    "batch_too_large",
+		Message: fmt.Sprintf("Batch size %d exceeds maximum of %d", requested, max),
+		Suggestion: fmt.Sprintf("Split into multiple requests with at most %d items each", max),
+	}
+}
+
+// WrapAPIError wraps a MediaWiki API error with helpful context
+func WrapAPIError(code, info, operation string) *WikiError {
+	err := &WikiError{
+		Code:    code,
+		Message: info,
+	}
+
+	// Add context based on known error codes
+	switch code {
+	case "nosuchpageid", "missingtitle":
+		err.Suggestion = "Use mediawiki_resolve_title to find the correct page title"
+		err.Alternatives = []string{"mediawiki_search", "mediawiki_list_pages"}
+
+	case "protectedpage":
+		err.Suggestion = "This page is protected. Contact an administrator."
+
+	case "blocked":
+		err.Suggestion = "Your account or IP is blocked. Contact an administrator."
+
+	case "ratelimited":
+		err.Suggestion = "Too many requests. Wait and retry with fewer requests."
+		err.Alternatives = []string{"Use batch operations", "Add delays between requests"}
+
+	case "readonly":
+		err.Suggestion = "The wiki is in read-only mode. Try again later."
+
+	case "badtoken":
+		err.Suggestion = "Session expired. The system will automatically refresh credentials."
+
+	case "assertuserfailed":
+		err.Suggestion = "Login session expired. Re-authentication will be attempted automatically."
+
+	case "editconflict":
+		err.Suggestion = "Another edit was made while you were editing. Fetch the latest version and reapply changes."
+		err.Alternatives = []string{"mediawiki_get_page - get current content", "mediawiki_get_revisions - see recent edits"}
+
+	case "spamblacklist":
+		err.Suggestion = "Content contains blocked URLs. Remove external links and try again."
+
+	case "abusefilter-disallowed":
+		err.Suggestion = "Content was blocked by an abuse filter. Review the content for policy violations."
+
+	default:
+		err.Suggestion = fmt.Sprintf("Check MediaWiki API documentation for error code '%s'", code)
+	}
+
+	return err
+}
