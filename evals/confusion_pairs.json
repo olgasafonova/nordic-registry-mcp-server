@@ -1,0 +1,327 @@
+{
+  "name": "MediaWiki MCP Confusion Pair Evals",
+  "version": "1.0.0",
+  "description": "Tests for disambiguating commonly confused tool pairs",
+  "pairs": [
+    {
+      "id": "pair-search",
+      "tools": ["mediawiki_search", "mediawiki_search_in_page"],
+      "disambiguation": "search = across wiki (unknown page), search_in_page = within known page",
+      "tests": [
+        {
+          "input": "find documentation about OAuth",
+          "expected": "mediawiki_search",
+          "reason": "User doesn't know which page; searching across wiki"
+        },
+        {
+          "input": "search for OAuth on the Authentication page",
+          "expected": "mediawiki_search_in_page",
+          "reason": "User specified the page; searching within it"
+        },
+        {
+          "input": "where is rate limiting documented?",
+          "expected": "mediawiki_search",
+          "reason": "User asking 'where' implies unknown location"
+        },
+        {
+          "input": "does the API Reference mention rate limiting?",
+          "expected": "mediawiki_search_in_page",
+          "reason": "User asking about specific page content"
+        },
+        {
+          "input": "I need to find error codes",
+          "expected": "mediawiki_search",
+          "reason": "No page specified; global search needed"
+        }
+      ]
+    },
+    {
+      "id": "pair-page-sections",
+      "tools": ["mediawiki_get_page", "mediawiki_get_sections"],
+      "disambiguation": "get_page = full content, get_sections = structure/TOC or specific section",
+      "tests": [
+        {
+          "input": "show me the Installation Guide",
+          "expected": "mediawiki_get_page",
+          "reason": "User wants full page content"
+        },
+        {
+          "input": "what sections does the Installation Guide have?",
+          "expected": "mediawiki_get_sections",
+          "reason": "User asking about structure, not content"
+        },
+        {
+          "input": "read the Prerequisites section of the Setup page",
+          "expected": "mediawiki_get_sections",
+          "reason": "User wants specific section, not full page"
+        },
+        {
+          "input": "what's the table of contents for the User Manual?",
+          "expected": "mediawiki_get_sections",
+          "reason": "TOC request = section structure"
+        },
+        {
+          "input": "display the entire FAQ page",
+          "expected": "mediawiki_get_page",
+          "reason": "'Entire' signals full content request"
+        }
+      ]
+    },
+    {
+      "id": "pair-edit-replace",
+      "tools": ["mediawiki_edit_page", "mediawiki_find_replace"],
+      "disambiguation": "edit_page = new page or full rewrite, find_replace = targeted text change",
+      "tests": [
+        {
+          "input": "change 'v1.0' to 'v2.0' on the Release page",
+          "expected": "mediawiki_find_replace",
+          "reason": "Specific text substitution"
+        },
+        {
+          "input": "create a new page called Team Members",
+          "expected": "mediawiki_edit_page",
+          "reason": "Page creation requires edit_page"
+        },
+        {
+          "input": "completely rewrite the About Us page",
+          "expected": "mediawiki_edit_page",
+          "reason": "Full rewrite, not targeted change"
+        },
+        {
+          "input": "fix the typo 'teh' to 'the' on the Overview page",
+          "expected": "mediawiki_find_replace",
+          "reason": "Typo fix is targeted replacement"
+        },
+        {
+          "input": "update the copyright year from 2024 to 2025 on the Footer template",
+          "expected": "mediawiki_find_replace",
+          "reason": "Specific value change"
+        }
+      ]
+    },
+    {
+      "id": "pair-replace-bulk",
+      "tools": ["mediawiki_find_replace", "mediawiki_bulk_replace"],
+      "disambiguation": "find_replace = one page, bulk_replace = multiple pages",
+      "tests": [
+        {
+          "input": "replace 'old-api' with 'new-api' on the Integration Guide",
+          "expected": "mediawiki_find_replace",
+          "reason": "Single page specified"
+        },
+        {
+          "input": "update the brand name everywhere on the wiki",
+          "expected": "mediawiki_bulk_replace",
+          "reason": "'Everywhere' signals multiple pages"
+        },
+        {
+          "input": "fix the product name across all documentation",
+          "expected": "mediawiki_bulk_replace",
+          "reason": "'All documentation' = multiple pages"
+        },
+        {
+          "input": "change the phone number on the Contact page",
+          "expected": "mediawiki_find_replace",
+          "reason": "Single page targeted"
+        },
+        {
+          "input": "update the copyright notice on pages in the Legal category",
+          "expected": "mediawiki_bulk_replace",
+          "reason": "Category = multiple pages"
+        }
+      ]
+    },
+    {
+      "id": "pair-format-replace",
+      "tools": ["mediawiki_apply_formatting", "mediawiki_find_replace"],
+      "disambiguation": "apply_formatting = add markup (bold/strike/etc), find_replace = text substitution",
+      "tests": [
+        {
+          "input": "strike out Jane Doe on the Team page",
+          "expected": "mediawiki_apply_formatting",
+          "reason": "Adding strikethrough formatting"
+        },
+        {
+          "input": "replace Jane Doe with John Smith on the Team page",
+          "expected": "mediawiki_find_replace",
+          "reason": "Substituting one name for another"
+        },
+        {
+          "input": "make WARNING bold on the Safety page",
+          "expected": "mediawiki_apply_formatting",
+          "reason": "Adding bold formatting"
+        },
+        {
+          "input": "change WARNING to CAUTION on the Safety page",
+          "expected": "mediawiki_find_replace",
+          "reason": "Text replacement, not formatting"
+        },
+        {
+          "input": "italicize the quote on the About page",
+          "expected": "mediawiki_apply_formatting",
+          "reason": "Adding italic formatting"
+        }
+      ]
+    },
+    {
+      "id": "pair-revisions-changes",
+      "tools": ["mediawiki_get_revisions", "mediawiki_get_recent_changes"],
+      "disambiguation": "get_revisions = one page history, get_recent_changes = wiki-wide activity",
+      "tests": [
+        {
+          "input": "who edited the Privacy Policy?",
+          "expected": "mediawiki_get_revisions",
+          "reason": "Asking about specific page"
+        },
+        {
+          "input": "what's been changed on the wiki recently?",
+          "expected": "mediawiki_get_recent_changes",
+          "reason": "Wiki-wide activity request"
+        },
+        {
+          "input": "show the edit history of the API Reference",
+          "expected": "mediawiki_get_revisions",
+          "reason": "Page-specific history"
+        },
+        {
+          "input": "who's been active on the wiki this week?",
+          "expected": "mediawiki_get_recent_changes",
+          "reason": "Wiki activity, not page-specific"
+        },
+        {
+          "input": "when was the last edit to the FAQ?",
+          "expected": "mediawiki_get_revisions",
+          "reason": "Single page edit info"
+        }
+      ]
+    },
+    {
+      "id": "pair-links-backlinks",
+      "tools": ["mediawiki_get_external_links", "mediawiki_get_backlinks"],
+      "disambiguation": "external_links = outgoing URLs, backlinks = incoming wiki links",
+      "tests": [
+        {
+          "input": "what external URLs are on the Resources page?",
+          "expected": "mediawiki_get_external_links",
+          "reason": "Asking for outbound URLs"
+        },
+        {
+          "input": "what pages link to the API Reference?",
+          "expected": "mediawiki_get_backlinks",
+          "reason": "Asking for incoming links"
+        },
+        {
+          "input": "show outgoing links from the Partners page",
+          "expected": "mediawiki_get_external_links",
+          "reason": "'Outgoing' = external URLs"
+        },
+        {
+          "input": "which pages reference the Glossary?",
+          "expected": "mediawiki_get_backlinks",
+          "reason": "'Reference' = incoming wiki links"
+        },
+        {
+          "input": "find all http links on the Downloads page",
+          "expected": "mediawiki_get_external_links",
+          "reason": "HTTP links = external URLs"
+        }
+      ]
+    },
+    {
+      "id": "pair-similar-related",
+      "tools": ["mediawiki_find_similar_pages", "mediawiki_get_related"],
+      "disambiguation": "find_similar = content similarity (duplicates/overlap), get_related = link relationships",
+      "tests": [
+        {
+          "input": "find pages with similar content to the Setup Guide",
+          "expected": "mediawiki_find_similar_pages",
+          "reason": "Content similarity request"
+        },
+        {
+          "input": "what pages are related to the Installation Guide?",
+          "expected": "mediawiki_get_related",
+          "reason": "Relationship via categories/links"
+        },
+        {
+          "input": "are there duplicate pages covering the same topic as FAQ?",
+          "expected": "mediawiki_find_similar_pages",
+          "reason": "Duplicate detection = content similarity"
+        },
+        {
+          "input": "show pages linked from the Overview",
+          "expected": "mediawiki_get_related",
+          "reason": "Link-based relationship"
+        },
+        {
+          "input": "find pages that might overlap with the Troubleshooting guide",
+          "expected": "mediawiki_find_similar_pages",
+          "reason": "'Overlap' = content similarity"
+        }
+      ]
+    },
+    {
+      "id": "pair-resolve-search",
+      "tools": ["mediawiki_resolve_title", "mediawiki_search"],
+      "disambiguation": "resolve_title = fix typos/case issues for known title, search = find unknown pages",
+      "tests": [
+        {
+          "input": "page 'configuration guide' not found, help me find the right title",
+          "expected": "mediawiki_resolve_title",
+          "reason": "User knows approximate title but got case wrong"
+        },
+        {
+          "input": "find pages about configuration",
+          "expected": "mediawiki_search",
+          "reason": "User searching for topic, not fixing title"
+        },
+        {
+          "input": "I spelled 'Auhtentication' wrong, what's the correct page name?",
+          "expected": "mediawiki_resolve_title",
+          "reason": "Typo correction for known page"
+        },
+        {
+          "input": "is there documentation about authentication?",
+          "expected": "mediawiki_search",
+          "reason": "Discovery search, not title resolution"
+        },
+        {
+          "input": "the page 'module-overview' doesn't exist but I know it should",
+          "expected": "mediawiki_resolve_title",
+          "reason": "User expects page to exist; needs correct title"
+        }
+      ]
+    },
+    {
+      "id": "pair-broken-links",
+      "tools": ["mediawiki_find_broken_internal_links", "mediawiki_check_links"],
+      "disambiguation": "find_broken_internal = wiki [[links]], check_links = external HTTP URLs",
+      "tests": [
+        {
+          "input": "find broken wiki links on the Main Page",
+          "expected": "mediawiki_find_broken_internal_links",
+          "reason": "Internal wiki links"
+        },
+        {
+          "input": "check if the external URLs still work",
+          "expected": "mediawiki_check_links",
+          "reason": "External URL validation"
+        },
+        {
+          "input": "are there dead links to non-existent pages?",
+          "expected": "mediawiki_find_broken_internal_links",
+          "reason": "Internal link validation"
+        },
+        {
+          "input": "verify the http links are accessible",
+          "expected": "mediawiki_check_links",
+          "reason": "HTTP = external URLs"
+        },
+        {
+          "input": "find [[links]] pointing to missing pages",
+          "expected": "mediawiki_find_broken_internal_links",
+          "reason": "[[syntax]] = internal wiki links"
+        }
+      ]
+    }
+  ]
+}

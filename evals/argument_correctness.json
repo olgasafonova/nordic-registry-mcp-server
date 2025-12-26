@@ -1,0 +1,302 @@
+{
+  "name": "MediaWiki MCP Argument Correctness Evals",
+  "version": "1.0.0",
+  "description": "Tests for verifying correct argument extraction and formatting",
+  "tests": [
+    {
+      "id": "args-search-001",
+      "tool": "mediawiki_search",
+      "input": "find pages about API authentication with a limit of 20 results",
+      "required_args": ["query"],
+      "expected_args": {
+        "query": "API authentication",
+        "limit": 20
+      },
+      "forbidden_args": ["title", "page"]
+    },
+    {
+      "id": "args-search-002",
+      "tool": "mediawiki_search_in_page",
+      "input": "search for 'timeout' in the Configuration page using regex",
+      "required_args": ["title", "query"],
+      "expected_args": {
+        "title": "Configuration",
+        "query": "timeout",
+        "use_regex": true
+      },
+      "forbidden_args": ["limit"]
+    },
+    {
+      "id": "args-page-001",
+      "tool": "mediawiki_get_page",
+      "input": "get the Main Page in HTML format",
+      "required_args": ["title"],
+      "expected_args": {
+        "title": "Main Page",
+        "format": "html"
+      },
+      "forbidden_args": ["section"]
+    },
+    {
+      "id": "args-list-001",
+      "tool": "mediawiki_list_pages",
+      "input": "list 50 pages starting with 'API'",
+      "required_args": [],
+      "expected_args": {
+        "prefix": "API",
+        "limit": 50
+      },
+      "forbidden_args": ["query"]
+    },
+    {
+      "id": "args-sections-001",
+      "tool": "mediawiki_get_sections",
+      "input": "get section 3 of the User Guide",
+      "required_args": ["title"],
+      "expected_args": {
+        "title": "User Guide",
+        "section": 3
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-revisions-001",
+      "tool": "mediawiki_get_revisions",
+      "input": "get the last 10 revisions of the FAQ by user Admin",
+      "required_args": ["title"],
+      "expected_args": {
+        "title": "FAQ",
+        "limit": 10,
+        "user": "Admin"
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-category-001",
+      "tool": "mediawiki_get_category_members",
+      "input": "get all pages in the Documentation category",
+      "required_args": ["category"],
+      "expected_args": {
+        "category": "Documentation"
+      },
+      "arg_notes": "category should NOT include 'Category:' prefix"
+    },
+    {
+      "id": "args-backlinks-001",
+      "tool": "mediawiki_get_backlinks",
+      "input": "get up to 25 pages that link to the API Reference, including redirects",
+      "required_args": ["title"],
+      "expected_args": {
+        "title": "API Reference",
+        "limit": 25,
+        "include_redirects": true
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-replace-001",
+      "tool": "mediawiki_find_replace",
+      "input": "replace all occurrences of 'v1.0' with 'v2.0' on the Release Notes page",
+      "required_args": ["title", "find", "replace"],
+      "expected_args": {
+        "title": "Release Notes",
+        "find": "v1.0",
+        "replace": "v2.0",
+        "all": true
+      },
+      "arg_notes": "preview should default to true for safety"
+    },
+    {
+      "id": "args-replace-002",
+      "tool": "mediawiki_find_replace",
+      "input": "preview replacing 'deprecated' with 'legacy' on the API page",
+      "required_args": ["title", "find", "replace"],
+      "expected_args": {
+        "title": "API",
+        "find": "deprecated",
+        "replace": "legacy",
+        "preview": true
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-format-001",
+      "tool": "mediawiki_apply_formatting",
+      "input": "strike out 'John Smith' on the Team Members page",
+      "required_args": ["title", "text", "format"],
+      "expected_args": {
+        "title": "Team Members",
+        "text": "John Smith",
+        "format": "strikethrough"
+      },
+      "forbidden_args": ["find", "replace"]
+    },
+    {
+      "id": "args-format-002",
+      "tool": "mediawiki_apply_formatting",
+      "input": "make 'Important Notice' bold on all occurrences on the Announcements page",
+      "required_args": ["title", "text", "format"],
+      "expected_args": {
+        "title": "Announcements",
+        "text": "Important Notice",
+        "format": "bold",
+        "all": true
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-bulk-001",
+      "tool": "mediawiki_bulk_replace",
+      "input": "replace 'Acme Corp' with 'Acme Inc' on pages Page1, Page2, and Page3",
+      "required_args": ["find", "replace"],
+      "expected_args": {
+        "find": "Acme Corp",
+        "replace": "Acme Inc",
+        "pages": ["Page1", "Page2", "Page3"]
+      },
+      "forbidden_args": ["category"]
+    },
+    {
+      "id": "args-bulk-002",
+      "tool": "mediawiki_bulk_replace",
+      "input": "update 'old-domain.com' to 'new-domain.com' across all pages in the Legal category",
+      "required_args": ["find", "replace"],
+      "expected_args": {
+        "find": "old-domain.com",
+        "replace": "new-domain.com",
+        "category": "Legal"
+      },
+      "forbidden_args": ["pages"]
+    },
+    {
+      "id": "args-edit-001",
+      "tool": "mediawiki_edit_page",
+      "input": "create a new page called 'Release Notes 2025' with content 'Initial release notes.'",
+      "required_args": ["title", "content"],
+      "expected_args": {
+        "title": "Release Notes 2025",
+        "content": "Initial release notes."
+      },
+      "forbidden_args": ["find", "replace"]
+    },
+    {
+      "id": "args-edit-002",
+      "tool": "mediawiki_edit_page",
+      "input": "update section 2 of the FAQ with new content, mark as minor edit",
+      "required_args": ["title", "content"],
+      "expected_args": {
+        "title": "FAQ",
+        "section": "2",
+        "minor": true
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-links-001",
+      "tool": "mediawiki_check_links",
+      "input": "check these URLs with a 15 second timeout: https://example.com, https://test.org",
+      "required_args": ["urls"],
+      "expected_args": {
+        "urls": ["https://example.com", "https://test.org"],
+        "timeout": 15
+      },
+      "forbidden_args": ["title", "page"]
+    },
+    {
+      "id": "args-terminology-001",
+      "tool": "mediawiki_check_terminology",
+      "input": "check terminology on the Marketing and Sales pages using the Brand Guide glossary",
+      "required_args": [],
+      "expected_args": {
+        "pages": ["Marketing", "Sales"],
+        "glossary_page": "Brand Guide"
+      },
+      "forbidden_args": ["category"]
+    },
+    {
+      "id": "args-translations-001",
+      "tool": "mediawiki_check_translations",
+      "input": "check if pages have German, French, and Spanish translations using subpage pattern",
+      "required_args": ["languages"],
+      "expected_args": {
+        "languages": ["de", "fr", "es"],
+        "pattern": "subpages"
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-recent-001",
+      "tool": "mediawiki_get_recent_changes",
+      "input": "get recent changes grouped by user, limit to 100",
+      "required_args": [],
+      "expected_args": {
+        "aggregate_by": "user",
+        "limit": 100
+      },
+      "forbidden_args": ["title"]
+    },
+    {
+      "id": "args-users-001",
+      "tool": "mediawiki_list_users",
+      "input": "list all admin users who are active",
+      "required_args": [],
+      "expected_args": {
+        "group": "sysop",
+        "active_only": true
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-compare-001",
+      "tool": "mediawiki_compare_revisions",
+      "input": "compare revision 1234 with revision 1256",
+      "required_args": [],
+      "expected_args": {
+        "from_rev": 1234,
+        "to_rev": 1256
+      },
+      "forbidden_args": ["from_title", "to_title"]
+    },
+    {
+      "id": "args-compare-002",
+      "tool": "mediawiki_compare_revisions",
+      "input": "compare the Main Page with the Backup Page",
+      "required_args": [],
+      "expected_args": {
+        "from_title": "Main Page",
+        "to_title": "Backup Page"
+      },
+      "forbidden_args": ["from_rev", "to_rev"]
+    },
+    {
+      "id": "args-similar-001",
+      "tool": "mediawiki_find_similar_pages",
+      "input": "find pages similar to Setup Guide with at least 0.7 similarity, limit to 10",
+      "required_args": ["page"],
+      "expected_args": {
+        "page": "Setup Guide",
+        "min_score": 0.7,
+        "limit": 10
+      },
+      "forbidden_args": []
+    },
+    {
+      "id": "args-topic-001",
+      "tool": "mediawiki_compare_topic",
+      "input": "compare how 'connection timeout' is described across pages in the Configuration category",
+      "required_args": ["topic"],
+      "expected_args": {
+        "topic": "connection timeout",
+        "category": "Configuration"
+      },
+      "forbidden_args": []
+    }
+  ],
+  "validation_rules": {
+    "title_format": "Page titles should NOT include namespace prefixes unless explicitly stated",
+    "category_format": "Category names should NOT include 'Category:' prefix",
+    "boolean_handling": "Boolean flags should be true/false, not strings",
+    "array_handling": "Multiple items should be arrays, not comma-separated strings",
+    "preview_default": "Destructive operations should default preview=true for safety"
+  }
+}
