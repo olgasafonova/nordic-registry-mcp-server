@@ -805,9 +805,9 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 			"server":  ServerName,
 			"version": ServerVersion,
 			"circuit_breaker": map[string]interface{}{
-				"state":               cbStats.State,
+				"state":                cbStats.State,
 				"consecutive_failures": cbStats.ConsecutiveFails,
-				"last_failure":        cbStats.LastFailure,
+				"last_failure":         cbStats.LastFailure,
 			},
 			"dedup": map[string]interface{}{
 				"inflight_requests": dedupStats,

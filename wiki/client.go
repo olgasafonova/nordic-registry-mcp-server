@@ -84,9 +84,9 @@ func NewClient(config *Config, logger *slog.Logger) *Client {
 	// Configure HTTP transport for better connection reuse and performance
 	transport := &http.Transport{
 		// Connection pool settings
-		MaxIdleConns:        100,              // Total idle connections across all hosts
-		MaxIdleConnsPerHost: 20,               // Idle connections per host (increased for single-host pattern)
-		MaxConnsPerHost:     50,               // Maximum connections per host
+		MaxIdleConns:        100,               // Total idle connections across all hosts
+		MaxIdleConnsPerHost: 20,                // Idle connections per host (increased for single-host pattern)
+		MaxConnsPerHost:     50,                // Maximum connections per host
 		IdleConnTimeout:     120 * time.Second, // Keep idle connections longer
 
 		// Timeouts for connection establishment and TLS

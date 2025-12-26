@@ -434,9 +434,9 @@ func (e *WikiError) Error() string {
 // NewPageNotFoundError creates an error for when a page doesn't exist
 func NewPageNotFoundError(title string) *WikiError {
 	return &WikiError{
-		Code:    "page_not_found",
-		Message: fmt.Sprintf("Page '%s' does not exist", title),
-		Details: "The requested page was not found in the wiki. Page titles are case-sensitive.",
+		Code:       "page_not_found",
+		Message:    fmt.Sprintf("Page '%s' does not exist", title),
+		Details:    "The requested page was not found in the wiki. Page titles are case-sensitive.",
 		Suggestion: "Use mediawiki_resolve_title to find the correct title, or mediawiki_search to find related pages",
 		Alternatives: []string{
 			"mediawiki_resolve_title - finds pages with similar titles (handles typos and case differences)",
@@ -450,9 +450,9 @@ func NewPageNotFoundError(title string) *WikiError {
 // NewCategoryNotFoundError creates an error for missing categories
 func NewCategoryNotFoundError(category string) *WikiError {
 	return &WikiError{
-		Code:    "category_not_found",
-		Message: fmt.Sprintf("Category '%s' not found or empty", category),
-		Details: "The category doesn't exist or contains no pages.",
+		Code:       "category_not_found",
+		Message:    fmt.Sprintf("Category '%s' not found or empty", category),
+		Details:    "The category doesn't exist or contains no pages.",
 		Suggestion: "Check the category name (case-sensitive) or use mediawiki_list_categories to find available categories",
 		Alternatives: []string{
 			"mediawiki_list_categories - list all categories in the wiki",
@@ -465,9 +465,9 @@ func NewCategoryNotFoundError(category string) *WikiError {
 // NewNoResultsError creates an error when search returns no results
 func NewNoResultsError(query string) *WikiError {
 	return &WikiError{
-		Code:    "no_results",
-		Message: fmt.Sprintf("No results found for '%s'", query),
-		Details: "The search returned no matching pages.",
+		Code:       "no_results",
+		Message:    fmt.Sprintf("No results found for '%s'", query),
+		Details:    "The search returned no matching pages.",
 		Suggestion: "Try different search terms, broader queries, or check spelling",
 		Alternatives: []string{
 			"mediawiki_list_pages - browse pages by prefix",
@@ -481,8 +481,8 @@ func NewNoResultsError(query string) *WikiError {
 // NewBatchTooLargeError creates an error when batch size exceeds limits
 func NewBatchTooLargeError(requested, max int) *WikiError {
 	return &WikiError{
-		Code:    "batch_too_large",
-		Message: fmt.Sprintf("Batch size %d exceeds maximum of %d", requested, max),
+		Code:       "batch_too_large",
+		Message:    fmt.Sprintf("Batch size %d exceeds maximum of %d", requested, max),
 		Suggestion: fmt.Sprintf("Split into multiple requests with at most %d items each", max),
 	}
 }

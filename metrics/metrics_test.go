@@ -9,10 +9,10 @@ import (
 
 func TestRecordRequest(t *testing.T) {
 	tests := []struct {
-		name     string
-		tool     string
-		duration float64
-		success  bool
+		name       string
+		tool       string
+		duration   float64
+		success    bool
 		wantStatus string
 	}{
 		{

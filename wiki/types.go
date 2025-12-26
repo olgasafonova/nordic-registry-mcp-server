@@ -69,10 +69,10 @@ type GetPagesBatchArgs struct {
 
 // GetPagesBatchResult contains content from multiple pages.
 type GetPagesBatchResult struct {
-	Pages       []PageContentResult `json:"pages"`
-	TotalCount  int                 `json:"total_count"`
-	FoundCount  int                 `json:"found_count"`
-	MissingCount int                `json:"missing_count"`
+	Pages        []PageContentResult `json:"pages"`
+	TotalCount   int                 `json:"total_count"`
+	FoundCount   int                 `json:"found_count"`
+	MissingCount int                 `json:"missing_count"`
 }
 
 // PageContentResult contains content for a single page in batch results.
