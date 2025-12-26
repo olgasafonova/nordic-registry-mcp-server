@@ -1,15 +1,19 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
     - ineffassign
     - staticcheck
     - unused
-
-issues:
-  exclude-use-default: true
-  exclude-dirs:
-    - vendor
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    paths:
+      - vendor
