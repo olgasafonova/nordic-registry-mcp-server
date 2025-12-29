@@ -46,7 +46,7 @@ Once connected, just ask your AI:
 
 Go to [Releases](https://github.com/olgasafonova/mediawiki-mcp-server/releases) and download for your platform.
 
-**Option B: Build from source** (requires Go 1.23+)
+**Option B: Build from source** (requires Go 1.24+)
 
 ```bash
 git clone https://github.com/olgasafonova/mediawiki-mcp-server.git
@@ -900,7 +900,7 @@ cd mediawiki-mcp-server
 go build -o mediawiki-mcp-server .
 ```
 
-Requires Go 1.23+
+Requires Go 1.24+
 
 ### Project Structure
 
