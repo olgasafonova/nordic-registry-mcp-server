@@ -1,0 +1,28 @@
+build:
+  dockerBuildPath: .
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - mediawikiUrl
+    properties:
+      mediawikiUrl:
+        type: string
+        description: "Wiki API URL (e.g., https://en.wikipedia.org/w/api.php)"
+      mediawikiUsername:
+        type: string
+        description: "Username for editing (format: YourUser@BotName). Optional for read-only."
+      mediawikiPassword:
+        type: string
+        description: "Bot password for editing. Optional for read-only."
+  commandFunction: |-
+    (config) => ({
+      command: './mediawiki-mcp-server',
+      args: [],
+      env: {
+        MEDIAWIKI_URL: config.mediawikiUrl,
+        ...(config.mediawikiUsername && { MEDIAWIKI_USERNAME: config.mediawikiUsername }),
+        ...(config.mediawikiPassword && { MEDIAWIKI_PASSWORD: config.mediawikiPassword })
+      }
+    })
