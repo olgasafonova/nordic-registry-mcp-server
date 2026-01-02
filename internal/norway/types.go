@@ -6,47 +6,47 @@ import "time"
 
 // Company represents a Norwegian business entity (Enhet)
 type Company struct {
-	OrganizationNumber     string           `json:"organisasjonsnummer"`
-	Name                   string           `json:"navn"`
-	OrganizationForm       *OrganizationForm `json:"organisasjonsform,omitempty"`
-	RegistrationDate       string           `json:"registreringsdatoEnhetsregisteret,omitempty"`
-	FoundedDate            string           `json:"stiftelsedato,omitempty"`
+	OrganizationNumber string            `json:"organisasjonsnummer"`
+	Name               string            `json:"navn"`
+	OrganizationForm   *OrganizationForm `json:"organisasjonsform,omitempty"`
+	RegistrationDate   string            `json:"registreringsdatoEnhetsregisteret,omitempty"`
+	FoundedDate        string            `json:"stiftelsedato,omitempty"`
 
 	// Addresses
-	PostalAddress          *Address         `json:"postadresse,omitempty"`
-	BusinessAddress        *Address         `json:"forretningsadresse,omitempty"`
+	PostalAddress   *Address `json:"postadresse,omitempty"`
+	BusinessAddress *Address `json:"forretningsadresse,omitempty"`
 
 	// Registration status
-	RegisteredInVAT        bool             `json:"registrertIMvaregisteret"`
-	RegisteredInBusiness   bool             `json:"registrertIForetaksregisteret"`
-	RegisteredInFoundation bool             `json:"registrertIStiftelsesregisteret"`
-	RegisteredInVoluntary  bool             `json:"registrertIFrivillighetsregisteret"`
+	RegisteredInVAT        bool `json:"registrertIMvaregisteret"`
+	RegisteredInBusiness   bool `json:"registrertIForetaksregisteret"`
+	RegisteredInFoundation bool `json:"registrertIStiftelsesregisteret"`
+	RegisteredInVoluntary  bool `json:"registrertIFrivillighetsregisteret"`
 
 	// Status flags
-	Bankrupt               bool             `json:"konkurs"`
-	UnderLiquidation       bool             `json:"underAvvikling"`
-	UnderForcedLiquidation bool             `json:"underTvangsavviklingEllerTvangsopplosning"`
-	Deleted                bool             `json:"slettedato,omitempty"`
+	Bankrupt               bool `json:"konkurs"`
+	UnderLiquidation       bool `json:"underAvvikling"`
+	UnderForcedLiquidation bool `json:"underTvangsavviklingEllerTvangsopplosning"`
+	Deleted                bool `json:"slettedato,omitempty"`
 
 	// Industry codes
-	IndustryCode1          *IndustryCode    `json:"naeringskode1,omitempty"`
-	IndustryCode2          *IndustryCode    `json:"naeringskode2,omitempty"`
-	IndustryCode3          *IndustryCode    `json:"naeringskode3,omitempty"`
+	IndustryCode1 *IndustryCode `json:"naeringskode1,omitempty"`
+	IndustryCode2 *IndustryCode `json:"naeringskode2,omitempty"`
+	IndustryCode3 *IndustryCode `json:"naeringskode3,omitempty"`
 
 	// Sector
-	InstitutionalSector    *SectorCode      `json:"institusjonellSektorkode,omitempty"`
+	InstitutionalSector *SectorCode `json:"institusjonellSektorkode,omitempty"`
 
 	// Other
-	EmployeeCount          int              `json:"antallAnsatte"`
-	HasRegisteredEmployees bool             `json:"harRegistrertAntallAnsatte"`
-	Website                string           `json:"hjemmeside,omitempty"`
-	LanguageForm           string           `json:"maalform,omitempty"`
+	EmployeeCount          int    `json:"antallAnsatte"`
+	HasRegisteredEmployees bool   `json:"harRegistrertAntallAnsatte"`
+	Website                string `json:"hjemmeside,omitempty"`
+	LanguageForm           string `json:"maalform,omitempty"`
 
 	// Capital information (for AS, ASA)
-	Capital                *Capital         `json:"kapital,omitempty"`
+	Capital *Capital `json:"kapital,omitempty"`
 
 	// Links for HAL
-	Links                  *Links           `json:"_links,omitempty"`
+	Links *Links `json:"_links,omitempty"`
 }
 
 // OrganizationForm represents the type of organization (AS, ENK, etc.)
@@ -57,13 +57,13 @@ type OrganizationForm struct {
 
 // Address represents a Norwegian address
 type Address struct {
-	Country      string   `json:"land,omitempty"`
-	CountryCode  string   `json:"landkode,omitempty"`
-	PostalCode   string   `json:"postnummer,omitempty"`
-	PostalPlace  string   `json:"poststed,omitempty"`
-	Municipality string   `json:"kommune,omitempty"`
-	MunicipalityNumber string `json:"kommunenummer,omitempty"`
-	AddressLines []string `json:"adresse,omitempty"`
+	Country            string   `json:"land,omitempty"`
+	CountryCode        string   `json:"landkode,omitempty"`
+	PostalCode         string   `json:"postnummer,omitempty"`
+	PostalPlace        string   `json:"poststed,omitempty"`
+	Municipality       string   `json:"kommune,omitempty"`
+	MunicipalityNumber string   `json:"kommunenummer,omitempty"`
+	AddressLines       []string `json:"adresse,omitempty"`
 }
 
 // IndustryCode represents a NACE industry classification code
@@ -80,13 +80,13 @@ type SectorCode struct {
 
 // Capital represents share capital information
 type Capital struct {
-	Amount        float64 `json:"belop,omitempty"`
-	Currency      string  `json:"valuta,omitempty"`
-	ShareCount    int     `json:"antallAksjer,omitempty"`
-	Type          string  `json:"type,omitempty"`
-	Bound         float64 `json:"bundet,omitempty"`
-	PaidIn        float64 `json:"innbetalt,omitempty"`
-	FullyPaid     bool    `json:"fulltInnbetalt,omitempty"`
+	Amount     float64 `json:"belop,omitempty"`
+	Currency   string  `json:"valuta,omitempty"`
+	ShareCount int     `json:"antallAksjer,omitempty"`
+	Type       string  `json:"type,omitempty"`
+	Bound      float64 `json:"bundet,omitempty"`
+	PaidIn     float64 `json:"innbetalt,omitempty"`
+	FullyPaid  bool    `json:"fulltInnbetalt,omitempty"`
 }
 
 // Links contains HAL links
@@ -101,26 +101,26 @@ type Link struct {
 
 // SubUnit represents a branch office or production unit (Underenhet)
 type SubUnit struct {
-	OrganizationNumber       string           `json:"organisasjonsnummer"`
-	Name                     string           `json:"navn"`
-	ParentOrganizationNumber string           `json:"overordnetEnhet,omitempty"`
+	OrganizationNumber       string            `json:"organisasjonsnummer"`
+	Name                     string            `json:"navn"`
+	ParentOrganizationNumber string            `json:"overordnetEnhet,omitempty"`
 	OrganizationForm         *OrganizationForm `json:"organisasjonsform,omitempty"`
-	RegistrationDate         string           `json:"registreringsdatoEnhetsregisteret,omitempty"`
+	RegistrationDate         string            `json:"registreringsdatoEnhetsregisteret,omitempty"`
 
 	// Addresses
-	PostalAddress            *Address         `json:"postadresse,omitempty"`
-	BusinessAddress          *Address         `json:"beliggenhetsadresse,omitempty"`
+	PostalAddress   *Address `json:"postadresse,omitempty"`
+	BusinessAddress *Address `json:"beliggenhetsadresse,omitempty"`
 
 	// Industry codes
-	IndustryCode1            *IndustryCode    `json:"naeringskode1,omitempty"`
-	IndustryCode2            *IndustryCode    `json:"naeringskode2,omitempty"`
-	IndustryCode3            *IndustryCode    `json:"naeringskode3,omitempty"`
+	IndustryCode1 *IndustryCode `json:"naeringskode1,omitempty"`
+	IndustryCode2 *IndustryCode `json:"naeringskode2,omitempty"`
+	IndustryCode3 *IndustryCode `json:"naeringskode3,omitempty"`
 
 	// Other
-	EmployeeCount            int              `json:"antallAnsatte"`
-	Deleted                  bool             `json:"nedleggelsesdato,omitempty"`
+	EmployeeCount int  `json:"antallAnsatte"`
+	Deleted       bool `json:"nedleggelsesdato,omitempty"`
 
-	Links                    *Links           `json:"_links,omitempty"`
+	Links *Links `json:"_links,omitempty"`
 }
 
 // RolesResponse represents the response from the roles endpoint
@@ -143,13 +143,13 @@ type RoleType struct {
 
 // Role represents an individual role (board member, CEO, etc.)
 type Role struct {
-	Type              RoleType   `json:"type"`
-	Person            *Person    `json:"person,omitempty"`
-	Entity            *RoleEntity `json:"enhet,omitempty"`
-	Resigned          bool       `json:"fratraadt"`
-	Deregistered      bool       `json:"avregistrert,omitempty"`
-	ResponsibilityShare string   `json:"ansvarsandel,omitempty"`
-	ElectedBy         string     `json:"valgtAv,omitempty"`
+	Type                RoleType    `json:"type"`
+	Person              *Person     `json:"person,omitempty"`
+	Entity              *RoleEntity `json:"enhet,omitempty"`
+	Resigned            bool        `json:"fratraadt"`
+	Deregistered        bool        `json:"avregistrert,omitempty"`
+	ResponsibilityShare string      `json:"ansvarsandel,omitempty"`
+	ElectedBy           string      `json:"valgtAv,omitempty"`
 }
 
 // Person represents a natural person in a role
@@ -186,10 +186,10 @@ func (n PersonName) FullName() string {
 
 // RoleEntity represents an organization in a role (for corporate roles)
 type RoleEntity struct {
-	OrganizationNumber string           `json:"organisasjonsnummer"`
+	OrganizationNumber string            `json:"organisasjonsnummer"`
 	OrganizationForm   *OrganizationForm `json:"organisasjonsform,omitempty"`
-	Name               []string         `json:"navn,omitempty"`
-	Deleted            bool             `json:"slettedato,omitempty"`
+	Name               []string          `json:"navn,omitempty"`
+	Deleted            bool              `json:"slettedato,omitempty"`
 }
 
 // SearchResponse represents the paginated search response

@@ -151,12 +151,7 @@ func (c *Client) GetUpdatesMCP(ctx context.Context, args GetUpdatesArgs) (GetUpd
 	// Convert to summary format
 	updates := make([]UpdateSummary, 0, len(resp.Embedded.Updates))
 	for _, u := range resp.Embedded.Updates {
-		updates = append(updates, UpdateSummary{
-			UpdateID:           u.UpdateID,
-			OrganizationNumber: u.OrganizationNumber,
-			UpdatedAt:          u.UpdatedAt,
-			ChangeType:         u.ChangeType,
-		})
+		updates = append(updates, UpdateSummary(u))
 	}
 
 	return GetUpdatesResult{Updates: updates}, nil

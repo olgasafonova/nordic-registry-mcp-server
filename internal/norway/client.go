@@ -301,12 +301,12 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 	case c.semaphore <- struct{}{}:
 		defer func() { <-c.semaphore }()
 	case <-ctx.Done():
-		return fmt.Errorf("context cancelled while waiting for rate limiter: %w", ctx.Err())
+		return fmt.Errorf("context canceled while waiting for rate limiter: %w", ctx.Err())
 	}
 
 	// Build URL
 	reqURL := BaseURL + path
-	if params != nil && len(params) > 0 {
+	if len(params) > 0 {
 		reqURL += "?" + params.Encode()
 	}
 
@@ -328,7 +328,7 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
-				return fmt.Errorf("context cancelled during backoff: %w", ctx.Err())
+				return fmt.Errorf("context canceled during backoff: %w", ctx.Err())
 			}
 		}
 
@@ -343,7 +343,7 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read response: %w", err)
