@@ -14,18 +14,18 @@ RUN go mod download
 COPY . .
 
 # Build binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o mediawiki-mcp-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o nordic-registry-mcp-server .
 
 # Runtime stage
 FROM alpine:3.20
 
-# Install ca-certificates for HTTPS and poppler-utils for PDF support
-RUN apk add --no-cache ca-certificates poppler-utils
+# Install ca-certificates for HTTPS
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/mediawiki-mcp-server .
+COPY --from=builder /app/nordic-registry-mcp-server .
 
 # Create non-root user
 RUN adduser -D -u 1000 mcp
@@ -38,5 +38,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["./mediawiki-mcp-server"]
+ENTRYPOINT ["./nordic-registry-mcp-server"]
 CMD ["-http", ":8080"]

@@ -44,13 +44,13 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -ldflags="-s -w" -o mediawiki-mcp-server-${{ matrix.suffix }}${{ matrix.ext }} .
+          go build -ldflags="-s -w" -o nordic-registry-mcp-server-${{ matrix.suffix }}${{ matrix.ext }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: mediawiki-mcp-server-${{ matrix.suffix }}
-          path: mediawiki-mcp-server-${{ matrix.suffix }}${{ matrix.ext }}
+          name: nordic-registry-mcp-server-${{ matrix.suffix }}
+          path: nordic-registry-mcp-server-${{ matrix.suffix }}${{ matrix.ext }}
 
   release:
     name: Create Release

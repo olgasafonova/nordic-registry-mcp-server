@@ -133,11 +133,11 @@ jobs:
           if [ "$GOOS" = "windows" ]; then
             ext=".exe"
           fi
-          go build -ldflags="-s -w" -o mediawiki-mcp-server-${{ matrix.goos }}-${{ matrix.goarch }}${ext} .
+          go build -ldflags="-s -w" -o nordic-registry-mcp-server-${{ matrix.goos }}-${{ matrix.goarch }}${ext} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: mediawiki-mcp-server-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: mediawiki-mcp-server-${{ matrix.goos }}-${{ matrix.goarch }}*
+          name: nordic-registry-mcp-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: nordic-registry-mcp-server-${{ matrix.goos }}-${{ matrix.goarch }}*
           retention-days: 7
