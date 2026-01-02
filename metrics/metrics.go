@@ -1,4 +1,4 @@
-// Package metrics provides Prometheus metrics for the MediaWiki MCP server.
+// Package metrics provides Prometheus metrics for the Nordic Registry MCP server.
 // It tracks request counts, latencies, cache performance, and error rates.
 package metrics
 
@@ -9,7 +9,7 @@ import (
 
 // Namespace and subsystem for all metrics
 const (
-	Namespace = "mediawiki_mcp"
+	Namespace = "nordic_registry_mcp"
 )
 
 var (
@@ -63,34 +63,34 @@ var (
 		Help:      "Total cache eviction count",
 	})
 
-	// WikiAPILatency measures MediaWiki API call latency by action
-	WikiAPILatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	// RegistryAPILatency measures registry API call latency by country and action
+	RegistryAPILatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: Namespace,
-		Name:      "wiki_api_latency_seconds",
-		Help:      "MediaWiki API call latency by action",
+		Name:      "registry_api_latency_seconds",
+		Help:      "Registry API call latency by country and action",
 		Buckets:   prometheus.DefBuckets,
-	}, []string{"action"})
+	}, []string{"country", "action"})
 
-	// WikiAPIRequestsTotal counts MediaWiki API requests
-	WikiAPIRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	// RegistryAPIRequestsTotal counts registry API requests
+	RegistryAPIRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace,
-		Name:      "wiki_api_requests_total",
-		Help:      "Total MediaWiki API requests by action and status",
-	}, []string{"action", "status"})
+		Name:      "registry_api_requests_total",
+		Help:      "Total registry API requests by country, action and status",
+	}, []string{"country", "action", "status"})
 
-	// WikiAPIErrors counts MediaWiki API errors by error code
-	WikiAPIErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+	// RegistryAPIErrors counts registry API errors by error code
+	RegistryAPIErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace,
-		Name:      "wiki_api_errors_total",
-		Help:      "MediaWiki API errors by action and error code",
-	}, []string{"action", "error_code"})
+		Name:      "registry_api_errors_total",
+		Help:      "Registry API errors by country, action and error code",
+	}, []string{"country", "action", "error_code"})
 
-	// WikiAPIRetries counts API request retries
-	WikiAPIRetries = promauto.NewCounterVec(prometheus.CounterOpts{
+	// RegistryAPIRetries counts API request retries
+	RegistryAPIRetries = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace,
-		Name:      "wiki_api_retries_total",
-		Help:      "MediaWiki API retry count by action",
-	}, []string{"action"})
+		Name:      "registry_api_retries_total",
+		Help:      "Registry API retry count by country and action",
+	}, []string{"country", "action"})
 
 	// RateLimitRejections counts requests rejected due to rate limiting
 	RateLimitRejections = promauto.NewCounter(prometheus.CounterOpts{
@@ -175,16 +175,16 @@ func RecordRequest(tool string, duration float64, success bool) {
 	RequestDuration.WithLabelValues(tool).Observe(duration)
 }
 
-// RecordAPICall records a MediaWiki API call
-func RecordAPICall(action string, duration float64, success bool, errorCode string) {
+// RecordAPICall records a registry API call
+func RecordAPICall(country, action string, duration float64, success bool, errorCode string) {
 	status := "success"
 	if !success {
 		status = "error"
 	}
-	WikiAPIRequestsTotal.WithLabelValues(action, status).Inc()
-	WikiAPILatency.WithLabelValues(action).Observe(duration)
+	RegistryAPIRequestsTotal.WithLabelValues(country, action, status).Inc()
+	RegistryAPILatency.WithLabelValues(country, action).Observe(duration)
 	if errorCode != "" {
-		WikiAPIErrors.WithLabelValues(action, errorCode).Inc()
+		RegistryAPIErrors.WithLabelValues(country, action, errorCode).Inc()
 	}
 }
 

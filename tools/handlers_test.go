@@ -5,16 +5,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/olgasafonova/mediawiki-mcp-server/wiki"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 )
 
 func TestNewHandlerRegistry(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := &wiki.Config{
-		BaseURL: "https://test.wiki.com/api.php",
-		Timeout: 5,
-	}
-	client := wiki.NewClient(config, logger)
+	client := norway.NewClient(norway.WithLogger(logger))
 	defer client.Close()
 
 	registry := NewHandlerRegistry(client, logger)
@@ -22,7 +18,7 @@ func TestNewHandlerRegistry(t *testing.T) {
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
 	}
-	if registry.client != client {
+	if registry.norwayClient != client {
 		t.Error("Registry should hold the client reference")
 	}
 	if registry.logger != logger {
@@ -32,8 +28,7 @@ func TestNewHandlerRegistry(t *testing.T) {
 
 func TestBuildTool(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := &wiki.Config{BaseURL: "https://test.wiki.com/api.php"}
-	client := wiki.NewClient(config, logger)
+	client := norway.NewClient(norway.WithLogger(logger))
 	defer client.Close()
 
 	registry := NewHandlerRegistry(client, logger)
@@ -51,46 +46,33 @@ func TestBuildTool(t *testing.T) {
 		{
 			name: "read-only tool",
 			spec: ToolSpec{
-				Name:        "mediawiki_search",
-				Title:       "Search Wiki",
-				Description: "Search the wiki",
-				Method:      "Search",
+				Name:        "norway_search_companies",
+				Title:       "Search Norwegian Companies",
+				Description: "Search for companies by name",
+				Method:      "SearchCompanies",
+				Country:     "norway",
 				ReadOnly:    true,
 				Idempotent:  true,
 			},
-			wantName:  "mediawiki_search",
-			wantDesc:  "Search the wiki",
+			wantName:  "norway_search_companies",
+			wantDesc:  "Search for companies by name",
 			wantRO:    true,
 			wantIdem:  true,
 			wantDestr: false,
 			wantOpen:  false,
 		},
 		{
-			name: "destructive tool",
-			spec: ToolSpec{
-				Name:        "mediawiki_edit_page",
-				Title:       "Edit Page",
-				Description: "Edit a wiki page",
-				Method:      "EditPage",
-				ReadOnly:    false,
-				Destructive: true,
-			},
-			wantName:  "mediawiki_edit_page",
-			wantDesc:  "Edit a wiki page",
-			wantRO:    false,
-			wantDestr: true,
-		},
-		{
 			name: "open world tool",
 			spec: ToolSpec{
-				Name:        "mediawiki_check_links",
-				Title:       "Check Links",
-				Description: "Check external links",
-				Method:      "CheckLinks",
+				Name:        "norway_get_company",
+				Title:       "Get Norwegian Company",
+				Description: "Get company details by org number",
+				Method:      "GetCompany",
+				Country:     "norway",
 				OpenWorld:   true,
 			},
-			wantName: "mediawiki_check_links",
-			wantDesc: "Check external links",
+			wantName: "norway_get_company",
+			wantDesc: "Get company details by org number",
 			wantOpen: true,
 		},
 	}
@@ -126,8 +108,7 @@ func TestBuildTool(t *testing.T) {
 
 func TestRecoverPanic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := &wiki.Config{BaseURL: "https://test.wiki.com/api.php"}
-	client := wiki.NewClient(config, logger)
+	client := norway.NewClient(norway.WithLogger(logger))
 	defer client.Close()
 
 	registry := NewHandlerRegistry(client, logger)
@@ -143,30 +124,34 @@ func TestRecoverPanic(t *testing.T) {
 
 func TestLogExecution(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := &wiki.Config{BaseURL: "https://test.wiki.com/api.php"}
-	client := wiki.NewClient(config, logger)
+	client := norway.NewClient(norway.WithLogger(logger))
 	defer client.Close()
 
 	registry := NewHandlerRegistry(client, logger)
-	spec := ToolSpec{Name: "test_tool"}
+	spec := ToolSpec{Name: "test_tool", Country: "norway"}
 
-	// Test with SearchArgs
-	registry.logExecution(spec, wiki.SearchArgs{Query: "test"}, wiki.SearchResult{TotalHits: 5})
+	// Test with SearchCompaniesArgs
+	registry.logExecution(spec,
+		norway.SearchCompaniesArgs{Query: "test"},
+		norway.SearchCompaniesResult{
+			Companies:    []norway.CompanySummary{{Name: "Test AS"}},
+			TotalResults: 1,
+		})
 
-	// Test with GetPageArgs
-	registry.logExecution(spec, wiki.GetPageArgs{Title: "Test", Format: "wikitext"}, wiki.PageContent{Content: "test"})
+	// Test with GetCompanyArgs
+	registry.logExecution(spec,
+		norway.GetCompanyArgs{OrgNumber: "923609016"},
+		norway.GetCompanyResult{})
 
-	// Test with EditPageArgs
-	registry.logExecution(spec, wiki.EditPageArgs{Title: "Test", Content: "content"}, wiki.EditResult{Success: true})
+	// Test with GetRolesArgs
+	registry.logExecution(spec,
+		norway.GetRolesArgs{OrgNumber: "923609016"},
+		norway.GetRolesResult{RoleGroups: []norway.RoleGroupSummary{{Type: "STYR"}}})
 
-	// Test with FindReplaceArgs
-	registry.logExecution(spec, wiki.FindReplaceArgs{Title: "Test", Preview: true}, wiki.FindReplaceResult{MatchCount: 3})
-
-	// Test with BulkReplaceArgs
-	registry.logExecution(spec, wiki.BulkReplaceArgs{Pages: []string{"A", "B"}, Preview: true}, wiki.BulkReplaceResult{PagesModified: 2})
-
-	// Test with SearchInPageArgs
-	registry.logExecution(spec, wiki.SearchInPageArgs{Title: "Test", Query: "search"}, wiki.SearchInPageResult{})
+	// Test with GetSubUnitsArgs
+	registry.logExecution(spec,
+		norway.GetSubUnitsArgs{ParentOrgNumber: "923609016"},
+		norway.GetSubUnitsResult{SubUnits: []norway.SubUnitSummary{{Name: "Branch"}}})
 }
 
 func TestAllToolsNotEmpty(t *testing.T) {
@@ -185,27 +170,54 @@ func TestAllToolsNotEmpty(t *testing.T) {
 		if spec.Description == "" {
 			t.Errorf("Tool %s has empty Description", spec.Name)
 		}
+		if spec.Country == "" {
+			t.Errorf("Tool %s has empty Country", spec.Name)
+		}
 	}
 }
 
 func TestToolSpecMethods(t *testing.T) {
 	knownMethods := map[string]bool{
-		"Search": true, "SearchInPage": true, "SearchInFile": true, "ResolveTitle": true,
-		"GetPage": true, "ListPages": true, "GetPageInfo": true, "GetSections": true,
-		"GetRelated": true, "GetImages": true, "Parse": true, "GetWikiInfo": true,
-		"ListCategories": true, "GetCategoryMembers": true,
-		"GetRecentChanges": true, "GetRevisions": true, "CompareRevisions": true, "GetUserContributions": true,
-		"GetExternalLinks": true, "GetExternalLinksBatch": true, "CheckLinks": true, "GetBacklinks": true,
-		"FindBrokenInternalLinks": true, "FindOrphanedPages": true,
-		"CheckTerminology": true, "CheckTranslations": true, "HealthAudit": true,
-		"FindSimilarPages": true, "CompareTopic": true,
-		"ListUsers": true,
-		"EditPage":  true, "FindReplace": true, "ApplyFormatting": true, "BulkReplace": true, "UploadFile": true,
+		// Norway tools
+		"SearchCompanies": true,
+		"GetCompany":      true,
+		"GetRoles":        true,
+		"GetSubUnits":     true,
+		"GetSubUnit":      true,
+		"GetUpdates":      true,
 	}
 
 	for _, spec := range AllTools {
 		if !knownMethods[spec.Method] {
 			t.Errorf("Tool %s has unknown method: %s", spec.Name, spec.Method)
+		}
+	}
+}
+
+func TestToolsByCountry(t *testing.T) {
+	norwayTools := ToolsByCountry("norway")
+	if len(norwayTools) == 0 {
+		t.Error("Expected Norway tools")
+	}
+
+	for _, tool := range norwayTools {
+		if tool.Country != "norway" {
+			t.Errorf("Tool %s has country %s, expected norway", tool.Name, tool.Country)
+		}
+	}
+
+	// Non-existent country should return empty
+	unknownTools := ToolsByCountry("unknown")
+	if len(unknownTools) != 0 {
+		t.Errorf("Expected 0 tools for unknown country, got %d", len(unknownTools))
+	}
+}
+
+func TestToolsByCategory(t *testing.T) {
+	searchTools := ToolsByCategory("search")
+	for _, tool := range searchTools {
+		if tool.Category != "search" {
+			t.Errorf("Tool %s has category %s, expected search", tool.Name, tool.Category)
 		}
 	}
 }

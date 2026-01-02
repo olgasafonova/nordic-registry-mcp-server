@@ -1,4 +1,6 @@
-package wiki
+// Package infra provides shared infrastructure components for the Nordic Registry MCP server.
+// It includes resilience patterns (circuit breaker, request deduplication) and HTTP utilities.
+package infra
 
 import (
 	"context"
@@ -77,7 +79,7 @@ func (d *RequestDeduplicator) Stats() int {
 	return len(d.inflight)
 }
 
-// CircuitBreaker prevents cascading failures by failing fast when the wiki is unresponsive.
+// CircuitBreaker prevents cascading failures by failing fast when an API is unresponsive.
 // It tracks consecutive failures and opens the circuit after a threshold is reached.
 type CircuitBreaker struct {
 	mu sync.RWMutex
@@ -236,5 +238,5 @@ type ErrCircuitOpen struct {
 }
 
 func (e ErrCircuitOpen) Error() string {
-	return "circuit breaker is open: wiki API is experiencing issues, retry after " + e.RetryAt.Format(time.RFC3339)
+	return "circuit breaker is open: API is experiencing issues, retry after " + e.RetryAt.Format(time.RFC3339)
 }

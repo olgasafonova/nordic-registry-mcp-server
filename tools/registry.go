@@ -4,12 +4,12 @@
 package tools
 
 // ToolSpec defines a tool's metadata for declarative registration.
-// Each spec maps to a wiki.Client method with matching Args/Result types.
+// Each spec maps to a registry client method with matching Args/Result types.
 type ToolSpec struct {
-	// Name is the MCP tool name (e.g., "mediawiki_search")
+	// Name is the MCP tool name (e.g., "norway_search_companies")
 	Name string
 
-	// Method is the wiki.Client method name (e.g., "Search")
+	// Method is the client method name (e.g., "SearchCompanies")
 	Method string
 
 	// Description is the tool description shown to LLMs
@@ -18,10 +18,13 @@ type ToolSpec struct {
 	// Title is the human-readable tool title for annotations
 	Title string
 
-	// Category groups tools logically (search, read, write, etc.)
+	// Category groups tools logically (search, read, roles, etc.)
 	Category string
 
-	// ReadOnly indicates the tool doesn't modify wiki state
+	// Country indicates which Nordic country this tool is for
+	Country string
+
+	// ReadOnly indicates the tool doesn't modify registry state
 	ReadOnly bool
 
 	// Destructive indicates the tool can delete or overwrite data

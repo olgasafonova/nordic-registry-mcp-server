@@ -1,4 +1,4 @@
-// Package tracing provides OpenTelemetry tracing for the MediaWiki MCP server.
+// Package tracing provides OpenTelemetry tracing for the Nordic Registry MCP server.
 // It configures trace exporters and provides utilities for creating spans.
 package tracing
 
@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	TracerName = "mediawiki-mcp-server"
+	TracerName = "nordic-registry-mcp-server"
 )
 
 // Config holds tracing configuration
@@ -34,7 +34,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults for tracing
 func DefaultConfig() Config {
 	return Config{
-		ServiceName:    "mediawiki-mcp-server",
+		ServiceName:    "nordic-registry-mcp-server",
 		ServiceVersion: "1.0.0",
 		Environment:    getEnvOrDefault("OTEL_ENVIRONMENT", "development"),
 		Enabled:        os.Getenv("OTEL_ENABLED") == "true" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "",
@@ -122,14 +122,12 @@ func AddToolAttributes(span trace.Span, toolName, category string) {
 	)
 }
 
-// AddWikiAttributes adds wiki-related attributes to a span
-func AddWikiAttributes(span trace.Span, action, page string) {
+// AddRegistryAttributes adds registry-related attributes to a span
+func AddRegistryAttributes(span trace.Span, country, action string) {
 	span.SetAttributes(
-		attribute.String("wiki.api.action", action),
+		attribute.String("registry.country", country),
+		attribute.String("registry.api.action", action),
 	)
-	if page != "" {
-		span.SetAttributes(attribute.String("wiki.page.title", page))
-	}
 }
 
 // RecordError records an error on the span

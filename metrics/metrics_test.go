@@ -57,6 +57,7 @@ func TestRecordRequest(t *testing.T) {
 func TestRecordAPICall(t *testing.T) {
 	tests := []struct {
 		name      string
+		country   string
 		action    string
 		duration  float64
 		success   bool
@@ -64,30 +65,32 @@ func TestRecordAPICall(t *testing.T) {
 	}{
 		{
 			name:      "successful API call",
-			action:    "query",
+			country:   "norway",
+			action:    "search",
 			duration:  0.1,
 			success:   true,
 			errorCode: "",
 		},
 		{
 			name:      "failed API call with error code",
-			action:    "edit",
+			country:   "norway",
+			action:    "get_company",
 			duration:  0.5,
 			success:   false,
-			errorCode: "protectedpage",
+			errorCode: "not_found",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			RecordAPICall(tt.action, tt.duration, tt.success, tt.errorCode)
+			RecordAPICall(tt.country, tt.action, tt.duration, tt.success, tt.errorCode)
 
 			// Verify request counter
 			status := "success"
 			if !tt.success {
 				status = "error"
 			}
-			counter, err := WikiAPIRequestsTotal.GetMetricWithLabelValues(tt.action, status)
+			counter, err := RegistryAPIRequestsTotal.GetMetricWithLabelValues(tt.country, tt.action, status)
 			if err != nil {
 				t.Fatalf("failed to get metric: %v", err)
 			}
@@ -103,7 +106,7 @@ func TestRecordAPICall(t *testing.T) {
 
 			// Verify error counter if error code provided
 			if tt.errorCode != "" {
-				errCounter, err := WikiAPIErrors.GetMetricWithLabelValues(tt.action, tt.errorCode)
+				errCounter, err := RegistryAPIErrors.GetMetricWithLabelValues(tt.country, tt.action, tt.errorCode)
 				if err != nil {
 					t.Fatalf("failed to get error metric: %v", err)
 				}
@@ -171,10 +174,10 @@ func TestMetricsRegistered(t *testing.T) {
 		CacheMisses,
 		CacheSize,
 		CacheEvictions,
-		WikiAPILatency,
-		WikiAPIRequestsTotal,
-		WikiAPIErrors,
-		WikiAPIRetries,
+		RegistryAPILatency,
+		RegistryAPIRequestsTotal,
+		RegistryAPIErrors,
+		RegistryAPIRetries,
 		RateLimitRejections,
 		RateLimitWaits,
 		AuthFailures,
@@ -195,8 +198,8 @@ func TestMetricsRegistered(t *testing.T) {
 }
 
 func TestNamespace(t *testing.T) {
-	if Namespace != "mediawiki_mcp" {
-		t.Errorf("expected namespace 'mediawiki_mcp', got '%s'", Namespace)
+	if Namespace != "nordic_registry_mcp" {
+		t.Errorf("expected namespace 'nordic_registry_mcp', got '%s'", Namespace)
 	}
 }
 

@@ -17,8 +17,8 @@ func TestDefaultConfig(t *testing.T) {
 
 	cfg := DefaultConfig()
 
-	if cfg.ServiceName != "mediawiki-mcp-server" {
-		t.Errorf("Expected ServiceName 'mediawiki-mcp-server', got %q", cfg.ServiceName)
+	if cfg.ServiceName != "nordic-registry-mcp-server" {
+		t.Errorf("Expected ServiceName 'nordic-registry-mcp-server', got %q", cfg.ServiceName)
 	}
 	if cfg.ServiceVersion != "1.0.0" {
 		t.Errorf("Expected ServiceVersion '1.0.0', got %q", cfg.ServiceVersion)
@@ -179,27 +179,27 @@ func TestAddToolAttributes(t *testing.T) {
 	defer span.End()
 
 	// Should not panic
-	AddToolAttributes(span, "mediawiki_search", "search")
+	AddToolAttributes(span, "norway_search_companies", "search")
 }
 
-func TestAddWikiAttributes(t *testing.T) {
+func TestAddRegistryAttributes(t *testing.T) {
 	tests := []struct {
-		name   string
-		action string
-		page   string
+		name    string
+		country string
+		action  string
 	}{
-		{"with page", "query", "Main_Page"},
-		{"without page", "edit", ""},
-		{"empty action", "", "Some_Page"},
+		{"norway search", "norway", "search"},
+		{"norway get_company", "norway", "get_company"},
+		{"empty action", "norway", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, span := StartSpan(context.Background(), "test-wiki")
+			_, span := StartSpan(context.Background(), "test-registry")
 			defer span.End()
 
 			// Should not panic
-			AddWikiAttributes(span, tt.action, tt.page)
+			AddRegistryAttributes(span, tt.country, tt.action)
 		})
 	}
 }
@@ -265,7 +265,7 @@ func TestGetEnvOrDefault(t *testing.T) {
 }
 
 func TestTracerName(t *testing.T) {
-	if TracerName != "mediawiki-mcp-server" {
-		t.Errorf("Expected TracerName 'mediawiki-mcp-server', got %q", TracerName)
+	if TracerName != "nordic-registry-mcp-server" {
+		t.Errorf("Expected TracerName 'nordic-registry-mcp-server', got %q", TracerName)
 	}
 }
