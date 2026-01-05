@@ -9,6 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 	"github.com/olgasafonova/nordic-registry-mcp-server/metrics"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tracing"
@@ -21,14 +22,16 @@ import (
 type HandlerRegistry struct {
 	norwayClient  *norway.Client
 	denmarkClient *denmark.Client
+	finlandClient *finland.Client
 	logger        *slog.Logger
 }
 
 // NewHandlerRegistry creates a new handler registry.
-func NewHandlerRegistry(norwayClient *norway.Client, denmarkClient *denmark.Client, logger *slog.Logger) *HandlerRegistry {
+func NewHandlerRegistry(norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client, logger *slog.Logger) *HandlerRegistry {
 	return &HandlerRegistry{
 		norwayClient:  norwayClient,
 		denmarkClient: denmarkClient,
+		finlandClient: finlandClient,
 		logger:        logger,
 	}
 }
@@ -67,6 +70,12 @@ func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
 		h.register(server, tool, spec, h.denmarkClient.GetCompanyMCP)
 	case "DKGetProductionUnits":
 		h.register(server, tool, spec, h.denmarkClient.GetProductionUnitsMCP)
+
+	// Finland tools
+	case "FISearchCompanies":
+		h.register(server, tool, spec, h.finlandClient.SearchCompaniesMCP)
+	case "FIGetCompany":
+		h.register(server, tool, spec, h.finlandClient.GetCompanyMCP)
 
 	default:
 		h.logger.Error("Unknown method, tool not registered", "method", spec.Method, "tool", spec.Name)
@@ -179,6 +188,11 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "cvr", a.CVR)
 	case denmark.GetProductionUnitsArgs:
 		attrs = append(attrs, "cvr", a.CVR)
+	// Finland args
+	case finland.SearchCompaniesArgs:
+		attrs = append(attrs, "query", a.Query)
+	case finland.GetCompanyArgs:
+		attrs = append(attrs, "business_id", a.BusinessID)
 	}
 
 	// Add extractable fields from result
@@ -197,6 +211,9 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "found", r.Found)
 	case denmark.GetProductionUnitsResult:
 		attrs = append(attrs, "production_units", len(r.ProductionUnits))
+	// Finland results
+	case finland.SearchCompaniesResult:
+		attrs = append(attrs, "results_count", len(r.Companies), "total_results", r.TotalResults)
 	}
 
 	h.logger.Info("Tool executed", attrs...)
@@ -225,6 +242,12 @@ func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec Tool
 	case func(context.Context, denmark.GetCompanyArgs) (denmark.GetCompanyResult, error):
 		register(h, server, tool, spec, m)
 	case func(context.Context, denmark.GetProductionUnitsArgs) (denmark.GetProductionUnitsResult, error):
+		register(h, server, tool, spec, m)
+
+	// Finland tools
+	case func(context.Context, finland.SearchCompaniesArgs) (finland.SearchCompaniesResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, finland.GetCompanyArgs) (finland.GetCompanyResult, error):
 		register(h, server, tool, spec, m)
 
 	default:

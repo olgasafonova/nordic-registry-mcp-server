@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 )
 
@@ -15,8 +16,10 @@ func TestNewHandlerRegistry(t *testing.T) {
 	defer noClient.Close()
 	dkClient := denmark.NewClient(denmark.WithLogger(logger))
 	defer dkClient.Close()
+	fiClient := finland.NewClient(finland.WithLogger(logger))
+	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -26,6 +29,9 @@ func TestNewHandlerRegistry(t *testing.T) {
 	}
 	if registry.denmarkClient != dkClient {
 		t.Error("Registry should hold the Denmark client reference")
+	}
+	if registry.finlandClient != fiClient {
+		t.Error("Registry should hold the Finland client reference")
 	}
 	if registry.logger != logger {
 		t.Error("Registry should hold the logger reference")
@@ -38,8 +44,10 @@ func TestBuildTool(t *testing.T) {
 	defer noClient.Close()
 	dkClient := denmark.NewClient(denmark.WithLogger(logger))
 	defer dkClient.Close()
+	fiClient := finland.NewClient(finland.WithLogger(logger))
+	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
 
 	tests := []struct {
 		name      string
@@ -120,8 +128,10 @@ func TestRecoverPanic(t *testing.T) {
 	defer noClient.Close()
 	dkClient := denmark.NewClient(denmark.WithLogger(logger))
 	defer dkClient.Close()
+	fiClient := finland.NewClient(finland.WithLogger(logger))
+	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
 
 	// Test that recoverPanic doesn't panic itself
 	func() {
@@ -138,8 +148,10 @@ func TestLogExecution(t *testing.T) {
 	defer noClient.Close()
 	dkClient := denmark.NewClient(denmark.WithLogger(logger))
 	defer dkClient.Close()
+	fiClient := finland.NewClient(finland.WithLogger(logger))
+	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
 	spec := ToolSpec{Name: "test_tool", Country: "norway"}
 
 	// Test with SearchCompaniesArgs
@@ -201,6 +213,9 @@ func TestToolSpecMethods(t *testing.T) {
 		"DKSearchCompanies":    true,
 		"DKGetCompany":         true,
 		"DKGetProductionUnits": true,
+		// Finland tools
+		"FISearchCompanies": true,
+		"FIGetCompany":      true,
 	}
 
 	for _, spec := range AllTools {
@@ -230,6 +245,17 @@ func TestToolsByCountry(t *testing.T) {
 	for _, tool := range denmarkTools {
 		if tool.Country != "denmark" {
 			t.Errorf("Tool %s has country %s, expected denmark", tool.Name, tool.Country)
+		}
+	}
+
+	finlandTools := ToolsByCountry("finland")
+	if len(finlandTools) == 0 {
+		t.Error("Expected Finland tools")
+	}
+
+	for _, tool := range finlandTools {
+		if tool.Country != "finland" {
+			t.Errorf("Tool %s has country %s, expected finland", tool.Name, tool.Country)
 		}
 	}
 

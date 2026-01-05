@@ -323,6 +323,89 @@ EXAMPLES:
 		Idempotent: true,
 		OpenWorld:  true,
 	},
+
+	// ==========================================================================
+	// FINLAND - PRH (Patent and Registration Office / avoindata.prh.fi)
+	// ==========================================================================
+
+	// --------------------------------------------------------------------------
+	// SEARCH TOOLS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "finland_search_companies",
+		Method:   "FISearchCompanies",
+		Title:    "Search Finnish Companies",
+		Category: "search",
+		Country:  "finland",
+		Description: `Search for Finnish companies by name in PRH (Patent and Registration Office).
+
+USE WHEN: User asks "find Finnish companies named X", "search for X in Finland", "look up Finnish business X".
+
+NOT FOR: Looking up a specific company by business ID (use finland_get_company instead).
+
+PARAMETERS:
+- query: Company name to search for (required)
+- location: Town or city to filter by (optional)
+- company_form: Company form code like OY, OYJ, Ky (optional)
+- page: Page number for pagination (optional)
+
+RETURNS: List of companies with:
+- Business ID (Y-tunnus, format: 1234567-8)
+- Company name
+- Company form (OY, OYJ, Ky, etc.)
+- City and address
+- Industry description
+- Website
+- Registration date
+- Status
+
+EXAMPLES:
+- "Find Finnish company Nokia" → query: "Nokia"
+- "Search for companies in Helsinki" → query: "*", location: "Helsinki"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// COMPANY DETAILS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "finland_get_company",
+		Method:   "FIGetCompany",
+		Title:    "Get Finnish Company Details",
+		Category: "read",
+		Country:  "finland",
+		Description: `Get detailed information about a Finnish company by business ID (Y-tunnus).
+
+USE WHEN: User provides a Finnish business ID, asks "get details for 0112038-9", "look up Finnish company 0112038-9".
+
+NOT FOR: Searching by company name (use finland_search_companies instead).
+
+PARAMETERS:
+- business_id: Finnish business ID / Y-tunnus (required, format: 1234567-8)
+  FI prefix is automatically removed.
+
+RETURNS: Complete company information including:
+- Business ID and EU ID
+- Current and previous company names
+- Auxiliary/trade names
+- Company form (OY, OYJ, Ky, etc.)
+- Street and postal addresses
+- Industry code and description
+- Website
+- Registration date
+- Status (active, dissolved, liquidation, bankruptcy)
+- Company situations (reorganization, liquidation, bankruptcy)
+- Registry entries
+
+EXAMPLES:
+- "Get Finnish company 0112038-9" → business_id: "0112038-9"
+- "Look up Nokia's details" → First search, then use business_id: "0112038-9"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
 }
 
 // ToolsByCountry returns tools filtered by country.

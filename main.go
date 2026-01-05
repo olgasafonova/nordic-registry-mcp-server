@@ -22,6 +22,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tools"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tracing"
@@ -370,6 +371,9 @@ func main() {
 	denmarkClient := denmark.NewClient(denmark.WithLogger(logger))
 	defer denmarkClient.Close()
 
+	finlandClient := finland.NewClient(finland.WithLogger(logger))
+	defer finlandClient.Close()
+
 	// Get bearer token from flag or environment
 	authToken := *bearerToken
 	if authToken == "" {
@@ -389,9 +393,9 @@ func main() {
 Currently supports:
 - **Norway** (Brønnøysundregistrene / data.brreg.no) - Norwegian business registry
 - **Denmark** (CVR / cvrapi.dk) - Danish business registry
+- **Finland** (PRH / avoindata.prh.fi) - Finnish business registry
 
 Coming soon:
-- Finland (PRH / YTJ)
 - Sweden (Bolagsverket)
 
 ## Tool Selection Guide
@@ -434,6 +438,16 @@ Coming soon:
 "What production units does CVR 10150817 have?"
 -> USE: denmark_get_production_units
 
+## Finnish Company Lookups
+
+### Search for Finnish companies by name:
+"Find Finnish company Nokia"
+-> USE: finland_search_companies
+
+### Get Finnish company details by business ID:
+"Get details for business ID 0112038-9"
+-> USE: finland_get_company
+
 ## Norwegian Organization Numbers
 
 Norwegian org numbers are 9 digits. Spaces and dashes are automatically removed.
@@ -465,17 +479,32 @@ Common types:
 - K/S: Kommanditselskab (Limited partnership)
 - P/S: Partnerselskab (Partnership company)
 - IVS: Iværksætterselskab (Entrepreneurial company)
-- Enkeltmandsvirksomhed (Sole proprietorship)`,
+- Enkeltmandsvirksomhed (Sole proprietorship)
+
+## Finnish Business IDs (Y-tunnus)
+
+Finnish business IDs are 7 digits + hyphen + check digit (e.g., 0112038-9).
+The FI prefix is automatically removed. Examples: "0112038-9", "FI0112038-9" both work.
+
+## Company Forms (Finland)
+
+Common codes:
+- OY: Osakeyhtiö (Private limited company)
+- OYJ: Julkinen osakeyhtiö (Public limited company)
+- Ky: Kommandiittiyhtiö (Limited partnership)
+- Ay: Avoin yhtiö (General partnership)
+- Tmi: Toiminimi (Sole proprietorship)
+- Osk: Osuuskunta (Cooperative)`,
 	})
 
 	// Register all tools using the registry
-	registry := tools.NewHandlerRegistry(norwayClient, denmarkClient, logger)
+	registry := tools.NewHandlerRegistry(norwayClient, denmarkClient, finlandClient, logger)
 	registry.RegisterAll(server)
 
 	ctx := context.Background()
 
 	if *httpAddr != "" {
-		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient, denmarkClient)
+		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient, denmarkClient, finlandClient)
 	} else {
 		logger.Info("Starting Nordic Registry MCP Server (stdio mode)",
 			"name", ServerName,
@@ -502,7 +531,7 @@ Common types:
 	}
 }
 
-func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client, denmarkClient *denmark.Client) {
+func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client) {
 	var allowedOriginsList []string
 	if origins != "" {
 		for _, o := range strings.Split(origins, ",") {
@@ -553,15 +582,16 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		// Check circuit breaker state for all clients
 		noCBStats := norwayClient.CircuitBreakerStats()
 		dkCBStats := denmarkClient.CircuitBreakerStats()
+		fiCBStats := finlandClient.CircuitBreakerStats()
 
-		if noCBStats.State != "closed" || dkCBStats.State != "closed" {
+		if noCBStats.State != "closed" || dkCBStats.State != "closed" || fiCBStats.State != "closed" {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = fmt.Fprintf(w, `{"status":"not_ready","norway_cb":"%s","denmark_cb":"%s"}`, noCBStats.State, dkCBStats.State)
+			_, _ = fmt.Fprintf(w, `{"status":"not_ready","norway_cb":"%s","denmark_cb":"%s","finland_cb":"%s"}`, noCBStats.State, dkCBStats.State, fiCBStats.State)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, `{"status":"ready","countries":["norway","denmark"]}`)
+		_, _ = fmt.Fprintf(w, `{"status":"ready","countries":["norway","denmark","finland"]}`)
 	})
 
 	// Prometheus metrics endpoint
@@ -605,6 +635,7 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		noDedupStats := norwayClient.DedupStats()
 		dkCBStats := denmarkClient.CircuitBreakerStats()
 		dkDedupStats := denmarkClient.DedupStats()
+		fiCBStats := finlandClient.CircuitBreakerStats()
 
 		response := map[string]interface{}{
 			"server":  ServerName,
@@ -627,6 +658,13 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 				},
 				"dedup": map[string]interface{}{
 					"inflight_requests": dkDedupStats,
+				},
+			},
+			"finland": map[string]interface{}{
+				"circuit_breaker": map[string]interface{}{
+					"state":                fiCBStats.State,
+					"consecutive_failures": fiCBStats.ConsecutiveFails,
+					"last_failure":         fiCBStats.LastFailure,
 				},
 			},
 		}
