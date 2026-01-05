@@ -4,13 +4,13 @@ import "time"
 
 // SearchCompaniesArgs contains parameters for company search
 type SearchCompaniesArgs struct {
-	Query           string `json:"query" jsonschema:"description=Company name to search for"`
-	Page            int    `json:"page,omitempty" jsonschema:"description=Page number (0-indexed)"`
-	Size            int    `json:"size,omitempty" jsonschema:"description=Results per page (max 100)"`
-	OrgForm         string `json:"org_form,omitempty" jsonschema:"description=Organization form code (AS, ENK, NUF, etc.)"`
-	Municipality    string `json:"municipality,omitempty" jsonschema:"description=Municipality number"`
-	RegisteredInVAT *bool  `json:"registered_in_vat,omitempty" jsonschema:"description=Filter by VAT registration"`
-	Bankrupt        *bool  `json:"bankrupt,omitempty" jsonschema:"description=Filter by bankruptcy status"`
+	Query           string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
+	Page            int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
+	Size            int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
+	OrgForm         string `json:"org_form,omitempty" jsonschema_description:"Organization form code (AS, ENK, NUF, etc.)"`
+	Municipality    string `json:"municipality,omitempty" jsonschema_description:"Municipality number"`
+	RegisteredInVAT *bool  `json:"registered_in_vat,omitempty" jsonschema_description:"Filter by VAT registration"`
+	Bankrupt        *bool  `json:"bankrupt,omitempty" jsonschema_description:"Filter by bankruptcy status"`
 }
 
 // SearchCompaniesResult is the result of a company search
@@ -34,7 +34,7 @@ type CompanySummary struct {
 
 // GetCompanyArgs contains parameters for getting a single company
 type GetCompanyArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required,description=9-digit Norwegian organization number"`
+	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
 }
 
 // GetCompanyResult is the result of getting a company
@@ -44,7 +44,7 @@ type GetCompanyResult struct {
 
 // GetRolesArgs contains parameters for getting company roles
 type GetRolesArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required,description=9-digit Norwegian organization number"`
+	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
 }
 
 // GetRolesResult is the result of getting company roles
@@ -72,7 +72,7 @@ type RoleSummary struct {
 
 // GetSubUnitsArgs contains parameters for getting sub-units
 type GetSubUnitsArgs struct {
-	ParentOrgNumber string `json:"parent_org_number" jsonschema:"required,description=Parent company organization number"`
+	ParentOrgNumber string `json:"parent_org_number" jsonschema:"required" jsonschema_description:"Parent company organization number"`
 }
 
 // GetSubUnitsResult is the result of getting sub-units
@@ -92,7 +92,7 @@ type SubUnitSummary struct {
 
 // GetSubUnitArgs contains parameters for getting a single sub-unit
 type GetSubUnitArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required,description=Sub-unit organization number"`
+	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"Sub-unit organization number"`
 }
 
 // GetSubUnitResult is the result of getting a sub-unit
@@ -102,8 +102,8 @@ type GetSubUnitResult struct {
 
 // GetUpdatesArgs contains parameters for getting registry updates
 type GetUpdatesArgs struct {
-	Since time.Time `json:"since" jsonschema:"required,description=Get updates since this timestamp (ISO 8601)"`
-	Size  int       `json:"size,omitempty" jsonschema:"description=Maximum number of updates to return"`
+	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601)"`
+	Size  int       `json:"size,omitempty" jsonschema_description:"Maximum number of updates to return"`
 }
 
 // GetUpdatesResult is the result of getting updates

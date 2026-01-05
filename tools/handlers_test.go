@@ -5,21 +5,27 @@ import (
 	"os"
 	"testing"
 
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 )
 
 func TestNewHandlerRegistry(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	client := norway.NewClient(norway.WithLogger(logger))
-	defer client.Close()
+	noClient := norway.NewClient(norway.WithLogger(logger))
+	defer noClient.Close()
+	dkClient := denmark.NewClient(denmark.WithLogger(logger))
+	defer dkClient.Close()
 
-	registry := NewHandlerRegistry(client, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, logger)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
 	}
-	if registry.norwayClient != client {
-		t.Error("Registry should hold the client reference")
+	if registry.norwayClient != noClient {
+		t.Error("Registry should hold the Norway client reference")
+	}
+	if registry.denmarkClient != dkClient {
+		t.Error("Registry should hold the Denmark client reference")
 	}
 	if registry.logger != logger {
 		t.Error("Registry should hold the logger reference")
@@ -28,10 +34,12 @@ func TestNewHandlerRegistry(t *testing.T) {
 
 func TestBuildTool(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	client := norway.NewClient(norway.WithLogger(logger))
-	defer client.Close()
+	noClient := norway.NewClient(norway.WithLogger(logger))
+	defer noClient.Close()
+	dkClient := denmark.NewClient(denmark.WithLogger(logger))
+	defer dkClient.Close()
 
-	registry := NewHandlerRegistry(client, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, logger)
 
 	tests := []struct {
 		name      string
@@ -108,10 +116,12 @@ func TestBuildTool(t *testing.T) {
 
 func TestRecoverPanic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	client := norway.NewClient(norway.WithLogger(logger))
-	defer client.Close()
+	noClient := norway.NewClient(norway.WithLogger(logger))
+	defer noClient.Close()
+	dkClient := denmark.NewClient(denmark.WithLogger(logger))
+	defer dkClient.Close()
 
-	registry := NewHandlerRegistry(client, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, logger)
 
 	// Test that recoverPanic doesn't panic itself
 	func() {
@@ -124,10 +134,12 @@ func TestRecoverPanic(t *testing.T) {
 
 func TestLogExecution(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	client := norway.NewClient(norway.WithLogger(logger))
-	defer client.Close()
+	noClient := norway.NewClient(norway.WithLogger(logger))
+	defer noClient.Close()
+	dkClient := denmark.NewClient(denmark.WithLogger(logger))
+	defer dkClient.Close()
 
-	registry := NewHandlerRegistry(client, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, logger)
 	spec := ToolSpec{Name: "test_tool", Country: "norway"}
 
 	// Test with SearchCompaniesArgs
@@ -185,6 +197,10 @@ func TestToolSpecMethods(t *testing.T) {
 		"GetSubUnits":     true,
 		"GetSubUnit":      true,
 		"GetUpdates":      true,
+		// Denmark tools
+		"DKSearchCompanies":    true,
+		"DKGetCompany":         true,
+		"DKGetProductionUnits": true,
 	}
 
 	for _, spec := range AllTools {
@@ -203,6 +219,17 @@ func TestToolsByCountry(t *testing.T) {
 	for _, tool := range norwayTools {
 		if tool.Country != "norway" {
 			t.Errorf("Tool %s has country %s, expected norway", tool.Name, tool.Country)
+		}
+	}
+
+	denmarkTools := ToolsByCountry("denmark")
+	if len(denmarkTools) == 0 {
+		t.Error("Expected Denmark tools")
+	}
+
+	for _, tool := range denmarkTools {
+		if tool.Country != "denmark" {
+			t.Errorf("Tool %s has country %s, expected denmark", tool.Name, tool.Country)
 		}
 	}
 

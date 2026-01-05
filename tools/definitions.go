@@ -210,6 +210,119 @@ EXAMPLES:
 		Idempotent: true,
 		OpenWorld:  true,
 	},
+
+	// ==========================================================================
+	// DENMARK - CVR (Central Business Register / cvrapi.dk)
+	// ==========================================================================
+
+	// --------------------------------------------------------------------------
+	// SEARCH TOOLS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "denmark_search_companies",
+		Method:   "DKSearchCompanies",
+		Title:    "Search Danish Companies",
+		Category: "search",
+		Country:  "denmark",
+		Description: `Search for Danish companies by name in CVR (Central Business Register).
+
+USE WHEN: User asks "find Danish companies named X", "search for X in Denmark", "look up Danish business X".
+
+NOT FOR: Looking up a specific company by CVR number (use denmark_get_company instead).
+
+PARAMETERS:
+- query: Company name to search for (required)
+
+RETURNS: Company information if found, including:
+- CVR number (8-digit identifier)
+- Company name
+- Address, city, postal code
+- Company type (ApS, A/S, I/S, etc.)
+- Industry description
+- Employee count
+- Registration date
+- Status (active, dissolved, bankrupt)
+
+NOTE: The CVR API returns a single best match, not a list. For multiple results, try more specific queries.
+
+EXAMPLES:
+- "Find Danish company Novo Nordisk" → query: "Novo Nordisk"
+- "Search for Maersk in Denmark" → query: "Maersk"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// COMPANY DETAILS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "denmark_get_company",
+		Method:   "DKGetCompany",
+		Title:    "Get Danish Company Details",
+		Category: "read",
+		Country:  "denmark",
+		Description: `Get detailed information about a Danish company by CVR number.
+
+USE WHEN: User provides an 8-digit Danish CVR number, asks "get details for CVR 12345678", "look up Danish company 12345678".
+
+NOT FOR: Searching by company name (use denmark_search_companies instead).
+
+PARAMETERS:
+- cvr: 8-digit Danish CVR number (required)
+  Spaces, dashes, and "DK" prefix are automatically removed.
+
+RETURNS: Complete company information including:
+- CVR number and name
+- Company type (ApS, A/S, I/S, K/S, etc.)
+- Address (street, postal code, city)
+- Phone and email
+- Industry code and description
+- Employee count
+- Registration date
+- Production units (P-numbers) if any
+- Owners if available
+
+EXAMPLES:
+- "Get Danish company 10150817" → cvr: "10150817"
+- "Look up CVR DK-10150817" → cvr: "10150817" (DK prefix removed)`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// PRODUCTION UNITS (P-numbers)
+	// --------------------------------------------------------------------------
+	{
+		Name:     "denmark_get_production_units",
+		Method:   "DKGetProductionUnits",
+		Title:    "Get Danish Production Units",
+		Category: "subunits",
+		Country:  "denmark",
+		Description: `Get production units (P-numbers) for a Danish company.
+
+USE WHEN: User asks "what locations does Danish company X have", "list production units for CVR Y", "find P-numbers for company".
+
+NOT FOR: Getting parent company info (use denmark_get_company). Not for Norwegian sub-units (use norway_get_subunits).
+
+PARAMETERS:
+- cvr: 8-digit CVR number of the parent company (required)
+
+RETURNS: List of production units including:
+- P-number (production unit identifier)
+- Name
+- Address
+- Whether it's the main production unit
+- Employee count
+- Industry description
+
+EXAMPLES:
+- "What production units does CVR 10150817 have?" → cvr: "10150817"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
 }
 
 // ToolsByCountry returns tools filtered by country.

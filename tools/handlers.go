@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 	"github.com/olgasafonova/nordic-registry-mcp-server/metrics"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tracing"
@@ -18,15 +19,17 @@ import (
 // HandlerRegistry provides type-safe tool registration by mapping
 // tool names to their concrete handler implementations.
 type HandlerRegistry struct {
-	norwayClient *norway.Client
-	logger       *slog.Logger
+	norwayClient  *norway.Client
+	denmarkClient *denmark.Client
+	logger        *slog.Logger
 }
 
 // NewHandlerRegistry creates a new handler registry.
-func NewHandlerRegistry(norwayClient *norway.Client, logger *slog.Logger) *HandlerRegistry {
+func NewHandlerRegistry(norwayClient *norway.Client, denmarkClient *denmark.Client, logger *slog.Logger) *HandlerRegistry {
 	return &HandlerRegistry{
-		norwayClient: norwayClient,
-		logger:       logger,
+		norwayClient:  norwayClient,
+		denmarkClient: denmarkClient,
+		logger:        logger,
 	}
 }
 
@@ -56,6 +59,14 @@ func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
 		h.register(server, tool, spec, h.norwayClient.GetSubUnitMCP)
 	case "GetUpdates":
 		h.register(server, tool, spec, h.norwayClient.GetUpdatesMCP)
+
+	// Denmark tools
+	case "DKSearchCompanies":
+		h.register(server, tool, spec, h.denmarkClient.SearchCompaniesMCP)
+	case "DKGetCompany":
+		h.register(server, tool, spec, h.denmarkClient.GetCompanyMCP)
+	case "DKGetProductionUnits":
+		h.register(server, tool, spec, h.denmarkClient.GetProductionUnitsMCP)
 
 	default:
 		h.logger.Error("Unknown method, tool not registered", "method", spec.Method, "tool", spec.Name)
@@ -148,6 +159,7 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 
 	// Add extractable fields from args using type assertions
 	switch a := args.(type) {
+	// Norway args
 	case norway.SearchCompaniesArgs:
 		attrs = append(attrs, "query", a.Query)
 	case norway.GetCompanyArgs:
@@ -160,10 +172,18 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "org_number", a.OrgNumber)
 	case norway.GetUpdatesArgs:
 		attrs = append(attrs, "since", a.Since)
+	// Denmark args
+	case denmark.SearchCompaniesArgs:
+		attrs = append(attrs, "query", a.Query)
+	case denmark.GetCompanyArgs:
+		attrs = append(attrs, "cvr", a.CVR)
+	case denmark.GetProductionUnitsArgs:
+		attrs = append(attrs, "cvr", a.CVR)
 	}
 
 	// Add extractable fields from result
 	switch r := result.(type) {
+	// Norway results
 	case norway.SearchCompaniesResult:
 		attrs = append(attrs, "results_count", len(r.Companies), "total_results", r.TotalResults)
 	case norway.GetRolesResult:
@@ -172,6 +192,11 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "subunits", len(r.SubUnits))
 	case norway.GetUpdatesResult:
 		attrs = append(attrs, "updates", len(r.Updates))
+	// Denmark results
+	case denmark.SearchCompaniesResult:
+		attrs = append(attrs, "found", r.Found)
+	case denmark.GetProductionUnitsResult:
+		attrs = append(attrs, "production_units", len(r.ProductionUnits))
 	}
 
 	h.logger.Info("Tool executed", attrs...)
@@ -192,6 +217,14 @@ func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec Tool
 	case func(context.Context, norway.GetSubUnitArgs) (norway.GetSubUnitResult, error):
 		register(h, server, tool, spec, m)
 	case func(context.Context, norway.GetUpdatesArgs) (norway.GetUpdatesResult, error):
+		register(h, server, tool, spec, m)
+
+	// Denmark tools
+	case func(context.Context, denmark.SearchCompaniesArgs) (denmark.SearchCompaniesResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, denmark.GetCompanyArgs) (denmark.GetCompanyResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, denmark.GetProductionUnitsArgs) (denmark.GetProductionUnitsResult, error):
 		register(h, server, tool, spec, m)
 
 	default:

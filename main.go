@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tools"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tracing"
@@ -362,9 +363,12 @@ func main() {
 			"service", tracingConfig.ServiceName)
 	}
 
-	// Create Norway client
+	// Create country clients
 	norwayClient := norway.NewClient(norway.WithLogger(logger))
 	defer norwayClient.Close()
+
+	denmarkClient := denmark.NewClient(denmark.WithLogger(logger))
+	defer denmarkClient.Close()
 
 	// Get bearer token from flag or environment
 	authToken := *bearerToken
@@ -384,11 +388,11 @@ func main() {
 
 Currently supports:
 - **Norway** (Brønnøysundregistrene / data.brreg.no) - Norwegian business registry
+- **Denmark** (CVR / cvrapi.dk) - Danish business registry
 
 Coming soon:
 - Finland (PRH / YTJ)
 - Sweden (Bolagsverket)
-- Denmark (Virk / CVR)
 
 ## Tool Selection Guide
 
@@ -416,10 +420,29 @@ Coming soon:
 "What companies changed since yesterday?"
 -> USE: norway_get_updates
 
+## Danish Company Lookups
+
+### Search for Danish companies by name:
+"Find Danish company Novo Nordisk"
+-> USE: denmark_search_companies
+
+### Get Danish company details by CVR:
+"Get details for CVR 10150817"
+-> USE: denmark_get_company
+
+### Get production units (P-numbers):
+"What production units does CVR 10150817 have?"
+-> USE: denmark_get_production_units
+
 ## Norwegian Organization Numbers
 
 Norwegian org numbers are 9 digits. Spaces and dashes are automatically removed.
 Examples: "923609016", "923 609 016", "923-609-016" all work.
+
+## Danish CVR Numbers
+
+Danish CVR numbers are 8 digits. Spaces, dashes, and "DK" prefix are automatically removed.
+Examples: "10150817", "DK-10150817", "DK10150817" all work.
 
 ## Organization Forms (Norway)
 
@@ -431,17 +454,28 @@ Common codes:
 - ANS: Ansvarlig selskap (General partnership)
 - DA: Delt ansvar (Limited partnership)
 - SA: Samvirkeforetak (Cooperative)
-- STI: Stiftelse (Foundation)`,
+- STI: Stiftelse (Foundation)
+
+## Company Types (Denmark)
+
+Common types:
+- A/S: Aktieselskab (Public limited company)
+- ApS: Anpartsselskab (Private limited company)
+- I/S: Interessentskab (General partnership)
+- K/S: Kommanditselskab (Limited partnership)
+- P/S: Partnerselskab (Partnership company)
+- IVS: Iværksætterselskab (Entrepreneurial company)
+- Enkeltmandsvirksomhed (Sole proprietorship)`,
 	})
 
 	// Register all tools using the registry
-	registry := tools.NewHandlerRegistry(norwayClient, logger)
+	registry := tools.NewHandlerRegistry(norwayClient, denmarkClient, logger)
 	registry.RegisterAll(server)
 
 	ctx := context.Background()
 
 	if *httpAddr != "" {
-		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient)
+		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient, denmarkClient)
 	} else {
 		logger.Info("Starting Nordic Registry MCP Server (stdio mode)",
 			"name", ServerName,
@@ -468,7 +502,7 @@ Common codes:
 	}
 }
 
-func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client) {
+func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client, denmarkClient *denmark.Client) {
 	var allowedOriginsList []string
 	if origins != "" {
 		for _, o := range strings.Split(origins, ",") {
@@ -516,16 +550,18 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 
-		// Check circuit breaker state
-		cbStats := norwayClient.CircuitBreakerStats()
-		if cbStats.State != "closed" {
+		// Check circuit breaker state for all clients
+		noCBStats := norwayClient.CircuitBreakerStats()
+		dkCBStats := denmarkClient.CircuitBreakerStats()
+
+		if noCBStats.State != "closed" || dkCBStats.State != "closed" {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = fmt.Fprintf(w, `{"status":"not_ready","circuit_breaker":"%s"}`, cbStats.State)
+			_, _ = fmt.Fprintf(w, `{"status":"not_ready","norway_cb":"%s","denmark_cb":"%s"}`, noCBStats.State, dkCBStats.State)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, `{"status":"ready","countries":["norway"]}`)
+		_, _ = fmt.Fprintf(w, `{"status":"ready","countries":["norway","denmark"]}`)
 	})
 
 	// Prometheus metrics endpoint
@@ -565,20 +601,32 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 
-		cbStats := norwayClient.CircuitBreakerStats()
-		dedupStats := norwayClient.DedupStats()
+		noCBStats := norwayClient.CircuitBreakerStats()
+		noDedupStats := norwayClient.DedupStats()
+		dkCBStats := denmarkClient.CircuitBreakerStats()
+		dkDedupStats := denmarkClient.DedupStats()
 
 		response := map[string]interface{}{
 			"server":  ServerName,
 			"version": ServerVersion,
 			"norway": map[string]interface{}{
 				"circuit_breaker": map[string]interface{}{
-					"state":                cbStats.State,
-					"consecutive_failures": cbStats.ConsecutiveFails,
-					"last_failure":         cbStats.LastFailure,
+					"state":                noCBStats.State,
+					"consecutive_failures": noCBStats.ConsecutiveFails,
+					"last_failure":         noCBStats.LastFailure,
 				},
 				"dedup": map[string]interface{}{
-					"inflight_requests": dedupStats,
+					"inflight_requests": noDedupStats,
+				},
+			},
+			"denmark": map[string]interface{}{
+				"circuit_breaker": map[string]interface{}{
+					"state":                dkCBStats.State,
+					"consecutive_failures": dkCBStats.ConsecutiveFails,
+					"last_failure":         dkCBStats.LastFailure,
+				},
+				"dedup": map[string]interface{}{
+					"inflight_requests": dkDedupStats,
 				},
 			},
 		}
