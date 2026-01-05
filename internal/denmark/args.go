@@ -14,18 +14,18 @@ type SearchCompaniesResult struct {
 
 // CompanySummary is a simplified company representation for search results
 type CompanySummary struct {
-	CVR             string `json:"cvr"`
-	Name            string `json:"name"`
-	Address         string `json:"address,omitempty"`
-	City            string `json:"city,omitempty"`
-	Zipcode         string `json:"zipcode,omitempty"`
-	CompanyType     string `json:"company_type,omitempty"`
-	IndustryDesc    string `json:"industry,omitempty"`
-	Employees       string `json:"employees,omitempty"`
-	StartDate       string `json:"start_date,omitempty"`
-	Status          string `json:"status,omitempty"`
-	Phone           string `json:"phone,omitempty"`
-	Email           string `json:"email,omitempty"`
+	CVR          string `json:"cvr"`
+	Name         string `json:"name"`
+	Address      string `json:"address,omitempty"`
+	City         string `json:"city,omitempty"`
+	Zipcode      string `json:"zipcode,omitempty"`
+	CompanyType  string `json:"company_type,omitempty"`
+	IndustryDesc string `json:"industry,omitempty"`
+	Employees    string `json:"employees,omitempty"`
+	StartDate    string `json:"start_date,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Phone        string `json:"phone,omitempty"`
+	Email        string `json:"email,omitempty"`
 }
 
 // GetCompanyArgs contains parameters for getting a company by CVR

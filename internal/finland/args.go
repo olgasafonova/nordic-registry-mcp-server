@@ -43,25 +43,25 @@ type GetCompanyResult struct {
 
 // CompanyDetails contains full company information
 type CompanyDetails struct {
-	BusinessID       string            `json:"business_id"`
-	EUID             string            `json:"eu_id,omitempty"`
-	Name             string            `json:"name"`
-	PreviousNames    []string          `json:"previous_names,omitempty"`
-	AuxiliaryNames   []string          `json:"auxiliary_names,omitempty"`
-	CompanyForm      string            `json:"company_form,omitempty"`
-	CompanyFormDesc  string            `json:"company_form_desc,omitempty"`
-	Industry         string            `json:"industry,omitempty"`
-	IndustryCode     string            `json:"industry_code,omitempty"`
-	Website          string            `json:"website,omitempty"`
-	StreetAddress    *AddressSummary   `json:"street_address,omitempty"`
-	PostalAddress    *AddressSummary   `json:"postal_address,omitempty"`
-	RegistrationDate string            `json:"registration_date,omitempty"`
-	BusinessIDDate   string            `json:"business_id_date,omitempty"`
-	Status           string            `json:"status,omitempty"`
-	StatusDesc       string            `json:"status_desc,omitempty"`
-	Situations       []SituationInfo   `json:"situations,omitempty"`
+	BusinessID       string             `json:"business_id"`
+	EUID             string             `json:"eu_id,omitempty"`
+	Name             string             `json:"name"`
+	PreviousNames    []string           `json:"previous_names,omitempty"`
+	AuxiliaryNames   []string           `json:"auxiliary_names,omitempty"`
+	CompanyForm      string             `json:"company_form,omitempty"`
+	CompanyFormDesc  string             `json:"company_form_desc,omitempty"`
+	Industry         string             `json:"industry,omitempty"`
+	IndustryCode     string             `json:"industry_code,omitempty"`
+	Website          string             `json:"website,omitempty"`
+	StreetAddress    *AddressSummary    `json:"street_address,omitempty"`
+	PostalAddress    *AddressSummary    `json:"postal_address,omitempty"`
+	RegistrationDate string             `json:"registration_date,omitempty"`
+	BusinessIDDate   string             `json:"business_id_date,omitempty"`
+	Status           string             `json:"status,omitempty"`
+	StatusDesc       string             `json:"status_desc,omitempty"`
+	Situations       []SituationInfo    `json:"situations,omitempty"`
 	Registrations    []RegistrationInfo `json:"registrations,omitempty"`
-	LastModified     string            `json:"last_modified,omitempty"`
+	LastModified     string             `json:"last_modified,omitempty"`
 }
 
 // AddressSummary is a simplified address for MCP responses
