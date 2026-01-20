@@ -1,13 +1,13 @@
 # Contributing
 
-Thanks for your interest in contributing to MediaWiki MCP Server!
+Thanks for your interest in contributing to Nordic Registry MCP Server!
 
 ## Quick Start
 
 ```bash
 # Clone the repo
-git clone https://github.com/olgasafonova/mediawiki-mcp-server.git
-cd mediawiki-mcp-server
+git clone https://github.com/olgasafonova/nordic-registry-mcp-server.git
+cd nordic-registry-mcp-server
 
 # Install dependencies
 go mod download
@@ -16,7 +16,7 @@ go mod download
 go test ./...
 
 # Build
-go build -o mediawiki-mcp-server .
+go build -o nordic-registry-mcp-server .
 ```
 
 ## Development Workflow
@@ -35,16 +35,14 @@ Follow the code organization:
 
 | Directory | Purpose |
 |-----------|---------|
-| `wiki/read.go` | Page reading operations |
-| `wiki/write.go` | Page editing operations |
-| `wiki/search.go` | Search operations |
-| `wiki/links.go` | Link operations |
-| `wiki/history.go` | Revision history |
-| `wiki/quality.go` | Content quality checks |
-| `wiki/security.go` | SSRF protection |
-| `wiki/types.go` | Type definitions |
-| `wiki/errors.go` | Error handling |
-| `main.go` | Tool registration |
+| `internal/norway/` | Norway (Brønnøysundregistrene) client |
+| `internal/denmark/` | Denmark (CVR) client |
+| `internal/finland/` | Finland (PRH) client |
+| `internal/infra/` | Shared infrastructure (cache, resilience) |
+| `tools/` | MCP tool definitions and handlers |
+| `metrics/` | Prometheus metrics |
+| `tracing/` | OpenTelemetry tracing |
+| `main.go` | Server setup and configuration |
 
 ### 3. Test Your Changes
 
@@ -70,23 +68,10 @@ brew install golangci-lint
 golangci-lint run
 ```
 
-### 5. Commit
-
-Write clear commit messages:
-
-```
-Add fuzzy title matching to resolve_title
-
-- Implement Jaccard similarity for title comparison
-- Add suggestions when exact match not found
-- Include similarity scores in response
-```
-
-### 6. Submit a Pull Request
+### 5. Submit a Pull Request
 
 - Push your branch
 - Open a PR against `main`
-- Fill out the PR template
 - Wait for CI checks to pass
 
 ## Code Style
@@ -103,98 +88,60 @@ Return structured errors with context:
 
 ```go
 // Good
-return nil, fmt.Errorf("failed to get page '%s': %w", title, err)
-
-// Better - use custom error types
-return nil, &ValidationError{
-    Field:      "title",
-    Message:    "page not found",
-    Suggestion: "Try using resolve_title to find similar pages",
-}
+return nil, fmt.Errorf("failed to get company '%s': %w", orgNumber, err)
 ```
 
 ### Adding New Tools
 
-1. Add types to `wiki/types.go`:
-   ```go
-   type MyToolArgs struct {
-       Title string `json:"title"`
-   }
+1. Add types to `internal/{country}/args.go` and `internal/{country}/types.go`
 
-   type MyToolResult struct {
-       Success bool   `json:"success"`
-       Message string `json:"message"`
-   }
-   ```
+2. Implement in `internal/{country}/client.go`
 
-2. Implement in the appropriate `wiki/*.go` file:
-   ```go
-   func (c *Client) MyTool(ctx context.Context, args MyToolArgs) (MyToolResult, error) {
-       // Implementation
-   }
-   ```
+3. Register in `tools/definitions.go` and `tools/handlers.go`
 
-3. Register in `main.go`:
-   ```go
-   registerToolHandler(server, &ToolDefinition{
-       Name:        "mediawiki_my_tool",
-       Description: "Does something useful",
-       // ...
-   }, func(ctx, req, args) { return client.MyTool(ctx, args) })
-   ```
+4. Add tests
 
-4. Add tests in `wiki/*_test.go`
+### Adding a New Country
+
+To add support for a new Nordic country (e.g., Sweden, Iceland):
+
+1. Create `internal/{country}/` directory with:
+   - `client.go` - API client
+   - `args.go` - Tool argument structs
+   - `types.go` - Response types
+
+2. Follow existing patterns from Norway/Denmark/Finland clients
+
+3. Add tool definitions and handlers
+
+4. Update README.md with new tools
 
 ## Testing Guidelines
 
-### Unit Tests
-
-Test individual functions:
-
-```go
-func TestMyFunction(t *testing.T) {
-    result := myFunction("input")
-    if result != "expected" {
-        t.Errorf("got %s, want %s", result, "expected")
-    }
-}
-```
-
 ### Table-Driven Tests
 
-For multiple cases:
-
 ```go
-func TestMyFunction(t *testing.T) {
+func TestValidateOrgNumber(t *testing.T) {
     tests := []struct {
-        name     string
-        input    string
-        expected string
+        name    string
+        input   string
+        wantErr bool
     }{
-        {"empty", "", ""},
-        {"normal", "hello", "HELLO"},
+        {"valid 9 digits", "923609016", false},
+        {"too short", "12345678", true},
+        {"contains letters", "92360901A", true},
     }
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            got := myFunction(tt.input)
-            if got != tt.expected {
-                t.Errorf("got %s, want %s", got, tt.expected)
+            err := validateOrgNumber(tt.input)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("got error %v, wantErr %v", err, tt.wantErr)
             }
         })
     }
 }
 ```
-
-## Security
-
-When contributing security-sensitive code:
-
-- Review [SECURITY.md](SECURITY.md) for security practices
-- Never log credentials or tokens
-- Validate all user input
-- Use SSRF protection for external requests
-- Run `gosec ./...` to check for vulnerabilities
 
 ## Questions?
 

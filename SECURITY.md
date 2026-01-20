@@ -1,381 +1,166 @@
-# Security Guide for MediaWiki MCP Server
+# Security Guide for Nordic Registry MCP Server
 
-This document outlines the security architecture, protections, and recommendations for the MediaWiki MCP Server.
+This document outlines the security architecture and considerations for the Nordic Registry MCP Server.
+
+## Security Profile
+
+**This is a read-only server** that queries public business registry APIs. It does not:
+- Perform write operations
+- Handle user authentication
+- Store sensitive data
+- Process user credentials
+
+The APIs queried (Brønnøysundregistrene, CVR, PRH) are public and require no authentication.
 
 ## Current Security Protections
 
-### 1. HTML Sanitization (XSS Prevention)
+### 1. Rate Limiting
 
-The server includes comprehensive HTML sanitization to prevent Cross-Site Scripting (XSS) attacks:
+Each country client implements rate limiting to respect API quotas:
 
-**Removed Elements:**
-- `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `<applet>` tags
-- `<form>`, `<meta>`, `<link>`, `<base>` tags
+| Country | Concurrent Requests | Retry Strategy |
+|---------|---------------------|----------------|
+| Norway | 5 | Exponential backoff |
+| Denmark | 5 | Exponential backoff |
+| Finland | 5 | Exponential backoff |
 
-**Removed Attributes:**
-- All event handlers (`onclick`, `onerror`, `onload`, `onmouseover`, etc.)
-- `style` attributes (can contain CSS expressions)
+### 2. Circuit Breaker
 
-**Removed URL Schemes:**
-- `javascript:` URLs in href/src/action attributes
-- `data:` URLs in href/src attributes
+Protects against cascading failures when APIs are unavailable:
 
-### 2. Rate Limiting
+- **Failure threshold**: 5 consecutive failures opens circuit
+- **Half-open state**: Allows 2 test requests
+- **Recovery**: Automatic after successful requests
 
-- **Concurrent Request Limit**: 3 simultaneous API requests (semaphore-based)
-- **Exponential Backoff**: `attempt² × 100ms` for retries
-- **Max Retries**: 3 (configurable via `MEDIAWIKI_MAX_RETRIES`)
+### 3. Request Deduplication
 
-### 3. Content Size Limits
+Identical concurrent requests are deduplicated to reduce API load and improve response times.
 
-- **Read Character Limit**: 150,000 characters (150KB) for page content display
-- **Write Size Limit**: 200,000 characters (200KB) for edit operations
-- **URL Batch Limit**: 20 URLs per `CheckLinks` call
-- **Title Batch Limit**: 10 titles per `GetExternalLinksBatch` call
-- **Page Limits**: Various tools capped at 50-500 results
+### 4. Response Caching
 
-### 4. HTTPS Enforcement
+Responses are cached to reduce API calls:
 
-- **Required**: Wiki URLs must use HTTPS (credentials are transmitted)
-- **Validation**: URL format checked for `api.php` endpoint
-- **Escape Hatch**: `MEDIAWIKI_ALLOW_INSECURE=true` for development only
+| Country | Cache TTL |
+|---------|-----------|
+| Norway | 5 minutes |
+| Denmark | 5 minutes |
+| Finland | 15 minutes |
 
-### 5. Content Validation for Writes
+### 5. Input Validation
 
-Dangerous patterns are blocked when editing pages (unless inside safe code blocks):
+Tool parameters are validated before API calls (see issue tracker for planned improvements).
 
-**Blocked Patterns:**
-- `<script>`, `<html>`, `<iframe>`, `<object>`, `<embed>` tags
-- `javascript:` URLs
-- `{{#tag:script` parser functions
+### 6. HTTPS Only
 
-**Safe Code Block Tags** (patterns allowed inside these):
-- `<syntaxhighlight lang="...">` - syntax-highlighted code examples
-- `<source lang="...">` - older syntax highlighting
-- `<pre>` - preformatted text
-- `<code>` - inline code
-- `<nowiki>` - prevents wiki parsing
+All external API calls use HTTPS exclusively.
 
-This allows technical documentation with code examples while blocking actual executable content.
+## Data Handling
 
-### 6. Authentication
+### What Data Flows Through
 
-- **Bot Password**: Uses MediaWiki bot password authentication (not user passwords)
-- **CSRF Protection**: Obtains and uses CSRF tokens for write operations
-- **Token Expiry**: Tokens refresh every 20 minutes
+- **Company names** and search queries
+- **Organization numbers** (public identifiers)
+- **Public business information** (addresses, board members, registration dates)
 
-### 7. Input Validation
+### What Does NOT Flow Through
 
-| Parameter | Validation |
-|-----------|------------|
-| `limit` | Normalized to default/max bounds |
-| `timeout` | Bounded 1-30 seconds |
-| `URLs` | HTTP/HTTPS scheme required |
-| `pattern` | Must be "subpage", "suffix", or "prefix" |
-| `category` | Auto-prefixed with "Category:" |
+- User credentials
+- Personal identification numbers
+- Financial data
+- Private business information
 
-### 8. SSRF Protection (Server-Side Request Forgery)
+### Data Sensitivity
 
-The `CheckLinks` tool validates external URLs to prevent SSRF attacks:
+All data returned is **public record** from official government registries. However, users should be aware that:
 
-**Blocked IP Ranges:**
-- `127.0.0.0/8` - IPv4 loopback
-- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` - RFC 1918 private
-- `169.254.0.0/16` - Link-local (AWS/cloud metadata)
-- `100.64.0.0/10` - Shared address space (CGN)
-- `224.0.0.0/4`, `240.0.0.0/4` - Multicast/Reserved
-- IPv6 equivalents (`::1/128`, `fe80::/10`, `fc00::/7`, `ff00::/8`)
+- Board member names are personal data under GDPR
+- Company details may reveal business relationships
+- Historical data shows business changes over time
 
-**DNS Rebinding Protection:**
+## HTTP Server Mode
 
-The server uses a custom `net.Dialer` with a `Control` function that validates the resolved IP address at connection time. This prevents Time-of-Check-Time-of-Use (TOCTOU) attacks where an attacker changes DNS records between validation and connection:
+When running in HTTP server mode (`--http`):
 
-```go
-// IP validation happens AFTER DNS resolution, BEFORE TCP connect
-safeDialer.Control = func(network, address string, c syscall.RawConn) error {
-    host, _, _ := net.SplitHostPort(address)
-    ip := net.ParseIP(host)
-    if isPrivateIP(ip) {
-        return fmt.Errorf("connection to private IP blocked")
-    }
-    return nil
-}
+### Authentication
+
+- **Optional**: Set `AUTH_TOKEN` environment variable
+- **Warning logged**: Server warns if running without authentication
+- **Recommendation**: Always use authentication in production
+
+```bash
+AUTH_TOKEN=your-secret-token ./nordic-registry-mcp-server --http :8080
 ```
 
-**Redirect Validation:**
+### Network Exposure
 
-Redirects are also validated to prevent SSRF via redirect chains. If a public URL redirects to a private IP, the connection is blocked.
-
-**Fail-Closed DNS Handling:**
-
-DNS resolution failures are treated as potentially malicious and blocked. This prevents attacks where:
-- An attacker's DNS times out initially, then resolves to a private IP
-- DNS returns empty responses
-- Malformed hostnames bypass validation
-
-**Structured Error Codes:**
-
-SSRF errors include programmatic error codes for automated handling:
-
-| Code | Description |
-|------|-------------|
-| `SSRF_PRIVATE_IP` | URL resolves to private/internal IP |
-| `SSRF_DNS_ERROR` | DNS resolution failed (blocked) |
-| `SSRF_REDIRECT_BLOCKED` | Redirect target is private |
-| `SSRF_INVALID_URL` | URL format is invalid |
-
-### 9. Unicode Normalization
-
-All user input is normalized to Unicode NFC (Canonical Decomposition, followed by Canonical Composition) form before processing. This prevents bypass attacks using:
-
-- **Combining characters**: `cafe\u0301` (e + combining accent) → `café`
-- **Alternative representations**: Different Unicode encodings of the same visual character
-- **Homoglyph attacks**: Characters that look similar but have different code points
-
-Applied to:
-- Page titles (`normalizePageTitle`)
-- Content validation (`ValidateWikitextContent`)
-- Search queries
-
-This matches MediaWiki's internal normalization, ensuring consistent behavior.
-
----
-
-## Security Recommendations
-
-### For Server Administrators
-
-#### 1. Enforce HTTPS
-
-**Current Gap**: The server accepts any URL scheme for `MEDIAWIKI_URL`.
-
-**Recommendation**: Validate that `MEDIAWIKI_URL` uses HTTPS:
-
-```go
-// Add to config.go
-func LoadConfig() (*Config, error) {
-    baseURL := os.Getenv("MEDIAWIKI_URL")
-    if baseURL == "" {
-        return nil, errors.New("MEDIAWIKI_URL environment variable is required")
-    }
-
-    parsed, err := url.Parse(baseURL)
-    if err != nil {
-        return nil, fmt.Errorf("invalid MEDIAWIKI_URL: %w", err)
-    }
-    if parsed.Scheme != "https" {
-        return nil, errors.New("MEDIAWIKI_URL must use HTTPS")
-    }
-    // ...
-}
-```
-
-#### 2. Secure Credential Storage
-
-**Current**: Credentials in plain environment variables.
-
-**Recommendation**: Support encrypted credentials or secret managers:
-- Use Docker secrets or Kubernetes secrets
-- Support AWS Secrets Manager, HashiCorp Vault, or Azure Key Vault
-- Consider encrypting credentials at rest
-
-#### 3. Audit Logging
-
-**Recommendation**: Log all write operations for compliance:
-
-```go
-// Add to EditPage method
-c.logger.Info("Page edited",
-    "title", args.Title,
-    "user", c.config.Username,
-    "timestamp", time.Now().UTC(),
-    "ip", clientIP,
-)
-```
-
-#### 4. Per-Tool Rate Limits
-
-**Current**: Global 3-concurrent-request limit.
-
-**Recommendation**: Implement different limits for read vs. write operations:
-- Read operations: 10 concurrent
-- Write operations: 1 concurrent (serialize edits)
-- External link checks: 5 concurrent per batch
-
----
-
-### For Wiki Administrators
-
-#### 1. Bot Account Security
-
-- Create dedicated bot accounts with minimal permissions
-- Use MediaWiki's bot password feature (Special:BotPasswords)
-- Grant only necessary rights (e.g., `editpage` but not `delete`)
-- Enable 2FA for the parent account
-
-#### 2. Page Protection
-
-- Protect critical pages from bot edits
-- Use MediaWiki's abuse filter for automated vandalism detection
-- Monitor Recent Changes for bot activity
-- Set up email alerts for sensitive page edits
-
-#### 3. Namespace Restrictions
-
-Consider restricting the bot to specific namespaces:
-- Main namespace only (no Talk, User, or Template edits)
-- Or create a dedicated namespace for bot-managed content
-
-#### 4. Edit Rate Limits
-
-Configure MediaWiki's `$wgRateLimits` to restrict bot edit frequency:
-
-```php
-$wgRateLimits['edit']['bot'] = [ 30, 60 ]; // 30 edits per 60 seconds
-```
-
----
-
-### For MCP Client Users (Claude, Cursor, etc.)
-
-#### 1. Validate Content Before Editing
-
-Before calling `mediawiki_edit_page`:
-- Review the proposed content for unintended changes
-- Check for potentially harmful wikitext patterns
-- Verify the target page is correct
-
-#### 2. Use Read-Only Mode When Possible
-
-If you only need to query the wiki:
-- Don't configure `MEDIAWIKI_USERNAME`/`MEDIAWIKI_PASSWORD`
-- The server works in read-only mode without credentials
-
-#### 3. Limit Scope of Requests
-
-- Use specific page lists instead of entire categories
-- Set reasonable `limit` values
-- Avoid recursive operations on large page trees
-
----
+- Bind to `localhost` for local-only access
+- Use a reverse proxy (nginx, Caddy) for production exposure
+- Consider firewall rules to restrict access
 
 ## Threat Model
 
-### Attacks Mitigated
+### Mitigated Threats
 
-| Attack | Protection |
+| Threat | Protection |
 |--------|------------|
-| XSS via HTML content | HTML sanitization removes scripts, event handlers |
-| CSRF attacks | Wiki-provided CSRF tokens for writes |
-| DoS via large responses | Content truncation at 150KB |
-| DoS via concurrent requests | Semaphore limits to 3 concurrent |
-| Brute force login | Exponential backoff, MediaWiki's rate limits |
-| Session fixation | Uses server-managed cookie jar |
-| Malicious wikitext injection | Content validation blocks dangerous patterns outside code blocks |
-| MITM credential theft | HTTPS enforcement for wiki URLs |
+| API abuse | Rate limiting, circuit breaker |
+| Duplicate requests | Request deduplication |
+| Network failures | Retry with backoff |
+| Slow responses | Request timeouts |
 
-### Residual Risks
+### Out of Scope
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| ~~HTTPS not enforced~~ | ~~Medium~~ | ✓ **Fixed in v1.1** - URL scheme validated |
-| Credentials in environment | Medium | Use secret managers |
-| No per-user quotas | Low | Add API key-based rate limiting |
-| Unicode normalization | Low | MediaWiki handles normalization |
-| Wiki-level permissions | Info | Relies on MediaWiki ACLs |
+| Threat | Reason |
+|--------|--------|
+| Data tampering | Read-only server, no writes |
+| Authentication bypass | No auth required for public APIs |
+| Injection attacks | No database, no user input in queries beyond search terms |
+| SSRF | Only calls predefined API endpoints |
 
----
+## Deployment Recommendations
 
-## Content Protection Strategies
+### Local Development
 
-### Preventing Malicious Wiki Content
-
-#### 1. Content Validation Before Write
-
-Add wikitext content validation:
-
-```go
-func validateWikitext(content string) error {
-    // Block external scripts
-    if strings.Contains(content, "<script") {
-        return errors.New("script tags not allowed")
-    }
-
-    // Block raw HTML in wikis that don't allow it
-    if strings.Contains(content, "<html") {
-        return errors.New("raw HTML not allowed")
-    }
-
-    // Block potentially dangerous templates
-    dangerousTemplates := []string{"{{#invoke:", "{{#tag:"}
-    for _, t := range dangerousTemplates {
-        if strings.Contains(content, t) {
-            return fmt.Errorf("template %q not allowed", t)
-        }
-    }
-
-    return nil
-}
+```bash
+./nordic-registry-mcp-server
 ```
 
-#### 2. Block Dangerous Wikitext Patterns
+No special security configuration needed.
 
-Patterns to block or flag:
-- External image references (`[[File:http://`]`)
-- Raw HTML blocks (`<html>`, `<nowiki>` with scripts)
-- Lua module invocations (if not trusted)
-- Excessive transclusions
+### Production HTTP Mode
 
-#### 3. Content Size Limits for Writes
+```bash
+# Set authentication token
+export AUTH_TOKEN=$(openssl rand -hex 32)
 
-```go
-const MaxEditSize = 100 * 1024 // 100KB
-
-func (c *Client) EditPage(ctx context.Context, args EditPageArgs) (EditResult, error) {
-    if len(args.Content) > MaxEditSize {
-        return EditResult{}, fmt.Errorf("content too large: %d bytes (max %d)",
-            len(args.Content), MaxEditSize)
-    }
-    // ...
-}
+# Run with explicit bind address
+./nordic-registry-mcp-server --http 127.0.0.1:8080
 ```
 
----
+### Container Deployment
 
-## Implementation Checklist
+```dockerfile
+FROM scratch
+COPY nordic-registry-mcp-server /
+USER 1000:1000
+ENTRYPOINT ["/nordic-registry-mcp-server"]
+```
 
-### High Priority
-- [x] Add HTTPS enforcement for `MEDIAWIKI_URL` ✓ (v1.1)
-- [x] Add content validation for write operations ✓ (v1.1)
-- [ ] Implement audit logging for writes
-- [x] Add content size limit for edit operations ✓ (v1.1)
-
-### Medium Priority
-- [ ] Support secret manager integration
-- [x] Add per-tool rate limiting ✓ (semaphore-based, v1.0)
-- [ ] Implement request signing/API keys
-- [ ] Add IP allowlisting option
-
-### Low Priority
-- [ ] Add namespace restrictions configuration
-- [ ] Implement content diff preview before write
-- [x] Add configurable content blocklist patterns ✓ (v1.1 - safe code block support)
-- [ ] Support OAuth instead of bot passwords
-
----
+- Run as non-root user
+- Use minimal base image
+- Set resource limits
 
 ## Reporting Security Issues
 
 If you discover a security vulnerability:
 
 1. **Do not** open a public GitHub issue
-2. Email the maintainer directly with details
+2. Email the maintainer directly
 3. Include steps to reproduce
-4. Allow 90 days for a fix before public disclosure
+4. Allow reasonable time for a fix before public disclosure
 
 ## Version History
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.1 | 2025-12 | HTTPS enforcement, content validation with safe code blocks, 150KB/200KB size limits, comprehensive test suite |
-| 1.0 | 2024-12 | Initial security documentation |
+| Version | Date | Security Changes |
+|---------|------|------------------|
+| 1.0 | 2024-12 | Initial release with rate limiting and circuit breaker |
