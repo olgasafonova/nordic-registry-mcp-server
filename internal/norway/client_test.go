@@ -69,7 +69,7 @@ func TestSearchCompanies(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -85,7 +85,7 @@ func TestSearchCompanies(t *testing.T) {
 func TestGetCompany_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"feilmelding": "Ingen enhet med organisasjonsnummer 000000000 ble funnet"}`))
+		_, _ = w.Write([]byte(`{"feilmelding": "Ingen enhet med organisasjonsnummer 000000000 ble funnet"}`))
 	}))
 	defer server.Close()
 
@@ -101,7 +101,7 @@ func TestGetCompany_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Internal Server Error"}`))
+		_, _ = w.Write([]byte(`{"error": "Internal Server Error"}`))
 	}))
 	defer server.Close()
 
@@ -163,7 +163,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 	client := NewClient(WithHTTPClient(server.Client()))
 	defer client.Close()
 
-	// Create cancelled context
+	// Create canceled context
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 

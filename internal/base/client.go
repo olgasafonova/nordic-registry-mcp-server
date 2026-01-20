@@ -92,7 +92,7 @@ func (c *Client) DedupStats() int {
 	return c.Dedup.Stats()
 }
 
-// AcquireSlot blocks until a request slot is available or context is cancelled
+// AcquireSlot blocks until a request slot is available or context is canceled
 func (c *Client) AcquireSlot(ctx context.Context) error {
 	select {
 	case c.Semaphore <- struct{}{}:
