@@ -10,6 +10,15 @@ import (
 
 // SearchCompaniesMCP is the MCP wrapper for SearchCompanies
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
+	if err := ValidateSearchQuery(args.Query); err != nil {
+		return SearchCompaniesResult{}, err
+	}
+	if args.Size > 0 {
+		if err := ValidateSize(args.Size); err != nil {
+			return SearchCompaniesResult{}, err
+		}
+	}
+
 	opts := &SearchOptions{
 		Page:            args.Page,
 		Size:            args.Size,
@@ -55,6 +64,10 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 
 // GetCompanyMCP is the MCP wrapper for GetCompany
 func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCompanyResult, error) {
+	if err := ValidateOrgNumber(args.OrgNumber); err != nil {
+		return GetCompanyResult{}, err
+	}
+
 	company, err := c.GetCompany(ctx, args.OrgNumber)
 	if err != nil {
 		return GetCompanyResult{}, err
@@ -64,6 +77,10 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 
 // GetRolesMCP is the MCP wrapper for GetRoles
 func (c *Client) GetRolesMCP(ctx context.Context, args GetRolesArgs) (GetRolesResult, error) {
+	if err := ValidateOrgNumber(args.OrgNumber); err != nil {
+		return GetRolesResult{}, err
+	}
+
 	resp, err := c.GetRoles(ctx, args.OrgNumber)
 	if err != nil {
 		return GetRolesResult{}, err
@@ -105,6 +122,10 @@ func (c *Client) GetRolesMCP(ctx context.Context, args GetRolesArgs) (GetRolesRe
 
 // GetSubUnitsMCP is the MCP wrapper for GetSubUnits
 func (c *Client) GetSubUnitsMCP(ctx context.Context, args GetSubUnitsArgs) (GetSubUnitsResult, error) {
+	if err := ValidateOrgNumber(args.ParentOrgNumber); err != nil {
+		return GetSubUnitsResult{}, err
+	}
+
 	resp, err := c.GetSubUnits(ctx, args.ParentOrgNumber)
 	if err != nil {
 		return GetSubUnitsResult{}, err
@@ -133,6 +154,10 @@ func (c *Client) GetSubUnitsMCP(ctx context.Context, args GetSubUnitsArgs) (GetS
 
 // GetSubUnitMCP is the MCP wrapper for GetSubUnit
 func (c *Client) GetSubUnitMCP(ctx context.Context, args GetSubUnitArgs) (GetSubUnitResult, error) {
+	if err := ValidateOrgNumber(args.OrgNumber); err != nil {
+		return GetSubUnitResult{}, err
+	}
+
 	subunit, err := c.GetSubUnit(ctx, args.OrgNumber)
 	if err != nil {
 		return GetSubUnitResult{}, err

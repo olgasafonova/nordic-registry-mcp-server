@@ -4,6 +4,10 @@ import "context"
 
 // SearchCompaniesMCP wraps SearchCompanies for MCP tool handlers
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
+	if err := ValidateSearchQuery(args.Query); err != nil {
+		return SearchCompaniesResult{}, err
+	}
+
 	resp, err := c.SearchCompanies(ctx, args)
 	if err != nil {
 		return SearchCompaniesResult{}, err
@@ -23,6 +27,10 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 
 // GetCompanyMCP wraps GetCompany for MCP tool handlers
 func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCompanyResult, error) {
+	if err := ValidateBusinessID(args.BusinessID); err != nil {
+		return GetCompanyResult{}, err
+	}
+
 	company, err := c.GetCompany(ctx, args.BusinessID)
 	if err != nil {
 		return GetCompanyResult{}, err

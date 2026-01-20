@@ -10,6 +10,10 @@ import (
 
 // SearchCompaniesMCP is the MCP wrapper for SearchCompany
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
+	if err := ValidateSearchQuery(args.Query); err != nil {
+		return SearchCompaniesResult{}, err
+	}
+
 	company, err := c.SearchCompany(ctx, args.Query)
 	if err != nil {
 		var notFound *NotFoundError
@@ -45,6 +49,10 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 
 // GetCompanyMCP is the MCP wrapper for GetCompany
 func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCompanyResult, error) {
+	if err := ValidateCVR(args.CVR); err != nil {
+		return GetCompanyResult{}, err
+	}
+
 	company, err := c.GetCompany(ctx, args.CVR)
 	if err != nil {
 		return GetCompanyResult{}, err
@@ -54,6 +62,10 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 
 // GetProductionUnitsMCP gets production units for a company
 func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUnitsArgs) (GetProductionUnitsResult, error) {
+	if err := ValidateCVR(args.CVR); err != nil {
+		return GetProductionUnitsResult{}, err
+	}
+
 	company, err := c.GetCompany(ctx, args.CVR)
 	if err != nil {
 		return GetProductionUnitsResult{}, err
