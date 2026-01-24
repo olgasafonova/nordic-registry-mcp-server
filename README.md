@@ -14,7 +14,7 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 
 | Country | Registry | Tools | ID Format |
 |---------|----------|-------|-----------|
-| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 11 | 9 digits (e.g., `923609016`) |
+| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 12 | 9 digits (e.g., `923609016`) |
 | Denmark | [CVR](https://datacvr.virk.dk) | 5 | 8 digits (e.g., `10150817`) |
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
 
@@ -91,6 +91,7 @@ Restart Claude Desktop after changes.
 | `norway_get_company` | Get company details by org number |
 | `norway_get_roles` | Get board members, CEO, auditors |
 | `norway_get_signature_rights` | Get signature rights and prokura |
+| `norway_batch_get_companies` | Look up multiple companies at once |
 | `norway_get_subunits` | List branch offices for a company |
 | `norway_get_subunit` | Get specific branch office details |
 | `norway_search_subunits` | Search branch offices by name |
@@ -150,6 +151,11 @@ Restart Claude Desktop after changes.
 - *"What companies changed since yesterday?"*
 - *"Get recent registry updates"*
 - *"What branch offices changed recently?"*
+
+### Batch Operations (Norway only)
+- *"Look up these companies: 923609016, 914778271, 985399077"*
+- *"Validate these org numbers from my spreadsheet"*
+- *"Get details for multiple Norwegian companies at once"*
 
 ### Reference Data (Norway only)
 - *"List all Norwegian municipalities"*

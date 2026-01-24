@@ -231,3 +231,15 @@ type SignatureRight struct {
 	EntityOrgNr string `json:"entity_org_nr,omitempty"` // For corporate signatories
 	Resigned    bool   `json:"resigned,omitempty"`
 }
+
+// BatchGetCompaniesArgs contains parameters for batch company lookup
+type BatchGetCompaniesArgs struct {
+	OrgNumbers []string `json:"org_numbers" jsonschema:"required" jsonschema_description:"List of 9-digit Norwegian organization numbers (max 2000)"`
+}
+
+// BatchGetCompaniesResult is the result of batch company lookup
+type BatchGetCompaniesResult struct {
+	Companies    []CompanySummary `json:"companies"`
+	TotalResults int              `json:"total_results"`
+	NotFound     []string         `json:"not_found,omitempty"` // Org numbers that were not found
+}

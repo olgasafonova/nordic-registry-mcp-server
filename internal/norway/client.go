@@ -319,6 +319,43 @@ func (c *Client) GetOrgForms(ctx context.Context) (*OrgFormsResponse, error) {
 	return &result, nil
 }
 
+// BatchGetCompanies retrieves multiple companies by organization numbers in one request.
+// The API supports up to 2000 org numbers per request.
+func (c *Client) BatchGetCompanies(ctx context.Context, orgNumbers []string) (*SearchResponse, error) {
+	if len(orgNumbers) == 0 {
+		return &SearchResponse{}, nil
+	}
+	if len(orgNumbers) > 2000 {
+		return nil, fmt.Errorf("maximum 2000 organization numbers per request, got %d", len(orgNumbers))
+	}
+
+	// Normalize and validate all org numbers
+	normalized := make([]string, 0, len(orgNumbers))
+	for _, on := range orgNumbers {
+		on = normalizeOrgNumber(on)
+		if err := validateOrgNumber(on); err != nil {
+			return nil, fmt.Errorf("invalid org number %q: %w", on, err)
+		}
+		normalized = append(normalized, on)
+	}
+
+	params := url.Values{}
+	params.Set("organisasjonsnummer", strings.Join(normalized, ","))
+
+	cacheKey := "batch:" + strings.Join(normalized, ",")
+	if cached, ok := c.Cache.Get(cacheKey); ok {
+		return cached.(*SearchResponse), nil
+	}
+
+	var result SearchResponse
+	if err := c.doRequest(ctx, "/enheter", params, &result); err != nil {
+		return nil, err
+	}
+
+	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	return &result, nil
+}
+
 // GetSubUnitUpdates retrieves recent updates to sub-units from the registry
 func (c *Client) GetSubUnitUpdates(ctx context.Context, since time.Time, opts *UpdatesOptions) (*SubUnitUpdatesResponse, error) {
 	params := url.Values{}

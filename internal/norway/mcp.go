@@ -393,6 +393,64 @@ func (c *Client) GetSignatureRightsMCP(ctx context.Context, args GetSignatureRig
 	return result, nil
 }
 
+// BatchGetCompaniesMCP is the MCP wrapper for BatchGetCompanies
+func (c *Client) BatchGetCompaniesMCP(ctx context.Context, args BatchGetCompaniesArgs) (BatchGetCompaniesResult, error) {
+	if len(args.OrgNumbers) == 0 {
+		return BatchGetCompaniesResult{}, nil
+	}
+
+	// Validate all org numbers
+	for _, on := range args.OrgNumbers {
+		if err := ValidateOrgNumber(on); err != nil {
+			return BatchGetCompaniesResult{}, err
+		}
+	}
+
+	resp, err := c.BatchGetCompanies(ctx, args.OrgNumbers)
+	if err != nil {
+		return BatchGetCompaniesResult{}, err
+	}
+
+	// Build a set of found org numbers for quick lookup
+	found := make(map[string]bool)
+	companies := make([]CompanySummary, 0, len(resp.Embedded.Companies))
+	for _, co := range resp.Embedded.Companies {
+		found[co.OrganizationNumber] = true
+		summary := CompanySummary{
+			OrganizationNumber: co.OrganizationNumber,
+			Name:               co.Name,
+			Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
+			Bankrupt:           co.Bankrupt,
+			UnderLiquidation:   co.UnderLiquidation,
+		}
+		if co.OrganizationForm != nil {
+			summary.OrganizationForm = co.OrganizationForm.Code
+		}
+		if co.PostalAddress != nil {
+			summary.PostalAddress = formatAddress(co.PostalAddress)
+		}
+		if co.BusinessAddress != nil {
+			summary.BusinessAddress = formatAddress(co.BusinessAddress)
+		}
+		companies = append(companies, summary)
+	}
+
+	// Identify not found org numbers
+	var notFound []string
+	for _, on := range args.OrgNumbers {
+		normalized := normalizeOrgNumber(on)
+		if !found[normalized] {
+			notFound = append(notFound, on)
+		}
+	}
+
+	return BatchGetCompaniesResult{
+		Companies:    companies,
+		TotalResults: len(companies),
+		NotFound:     notFound,
+	}, nil
+}
+
 // getStatus derives company status from boolean flags
 func getStatus(bankrupt, underLiquidation bool) string {
 	if bankrupt {

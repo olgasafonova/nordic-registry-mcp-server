@@ -72,6 +72,8 @@ func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
 		h.register(server, tool, spec, h.norwayClient.GetSubUnitUpdatesMCP)
 	case "GetSignatureRights":
 		h.register(server, tool, spec, h.norwayClient.GetSignatureRightsMCP)
+	case "BatchGetCompanies":
+		h.register(server, tool, spec, h.norwayClient.BatchGetCompaniesMCP)
 
 	// Denmark tools
 	case "DKSearchCompanies":
@@ -212,6 +214,8 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "since", a.Since)
 	case norway.GetSignatureRightsArgs:
 		attrs = append(attrs, "org_number", a.OrgNumber)
+	case norway.BatchGetCompaniesArgs:
+		attrs = append(attrs, "org_numbers_count", len(a.OrgNumbers))
 	// Denmark args
 	case denmark.SearchCompaniesArgs:
 		attrs = append(attrs, "query", a.Query)
@@ -251,6 +255,8 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "updates", len(r.Updates))
 	case norway.GetSignatureRightsResult:
 		attrs = append(attrs, "signature_rights", len(r.SignatureRights), "prokura", len(r.Prokura))
+	case norway.BatchGetCompaniesResult:
+		attrs = append(attrs, "companies", len(r.Companies), "not_found", len(r.NotFound))
 	// Denmark results
 	case denmark.SearchCompaniesResult:
 		attrs = append(attrs, "found", r.Found)
@@ -293,6 +299,8 @@ func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec Tool
 	case func(context.Context, norway.GetSubUnitUpdatesArgs) (norway.GetSubUnitUpdatesResult, error):
 		register(h, server, tool, spec, m)
 	case func(context.Context, norway.GetSignatureRightsArgs) (norway.GetSignatureRightsResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, norway.BatchGetCompaniesArgs) (norway.BatchGetCompaniesResult, error):
 		register(h, server, tool, spec, m)
 
 	// Denmark tools

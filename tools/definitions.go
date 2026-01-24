@@ -145,6 +145,40 @@ EXAMPLES:
 	},
 
 	// --------------------------------------------------------------------------
+	// BATCH OPERATIONS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "norway_batch_get_companies",
+		Method:   "BatchGetCompanies",
+		Title:    "Batch Get Companies",
+		Category: "batch",
+		Country:  "norway",
+		Description: `Look up multiple Norwegian companies in a single request.
+
+USE WHEN: User has a list of organization numbers to look up, needs to validate multiple companies,
+or wants to enrich a dataset with company information.
+
+NOT FOR: Searching by name (use norway_search_companies). Not for single lookups (use norway_get_company).
+
+PARAMETERS:
+- org_numbers: Array of 9-digit Norwegian organization numbers (required, max 2000)
+
+RETURNS:
+- companies: List of company summaries with name, status, address, org form
+- total_results: Number of companies found
+- not_found: List of org numbers that were not found in the registry
+
+NOTE: Uses native BRREG batch API. Much more efficient than individual lookups.
+
+EXAMPLES:
+- "Look up these companies: 923609016, 914778271, 985399077"
+- "Validate these org numbers: [list]"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
 	// SUB-UNITS (Branch Offices)
 	// --------------------------------------------------------------------------
 	{
