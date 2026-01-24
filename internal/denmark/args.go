@@ -30,12 +30,31 @@ type CompanySummary struct {
 
 // GetCompanyArgs contains parameters for getting a company by CVR
 type GetCompanyArgs struct {
-	CVR string `json:"cvr" jsonschema:"required" jsonschema_description:"8-digit Danish CVR number"`
+	CVR  string `json:"cvr" jsonschema:"required" jsonschema_description:"8-digit Danish CVR number"`
+	Full bool   `json:"full,omitempty" jsonschema_description:"Return full company details instead of summary (default: false)"`
 }
 
 // GetCompanyResult is the result of getting a company
 type GetCompanyResult struct {
-	Company *Company `json:"company"`
+	Company *Company              `json:"company,omitempty"` // Full company (when full=true)
+	Summary *CompanyDetailSummary `json:"summary,omitempty"` // Summary (default)
+}
+
+// CompanyDetailSummary is a compact company representation for get_company responses
+type CompanyDetailSummary struct {
+	CVR              string `json:"cvr"`
+	Name             string `json:"name"`
+	Address          string `json:"address,omitempty"`
+	City             string `json:"city,omitempty"`
+	Zipcode          string `json:"zipcode,omitempty"`
+	CompanyType      string `json:"company_type,omitempty"`
+	Industry         string `json:"industry,omitempty"`
+	Employees        int    `json:"employees,omitempty"`
+	StartDate        string `json:"start_date,omitempty"`
+	Status           string `json:"status,omitempty"`
+	Phone            string `json:"phone,omitempty"`
+	Email            string `json:"email,omitempty"`
+	ProductionUnits  int    `json:"production_units_count,omitempty"`
 }
 
 // GetProductionUnitsArgs contains parameters for getting production units

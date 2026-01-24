@@ -36,9 +36,76 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		return GetCompanyResult{}, err
 	}
 
-	return GetCompanyResult{
-		Company: toCompanyDetails(company),
-	}, nil
+	// Return full data if requested
+	if args.Full {
+		return GetCompanyResult{
+			Company: toCompanyDetails(company),
+		}, nil
+	}
+
+	// Default: return summary
+	summary := toCompanyDetailSummary(company)
+	return GetCompanyResult{Summary: summary}, nil
+}
+
+// toCompanyDetailSummary converts a Company to CompanyDetailSummary (compact format)
+func toCompanyDetailSummary(c *Company) *CompanyDetailSummary {
+	if c == nil {
+		return nil
+	}
+
+	summary := &CompanyDetailSummary{
+		BusinessID:       c.BusinessID.Value,
+		RegistrationDate: c.RegistrationDate,
+		Status:           statusToDesc(c.Status),
+	}
+
+	// Get current name (type=1, no end date)
+	for _, name := range c.Names {
+		if name.Type == "1" && name.EndDate == "" {
+			summary.Name = name.Name
+			break
+		}
+	}
+	// Fallback to first name if no current name found
+	if summary.Name == "" && len(c.Names) > 0 {
+		summary.Name = c.Names[0].Name
+	}
+
+	// Get company form
+	for _, form := range c.CompanyForms {
+		if form.EndDate == "" {
+			summary.CompanyForm = form.Type
+			if desc := getEnglishDesc(form.Descriptions); desc != "" {
+				summary.CompanyForm += " - " + desc
+			}
+			break
+		}
+	}
+
+	// Get industry
+	if c.MainBusinessLine != nil {
+		summary.Industry = c.MainBusinessLine.Type
+		if desc := getEnglishDesc(c.MainBusinessLine.Descriptions); desc != "" {
+			summary.Industry += " - " + desc
+		}
+	}
+
+	// Get website
+	if c.Website != nil {
+		summary.Website = c.Website.URL
+	}
+
+	// Get address (prefer street address, type=1)
+	for _, addr := range c.Addresses {
+		if addr.Type == 1 {
+			summary.StreetAddress = formatAddress(addr)
+			summary.City = getCity(addr)
+			break
+		}
+	}
+
+	return summary
 }
 
 // toCompanySummary converts a Company to CompanySummary

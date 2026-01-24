@@ -64,20 +64,20 @@ NOT FOR: Searching by company name (use norway_search_companies instead).
 PARAMETERS:
 - org_number: 9-digit Norwegian organization number (required)
   Spaces and dashes are automatically removed.
+- full: Return complete data instead of summary (optional, default false)
 
-RETURNS: Complete company information including:
-- Organization number and name
-- Organization form (AS, ENK, etc.)
-- Addresses (postal and business)
-- Registration status (VAT, business register, etc.)
-- Industry codes (NACE)
-- Employee count
-- Share capital (for AS/ASA)
-- Status flags (bankrupt, under liquidation)
+RETURNS: By default returns a compact summary with:
+- Organization number, name, organization form
+- Business and postal addresses (formatted)
+- Employee count, industry, website
+- Status flags (VAT registered, bankrupt, under liquidation)
+
+With full=true, returns complete data including all addresses, industry codes, capital info, and HAL links.
 
 EXAMPLES:
 - "Get company 923609016" → org_number: "923609016"
-- "Look up 923 609 016" → org_number: "923609016" (spaces removed)`,
+- "Look up 923 609 016" → org_number: "923609016" (spaces removed)
+- "Get full details for 923609016" → org_number: "923609016", full: true`,
 		ReadOnly:   true,
 		Idempotent: true,
 		OpenWorld:  true,
@@ -271,21 +271,21 @@ NOT FOR: Searching by company name (use denmark_search_companies instead).
 PARAMETERS:
 - cvr: 8-digit Danish CVR number (required)
   Spaces, dashes, and "DK" prefix are automatically removed.
+- full: Return complete data instead of summary (optional, default false)
 
-RETURNS: Complete company information including:
-- CVR number and name
-- Company type (ApS, A/S, I/S, K/S, etc.)
-- Address (street, postal code, city)
-- Phone and email
-- Industry code and description
-- Employee count
-- Registration date
-- Production units (P-numbers) if any
-- Owners if available
+RETURNS: By default returns a compact summary with:
+- CVR number, name, company type
+- Address, city, postal code
+- Industry, employee count
+- Phone, email, status
+- Production units count
+
+With full=true, returns complete data including all production units, owners, and raw API fields.
 
 EXAMPLES:
 - "Get Danish company 10150817" → cvr: "10150817"
-- "Look up CVR DK-10150817" → cvr: "10150817" (DK prefix removed)`,
+- "Look up CVR DK-10150817" → cvr: "10150817" (DK prefix removed)
+- "Get full details for CVR 10150817" → cvr: "10150817", full: true`,
 		ReadOnly:   true,
 		Idempotent: true,
 		OpenWorld:  true,
@@ -385,23 +385,21 @@ NOT FOR: Searching by company name (use finland_search_companies instead).
 PARAMETERS:
 - business_id: Finnish business ID / Y-tunnus (required, format: 1234567-8)
   FI prefix is automatically removed.
+- full: Return complete data instead of summary (optional, default false)
 
-RETURNS: Complete company information including:
-- Business ID and EU ID
-- Current and previous company names
-- Auxiliary/trade names
-- Company form (OY, OYJ, Ky, etc.)
-- Street and postal addresses
-- Industry code and description
+RETURNS: By default returns a compact summary with:
+- Business ID, name, company form
+- Industry description
+- City and street address
 - Website
-- Registration date
-- Status (active, dissolved, liquidation, bankruptcy)
-- Company situations (reorganization, liquidation, bankruptcy)
-- Registry entries
+- Registration date and status
+
+With full=true, returns complete data including EU ID, previous names, auxiliary names, postal address, company situations, and registry entries.
 
 EXAMPLES:
 - "Get Finnish company 0112038-9" → business_id: "0112038-9"
-- "Look up Nokia's details" → First search, then use business_id: "0112038-9"`,
+- "Look up Nokia's details" → First search, then use business_id: "0112038-9"
+- "Get full details for 0112038-9" → business_id: "0112038-9", full: true`,
 		ReadOnly:   true,
 		Idempotent: true,
 		OpenWorld:  true,

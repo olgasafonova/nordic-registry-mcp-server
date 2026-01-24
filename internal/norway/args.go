@@ -35,11 +35,29 @@ type CompanySummary struct {
 // GetCompanyArgs contains parameters for getting a single company
 type GetCompanyArgs struct {
 	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
+	Full      bool   `json:"full,omitempty" jsonschema_description:"Return full company details instead of summary (default: false)"`
 }
 
 // GetCompanyResult is the result of getting a company
 type GetCompanyResult struct {
-	Company *Company `json:"company"`
+	Company *Company              `json:"company,omitempty"` // Full company (when full=true)
+	Summary *CompanyDetailSummary `json:"summary,omitempty"` // Summary (default)
+}
+
+// CompanyDetailSummary is a compact company representation for get_company responses
+type CompanyDetailSummary struct {
+	OrganizationNumber string `json:"organization_number"`
+	Name               string `json:"name"`
+	OrganizationForm   string `json:"organization_form,omitempty"`
+	BusinessAddress    string `json:"business_address,omitempty"`
+	PostalAddress      string `json:"postal_address,omitempty"`
+	RegistrationDate   string `json:"registration_date,omitempty"`
+	EmployeeCount      int    `json:"employee_count,omitempty"`
+	Industry           string `json:"industry,omitempty"`
+	Website            string `json:"website,omitempty"`
+	VATRegistered      bool   `json:"vat_registered,omitempty"`
+	Bankrupt           bool   `json:"bankrupt,omitempty"`
+	UnderLiquidation   bool   `json:"under_liquidation,omitempty"`
 }
 
 // GetRolesArgs contains parameters for getting company roles

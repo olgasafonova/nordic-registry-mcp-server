@@ -58,7 +58,30 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	if err != nil {
 		return GetCompanyResult{}, err
 	}
-	return GetCompanyResult{Company: company}, nil
+
+	// Return full data if requested
+	if args.Full {
+		return GetCompanyResult{Company: company}, nil
+	}
+
+	// Default: return summary
+	summary := &CompanyDetailSummary{
+		CVR:             strconv.Itoa(company.CVR),
+		Name:            company.Name,
+		Address:         company.Address,
+		City:            company.City,
+		Zipcode:         company.Zipcode,
+		CompanyType:     company.CompanyType,
+		Industry:        company.IndustryDesc,
+		Employees:       company.Employees,
+		StartDate:       company.StartDate,
+		Status:          getStatus(company),
+		Phone:           company.Phone,
+		Email:           company.Email,
+		ProductionUnits: len(company.ProductionUnits),
+	}
+
+	return GetCompanyResult{Summary: summary}, nil
 }
 
 // GetProductionUnitsMCP gets production units for a company

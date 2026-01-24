@@ -72,7 +72,37 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	if err != nil {
 		return GetCompanyResult{}, err
 	}
-	return GetCompanyResult{Company: company}, nil
+
+	// Return full data if requested
+	if args.Full {
+		return GetCompanyResult{Company: company}, nil
+	}
+
+	// Default: return summary
+	summary := &CompanyDetailSummary{
+		OrganizationNumber: company.OrganizationNumber,
+		Name:               company.Name,
+		RegistrationDate:   company.RegistrationDate,
+		EmployeeCount:      company.EmployeeCount,
+		Website:            company.Website,
+		VATRegistered:      company.RegisteredInVAT,
+		Bankrupt:           company.Bankrupt,
+		UnderLiquidation:   company.UnderLiquidation,
+	}
+	if company.OrganizationForm != nil {
+		summary.OrganizationForm = company.OrganizationForm.Code + " - " + company.OrganizationForm.Description
+	}
+	if company.BusinessAddress != nil {
+		summary.BusinessAddress = formatAddress(company.BusinessAddress)
+	}
+	if company.PostalAddress != nil {
+		summary.PostalAddress = formatAddress(company.PostalAddress)
+	}
+	if company.IndustryCode1 != nil {
+		summary.Industry = company.IndustryCode1.Code + " - " + company.IndustryCode1.Description
+	}
+
+	return GetCompanyResult{Summary: summary}, nil
 }
 
 // GetRolesMCP is the MCP wrapper for GetRoles

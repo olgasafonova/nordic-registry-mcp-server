@@ -34,11 +34,26 @@ type CompanySummary struct {
 // GetCompanyArgs contains parameters for getting a company by business ID
 type GetCompanyArgs struct {
 	BusinessID string `json:"business_id" jsonschema:"required" jsonschema_description:"Finnish business ID (Y-tunnus), e.g., 0112038-9"`
+	Full       bool   `json:"full,omitempty" jsonschema_description:"Return full company details instead of summary (default: false)"`
 }
 
 // GetCompanyResult is the result of getting a company
 type GetCompanyResult struct {
-	Company *CompanyDetails `json:"company"`
+	Company *CompanyDetails       `json:"company,omitempty"` // Full company (when full=true)
+	Summary *CompanyDetailSummary `json:"summary,omitempty"` // Summary (default)
+}
+
+// CompanyDetailSummary is a compact company representation for get_company responses
+type CompanyDetailSummary struct {
+	BusinessID       string `json:"business_id"`
+	Name             string `json:"name"`
+	CompanyForm      string `json:"company_form,omitempty"`
+	Industry         string `json:"industry,omitempty"`
+	City             string `json:"city,omitempty"`
+	StreetAddress    string `json:"street_address,omitempty"`
+	Website          string `json:"website,omitempty"`
+	RegistrationDate string `json:"registration_date,omitempty"`
+	Status           string `json:"status,omitempty"`
 }
 
 // CompanyDetails contains full company information
