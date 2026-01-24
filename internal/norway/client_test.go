@@ -171,3 +171,226 @@ func TestClient_ContextCancellation(t *testing.T) {
 	// (Note: this is a partial test since we can't easily override BaseURL)
 	_ = ctx
 }
+
+// API Response Parsing Tests
+// These tests verify our types match the actual API response shapes
+
+func TestParseRolesResponse_WithElectedBy(t *testing.T) {
+	// This response matches the actual Brønnøysund API format for roles
+	// The valgtAv field is an object, not a string
+	apiResponse := `{
+		"rollegrupper": [
+			{
+				"type": {
+					"kode": "STYR",
+					"beskrivelse": "Styre"
+				},
+				"sistEndret": "2024-01-15",
+				"roller": [
+					{
+						"type": {
+							"kode": "STYR",
+							"beskrivelse": "Styremedlem"
+						},
+						"person": {
+							"navn": {
+								"fornavn": "Ola",
+								"etternavn": "Nordmann"
+							},
+							"fodselsdato": "1970-01-01",
+							"erDod": false
+						},
+						"fratraadt": false,
+						"valgtAv": {
+							"kode": "AREP",
+							"beskrivelse": "Representant for de ansatte",
+							"_links": {
+								"self": {
+									"href": "https://data.brreg.no/enhetsregisteret/api/valgtAv/AREP"
+								}
+							}
+						}
+					}
+				]
+			}
+		]
+	}`
+
+	var rolesResp RolesResponse
+	if err := json.Unmarshal([]byte(apiResponse), &rolesResp); err != nil {
+		t.Fatalf("Failed to parse roles response: %v", err)
+	}
+
+	if len(rolesResp.RoleGroups) != 1 {
+		t.Fatalf("Expected 1 role group, got %d", len(rolesResp.RoleGroups))
+	}
+
+	roleGroup := rolesResp.RoleGroups[0]
+	if roleGroup.Type.Code != "STYR" {
+		t.Errorf("RoleGroup.Type.Code = %q, want %q", roleGroup.Type.Code, "STYR")
+	}
+
+	if len(roleGroup.Roles) != 1 {
+		t.Fatalf("Expected 1 role, got %d", len(roleGroup.Roles))
+	}
+
+	role := roleGroup.Roles[0]
+	if role.ElectedBy == nil {
+		t.Fatal("ElectedBy should not be nil")
+	}
+	if role.ElectedBy.Code != "AREP" {
+		t.Errorf("ElectedBy.Code = %q, want %q", role.ElectedBy.Code, "AREP")
+	}
+	if role.ElectedBy.Description != "Representant for de ansatte" {
+		t.Errorf("ElectedBy.Description = %q, want %q", role.ElectedBy.Description, "Representant for de ansatte")
+	}
+}
+
+func TestParseRolesResponse_WithoutElectedBy(t *testing.T) {
+	// Some roles don't have valgtAv
+	apiResponse := `{
+		"rollegrupper": [
+			{
+				"type": {
+					"kode": "DAGL",
+					"beskrivelse": "Daglig leder"
+				},
+				"roller": [
+					{
+						"type": {
+							"kode": "DAGL",
+							"beskrivelse": "Daglig leder"
+						},
+						"person": {
+							"navn": {
+								"fornavn": "Kari",
+								"etternavn": "Hansen"
+							},
+							"erDod": false
+						},
+						"fratraadt": false
+					}
+				]
+			}
+		]
+	}`
+
+	var rolesResp RolesResponse
+	if err := json.Unmarshal([]byte(apiResponse), &rolesResp); err != nil {
+		t.Fatalf("Failed to parse roles response: %v", err)
+	}
+
+	role := rolesResp.RoleGroups[0].Roles[0]
+	if role.ElectedBy != nil {
+		t.Error("ElectedBy should be nil when not present")
+	}
+}
+
+func TestParseCompanyResponse(t *testing.T) {
+	// Full company response from Brønnøysund API
+	apiResponse := `{
+		"organisasjonsnummer": "923609016",
+		"navn": "EQUINOR ASA",
+		"organisasjonsform": {
+			"kode": "ASA",
+			"beskrivelse": "Allmennaksjeselskap"
+		},
+		"registreringsdatoEnhetsregisteret": "1972-06-16",
+		"registrertIMvaregisteret": true,
+		"registrertIForetaksregisteret": true,
+		"konkurs": false,
+		"underAvvikling": false,
+		"antallAnsatte": 21000,
+		"forretningsadresse": {
+			"land": "Norge",
+			"landkode": "NO",
+			"postnummer": "4035",
+			"poststed": "STAVANGER",
+			"kommunenummer": "1103",
+			"kommune": "STAVANGER",
+			"adresse": ["Forusbeen 50"]
+		},
+		"naeringskode1": {
+			"kode": "06.100",
+			"beskrivelse": "Utvinning av råolje"
+		}
+	}`
+
+	var company Company
+	if err := json.Unmarshal([]byte(apiResponse), &company); err != nil {
+		t.Fatalf("Failed to parse company response: %v", err)
+	}
+
+	if company.OrganizationNumber != "923609016" {
+		t.Errorf("OrganizationNumber = %q, want %q", company.OrganizationNumber, "923609016")
+	}
+	if company.Name != "EQUINOR ASA" {
+		t.Errorf("Name = %q, want %q", company.Name, "EQUINOR ASA")
+	}
+	if company.EmployeeCount != 21000 {
+		t.Errorf("EmployeeCount = %d, want 21000", company.EmployeeCount)
+	}
+	if company.OrganizationForm == nil || company.OrganizationForm.Code != "ASA" {
+		t.Error("OrganizationForm not parsed correctly")
+	}
+	if company.BusinessAddress == nil || company.BusinessAddress.PostalCode != "4035" {
+		t.Error("BusinessAddress not parsed correctly")
+	}
+}
+
+func TestParseSubUnitResponse(t *testing.T) {
+	apiResponse := `{
+		"organisasjonsnummer": "876543219",
+		"navn": "EQUINOR ASA AVD OSLO",
+		"overordnetEnhet": "923609016",
+		"antallAnsatte": 500,
+		"forretningsadresse": {
+			"land": "Norge",
+			"landkode": "NO",
+			"postnummer": "0283",
+			"poststed": "OSLO",
+			"adresse": ["Martin Linges vei 33"]
+		},
+		"naeringskode1": {
+			"kode": "06.100",
+			"beskrivelse": "Utvinning av råolje"
+		}
+	}`
+
+	var subunit SubUnit
+	if err := json.Unmarshal([]byte(apiResponse), &subunit); err != nil {
+		t.Fatalf("Failed to parse subunit response: %v", err)
+	}
+
+	if subunit.OrganizationNumber != "876543219" {
+		t.Errorf("OrganizationNumber = %q, want %q", subunit.OrganizationNumber, "876543219")
+	}
+	if subunit.ParentOrganizationNumber != "923609016" {
+		t.Errorf("ParentOrganizationNumber = %q, want %q", subunit.ParentOrganizationNumber, "923609016")
+	}
+	if subunit.EmployeeCount != 500 {
+		t.Errorf("EmployeeCount = %d, want 500", subunit.EmployeeCount)
+	}
+}
+
+func TestNormalizeOrgNumber(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"923609016", "923609016"},
+		{"923 609 016", "923609016"},
+		{"923-609-016", "923609016"},
+		{"923 609-016", "923609016"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := normalizeOrgNumber(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizeOrgNumber(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
