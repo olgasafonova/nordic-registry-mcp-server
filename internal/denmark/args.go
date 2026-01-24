@@ -42,19 +42,19 @@ type GetCompanyResult struct {
 
 // CompanyDetailSummary is a compact company representation for get_company responses
 type CompanyDetailSummary struct {
-	CVR              string `json:"cvr"`
-	Name             string `json:"name"`
-	Address          string `json:"address,omitempty"`
-	City             string `json:"city,omitempty"`
-	Zipcode          string `json:"zipcode,omitempty"`
-	CompanyType      string `json:"company_type,omitempty"`
-	Industry         string `json:"industry,omitempty"`
-	Employees        int    `json:"employees,omitempty"`
-	StartDate        string `json:"start_date,omitempty"`
-	Status           string `json:"status,omitempty"`
-	Phone            string `json:"phone,omitempty"`
-	Email            string `json:"email,omitempty"`
-	ProductionUnits  int    `json:"production_units_count,omitempty"`
+	CVR             string `json:"cvr"`
+	Name            string `json:"name"`
+	Address         string `json:"address,omitempty"`
+	City            string `json:"city,omitempty"`
+	Zipcode         string `json:"zipcode,omitempty"`
+	CompanyType     string `json:"company_type,omitempty"`
+	Industry        string `json:"industry,omitempty"`
+	Employees       int    `json:"employees,omitempty"`
+	StartDate       string `json:"start_date,omitempty"`
+	Status          string `json:"status,omitempty"`
+	Phone           string `json:"phone,omitempty"`
+	Email           string `json:"email,omitempty"`
+	ProductionUnits int    `json:"production_units_count,omitempty"`
 }
 
 // GetProductionUnitsArgs contains parameters for getting production units
@@ -78,4 +78,28 @@ type ProductionUnitSummary struct {
 	IsMain       bool   `json:"is_main"`
 	Employees    string `json:"employees,omitempty"`
 	IndustryDesc string `json:"industry,omitempty"`
+}
+
+// SearchByPhoneArgs contains parameters for searching by phone number
+type SearchByPhoneArgs struct {
+	Phone string `json:"phone" jsonschema:"required" jsonschema_description:"Phone number to search for"`
+}
+
+// SearchByPhoneResult is the result of searching by phone number
+type SearchByPhoneResult struct {
+	Company *CompanySummary `json:"company,omitempty"`
+	Found   bool            `json:"found"`
+	Message string          `json:"message,omitempty"`
+}
+
+// GetByPNumberArgs contains parameters for getting a company by P-number
+type GetByPNumberArgs struct {
+	PNumber string `json:"p_number" jsonschema:"required" jsonschema_description:"Production unit P-number"`
+}
+
+// GetByPNumberResult is the result of getting a company by P-number
+type GetByPNumberResult struct {
+	Company *CompanySummary `json:"company,omitempty"`
+	Found   bool            `json:"found"`
+	Message string          `json:"message,omitempty"`
 }

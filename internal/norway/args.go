@@ -136,3 +136,72 @@ type UpdateSummary struct {
 	UpdatedAt          time.Time `json:"updated_at"`
 	ChangeType         string    `json:"change_type,omitempty"`
 }
+
+// SearchSubUnitsArgs contains parameters for sub-unit search
+type SearchSubUnitsArgs struct {
+	Query        string `json:"query" jsonschema:"required" jsonschema_description:"Sub-unit name to search for"`
+	Page         int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
+	Size         int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
+	Municipality string `json:"municipality,omitempty" jsonschema_description:"Municipality number to filter by"`
+}
+
+// SearchSubUnitsResult is the result of a sub-unit search
+type SearchSubUnitsResult struct {
+	SubUnits     []SubUnitSummary `json:"sub_units"`
+	TotalResults int              `json:"total_results"`
+	Page         int              `json:"page"`
+	TotalPages   int              `json:"total_pages"`
+}
+
+// ListMunicipalitiesArgs contains parameters for listing municipalities
+type ListMunicipalitiesArgs struct {
+	// No parameters needed - returns all municipalities
+}
+
+// ListMunicipalitiesResult is the result of listing municipalities
+type ListMunicipalitiesResult struct {
+	Municipalities []MunicipalitySummary `json:"municipalities"`
+	Count          int                   `json:"count"`
+}
+
+// MunicipalitySummary is a simplified municipality for MCP responses
+type MunicipalitySummary struct {
+	Number string `json:"number"`
+	Name   string `json:"name"`
+}
+
+// ListOrgFormsArgs contains parameters for listing organization forms
+type ListOrgFormsArgs struct {
+	// No parameters needed - returns all organization forms
+}
+
+// ListOrgFormsResult is the result of listing organization forms
+type ListOrgFormsResult struct {
+	OrgForms []OrgFormSummary `json:"org_forms"`
+	Count    int              `json:"count"`
+}
+
+// OrgFormSummary is a simplified organization form for MCP responses
+type OrgFormSummary struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+}
+
+// GetSubUnitUpdatesArgs contains parameters for getting sub-unit updates
+type GetSubUnitUpdatesArgs struct {
+	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601)"`
+	Size  int       `json:"size,omitempty" jsonschema_description:"Maximum number of updates to return"`
+}
+
+// GetSubUnitUpdatesResult is the result of getting sub-unit updates
+type GetSubUnitUpdatesResult struct {
+	Updates []SubUnitUpdateSummary `json:"updates"`
+}
+
+// SubUnitUpdateSummary is a simplified sub-unit update entry for MCP responses
+type SubUnitUpdateSummary struct {
+	UpdateID           int       `json:"update_id"`
+	OrganizationNumber string    `json:"organization_number"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	ChangeType         string    `json:"change_type,omitempty"`
+}

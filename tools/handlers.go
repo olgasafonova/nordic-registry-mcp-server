@@ -62,6 +62,14 @@ func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
 		h.register(server, tool, spec, h.norwayClient.GetSubUnitMCP)
 	case "GetUpdates":
 		h.register(server, tool, spec, h.norwayClient.GetUpdatesMCP)
+	case "SearchSubUnits":
+		h.register(server, tool, spec, h.norwayClient.SearchSubUnitsMCP)
+	case "ListMunicipalities":
+		h.register(server, tool, spec, h.norwayClient.ListMunicipalitiesMCP)
+	case "ListOrgForms":
+		h.register(server, tool, spec, h.norwayClient.ListOrgFormsMCP)
+	case "GetSubUnitUpdates":
+		h.register(server, tool, spec, h.norwayClient.GetSubUnitUpdatesMCP)
 
 	// Denmark tools
 	case "DKSearchCompanies":
@@ -70,6 +78,10 @@ func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
 		h.register(server, tool, spec, h.denmarkClient.GetCompanyMCP)
 	case "DKGetProductionUnits":
 		h.register(server, tool, spec, h.denmarkClient.GetProductionUnitsMCP)
+	case "DKSearchByPhone":
+		h.register(server, tool, spec, h.denmarkClient.SearchByPhoneMCP)
+	case "DKGetByPNumber":
+		h.register(server, tool, spec, h.denmarkClient.GetByPNumberMCP)
 
 	// Finland tools
 	case "FISearchCompanies":
@@ -181,6 +193,14 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "org_number", a.OrgNumber)
 	case norway.GetUpdatesArgs:
 		attrs = append(attrs, "since", a.Since)
+	case norway.SearchSubUnitsArgs:
+		attrs = append(attrs, "query", a.Query)
+	case norway.ListMunicipalitiesArgs:
+		// No args to log
+	case norway.ListOrgFormsArgs:
+		// No args to log
+	case norway.GetSubUnitUpdatesArgs:
+		attrs = append(attrs, "since", a.Since)
 	// Denmark args
 	case denmark.SearchCompaniesArgs:
 		attrs = append(attrs, "query", a.Query)
@@ -188,6 +208,10 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "cvr", a.CVR)
 	case denmark.GetProductionUnitsArgs:
 		attrs = append(attrs, "cvr", a.CVR)
+	case denmark.SearchByPhoneArgs:
+		attrs = append(attrs, "phone", a.Phone)
+	case denmark.GetByPNumberArgs:
+		attrs = append(attrs, "p_number", a.PNumber)
 	// Finland args
 	case finland.SearchCompaniesArgs:
 		attrs = append(attrs, "query", a.Query)
@@ -206,11 +230,23 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "subunits", len(r.SubUnits))
 	case norway.GetUpdatesResult:
 		attrs = append(attrs, "updates", len(r.Updates))
+	case norway.SearchSubUnitsResult:
+		attrs = append(attrs, "results_count", len(r.SubUnits), "total_results", r.TotalResults)
+	case norway.ListMunicipalitiesResult:
+		attrs = append(attrs, "municipalities", r.Count)
+	case norway.ListOrgFormsResult:
+		attrs = append(attrs, "org_forms", r.Count)
+	case norway.GetSubUnitUpdatesResult:
+		attrs = append(attrs, "updates", len(r.Updates))
 	// Denmark results
 	case denmark.SearchCompaniesResult:
 		attrs = append(attrs, "found", r.Found)
 	case denmark.GetProductionUnitsResult:
 		attrs = append(attrs, "production_units", len(r.ProductionUnits))
+	case denmark.SearchByPhoneResult:
+		attrs = append(attrs, "found", r.Found)
+	case denmark.GetByPNumberResult:
+		attrs = append(attrs, "found", r.Found)
 	// Finland results
 	case finland.SearchCompaniesResult:
 		attrs = append(attrs, "results_count", len(r.Companies), "total_results", r.TotalResults)
@@ -235,6 +271,14 @@ func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec Tool
 		register(h, server, tool, spec, m)
 	case func(context.Context, norway.GetUpdatesArgs) (norway.GetUpdatesResult, error):
 		register(h, server, tool, spec, m)
+	case func(context.Context, norway.SearchSubUnitsArgs) (norway.SearchSubUnitsResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, norway.ListMunicipalitiesArgs) (norway.ListMunicipalitiesResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, norway.ListOrgFormsArgs) (norway.ListOrgFormsResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, norway.GetSubUnitUpdatesArgs) (norway.GetSubUnitUpdatesResult, error):
+		register(h, server, tool, spec, m)
 
 	// Denmark tools
 	case func(context.Context, denmark.SearchCompaniesArgs) (denmark.SearchCompaniesResult, error):
@@ -242,6 +286,10 @@ func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec Tool
 	case func(context.Context, denmark.GetCompanyArgs) (denmark.GetCompanyResult, error):
 		register(h, server, tool, spec, m)
 	case func(context.Context, denmark.GetProductionUnitsArgs) (denmark.GetProductionUnitsResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, denmark.SearchByPhoneArgs) (denmark.SearchByPhoneResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, denmark.GetByPNumberArgs) (denmark.GetByPNumberResult, error):
 		register(h, server, tool, spec, m)
 
 	// Finland tools

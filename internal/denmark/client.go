@@ -29,33 +29,52 @@ const (
 // Client provides access to the Danish CVR API
 type Client struct {
 	*base.Client
+	baseURL   string
 	userAgent string
 }
 
-// ClientOption configures the Client (re-export base.ClientOption for compatibility)
-type ClientOption = base.ClientOption
+// ClientOption configures the Client
+type ClientOption func(*Client)
 
 // WithHTTPClient sets a custom HTTP client
 func WithHTTPClient(c *http.Client) ClientOption {
-	return base.WithHTTPClient(c)
+	return func(client *Client) {
+		client.HTTPClient = c
+	}
 }
 
 // WithLogger sets a custom logger
 func WithLogger(l *slog.Logger) ClientOption {
-	return base.WithLogger(l)
+	return func(client *Client) {
+		client.Logger = l
+	}
 }
 
 // WithCache sets a custom cache
 func WithCache(c *infra.Cache) ClientOption {
-	return base.WithCache(c)
+	return func(client *Client) {
+		client.Cache = c
+	}
+}
+
+// WithBaseURL sets a custom base URL (for testing)
+func WithBaseURL(url string) ClientOption {
+	return func(client *Client) {
+		client.baseURL = url
+	}
 }
 
 // NewClient creates a new CVR API client
 func NewClient(opts ...ClientOption) *Client {
-	return &Client{
-		Client:    base.NewClient(opts...),
+	c := &Client{
+		Client:    base.NewClient(),
+		baseURL:   BaseURL,
 		userAgent: DefaultUserAgent,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // SearchCompany searches for a company by name
@@ -77,6 +96,65 @@ func (c *Client) SearchCompany(ctx context.Context, query string) (*Company, err
 	// Check if we got a valid result
 	if result.CVR == 0 {
 		return nil, apierrors.NewNotFoundError("denmark", query)
+	}
+
+	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	return &result, nil
+}
+
+// GetByPNumber retrieves a company by production unit P-number
+func (c *Client) GetByPNumber(ctx context.Context, pnumber string) (*Company, error) {
+	// Normalize P-number - remove spaces and dashes
+	pnumber = strings.ReplaceAll(pnumber, " ", "")
+	pnumber = strings.ReplaceAll(pnumber, "-", "")
+
+	params := url.Values{}
+	params.Set("produ", pnumber)
+	params.Set("country", "dk")
+
+	cacheKey := "pnumber:" + pnumber
+	if cached, ok := c.Cache.Get(cacheKey); ok {
+		return cached.(*Company), nil
+	}
+
+	var result Company
+	if err := c.doRequest(ctx, params, &result); err != nil {
+		return nil, err
+	}
+
+	// Check if we got a valid result
+	if result.CVR == 0 {
+		return nil, apierrors.NewNotFoundError("denmark", "pnumber:"+pnumber)
+	}
+
+	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	return &result, nil
+}
+
+// SearchByPhone searches for a company by phone number
+func (c *Client) SearchByPhone(ctx context.Context, phone string) (*Company, error) {
+	// Normalize phone number - remove spaces and common formatting
+	phone = strings.ReplaceAll(phone, " ", "")
+	phone = strings.ReplaceAll(phone, "-", "")
+	phone = strings.ReplaceAll(phone, "+45", "")
+
+	params := url.Values{}
+	params.Set("phone", phone)
+	params.Set("country", "dk")
+
+	cacheKey := "phone:" + phone
+	if cached, ok := c.Cache.Get(cacheKey); ok {
+		return cached.(*Company), nil
+	}
+
+	var result Company
+	if err := c.doRequest(ctx, params, &result); err != nil {
+		return nil, err
+	}
+
+	// Check if we got a valid result
+	if result.CVR == 0 {
+		return nil, apierrors.NewNotFoundError("denmark", "phone:"+phone)
 	}
 
 	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
@@ -126,7 +204,7 @@ func (c *Client) GetCompany(ctx context.Context, cvr string) (*Company, error) {
 // doRequest performs an HTTP request using the base client infrastructure
 func (c *Client) doRequest(ctx context.Context, params url.Values, result interface{}) error {
 	// Build URL
-	reqURL := BaseURL + "?" + params.Encode()
+	reqURL := c.baseURL + "?" + params.Encode()
 
 	body, statusCode, err := c.Client.DoRequest(ctx, base.RequestConfig{
 		URL:       reqURL,

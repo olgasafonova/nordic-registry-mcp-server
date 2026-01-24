@@ -203,16 +203,22 @@ func TestAllToolsNotEmpty(t *testing.T) {
 func TestToolSpecMethods(t *testing.T) {
 	knownMethods := map[string]bool{
 		// Norway tools
-		"SearchCompanies": true,
-		"GetCompany":      true,
-		"GetRoles":        true,
-		"GetSubUnits":     true,
-		"GetSubUnit":      true,
-		"GetUpdates":      true,
+		"SearchCompanies":    true,
+		"GetCompany":         true,
+		"GetRoles":           true,
+		"GetSubUnits":        true,
+		"GetSubUnit":         true,
+		"GetUpdates":         true,
+		"SearchSubUnits":     true,
+		"ListMunicipalities": true,
+		"ListOrgForms":       true,
+		"GetSubUnitUpdates":  true,
 		// Denmark tools
 		"DKSearchCompanies":    true,
 		"DKGetCompany":         true,
 		"DKGetProductionUnits": true,
+		"DKSearchByPhone":      true,
+		"DKGetByPNumber":       true,
 		// Finland tools
 		"FISearchCompanies": true,
 		"FIGetCompany":      true,

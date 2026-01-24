@@ -270,3 +270,44 @@ func (e APIError) String() string {
 	}
 	return e.Error
 }
+
+// Municipality represents a Norwegian municipality (kommune)
+type Municipality struct {
+	Number string `json:"nummer"`
+	Name   string `json:"navn"`
+}
+
+// MunicipalitiesResponse represents the response from the municipalities endpoint
+type MunicipalitiesResponse struct {
+	Embedded struct {
+		Municipalities []Municipality `json:"kommuner"`
+	} `json:"_embedded"`
+}
+
+// OrgForm represents an organization form (AS, ENK, etc.)
+type OrgForm struct {
+	Code        string `json:"kode"`
+	Description string `json:"beskrivelse"`
+}
+
+// OrgFormsResponse represents the response from the organization forms endpoint
+type OrgFormsResponse struct {
+	Embedded struct {
+		OrgForms []OrgForm `json:"organisasjonsformer"`
+	} `json:"_embedded"`
+}
+
+// SubUnitUpdatesResponse represents the response from subunit updates endpoint
+type SubUnitUpdatesResponse struct {
+	Embedded struct {
+		Updates []SubUnitUpdateEntry `json:"oppdaterteUnderenheter"`
+	} `json:"_embedded"`
+}
+
+// SubUnitUpdateEntry represents a single subunit update in the feed
+type SubUnitUpdateEntry struct {
+	UpdateID           int       `json:"oppdateringsid"`
+	OrganizationNumber string    `json:"organisasjonsnummer"`
+	UpdatedAt          time.Time `json:"dato"`
+	ChangeType         string    `json:"endringstype,omitempty"`
+}

@@ -2,6 +2,7 @@ package denmark
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
@@ -121,6 +122,82 @@ func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUn
 	return GetProductionUnitsResult{
 		ProductionUnits: units,
 		TotalResults:    len(units),
+	}, nil
+}
+
+// SearchByPhoneMCP is the MCP wrapper for SearchByPhone
+func (c *Client) SearchByPhoneMCP(ctx context.Context, args SearchByPhoneArgs) (SearchByPhoneResult, error) {
+	if args.Phone == "" {
+		return SearchByPhoneResult{}, fmt.Errorf("phone number is required")
+	}
+
+	company, err := c.SearchByPhone(ctx, args.Phone)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return SearchByPhoneResult{
+				Found:   false,
+				Message: "No company found with phone number: " + args.Phone,
+			}, nil
+		}
+		return SearchByPhoneResult{}, err
+	}
+
+	summary := &CompanySummary{
+		CVR:          strconv.Itoa(company.CVR),
+		Name:         company.Name,
+		Address:      company.Address,
+		City:         company.City,
+		Zipcode:      company.Zipcode,
+		CompanyType:  company.CompanyType,
+		IndustryDesc: company.IndustryDesc,
+		Employees:    strconv.Itoa(company.Employees),
+		StartDate:    company.StartDate,
+		Status:       getStatus(company),
+		Phone:        company.Phone,
+		Email:        company.Email,
+	}
+
+	return SearchByPhoneResult{
+		Company: summary,
+		Found:   true,
+	}, nil
+}
+
+// GetByPNumberMCP is the MCP wrapper for GetByPNumber
+func (c *Client) GetByPNumberMCP(ctx context.Context, args GetByPNumberArgs) (GetByPNumberResult, error) {
+	if args.PNumber == "" {
+		return GetByPNumberResult{}, fmt.Errorf("P-number is required")
+	}
+
+	company, err := c.GetByPNumber(ctx, args.PNumber)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return GetByPNumberResult{
+				Found:   false,
+				Message: "No company found with P-number: " + args.PNumber,
+			}, nil
+		}
+		return GetByPNumberResult{}, err
+	}
+
+	summary := &CompanySummary{
+		CVR:          strconv.Itoa(company.CVR),
+		Name:         company.Name,
+		Address:      company.Address,
+		City:         company.City,
+		Zipcode:      company.Zipcode,
+		CompanyType:  company.CompanyType,
+		IndustryDesc: company.IndustryDesc,
+		Employees:    strconv.Itoa(company.Employees),
+		StartDate:    company.StartDate,
+		Status:       getStatus(company),
+		Phone:        company.Phone,
+		Email:        company.Email,
+	}
+
+	return GetByPNumberResult{
+		Company: summary,
+		Found:   true,
 	}, nil
 }
 

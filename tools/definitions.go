@@ -211,6 +211,130 @@ EXAMPLES:
 		OpenWorld:  true,
 	},
 
+	// --------------------------------------------------------------------------
+	// SUB-UNIT SEARCH
+	// --------------------------------------------------------------------------
+	{
+		Name:     "norway_search_subunits",
+		Method:   "SearchSubUnits",
+		Title:    "Search Norwegian Branch Offices",
+		Category: "search",
+		Country:  "norway",
+		Description: `Search for Norwegian sub-units (branch offices) by name.
+
+USE WHEN: User asks "find branches named X", "search for branch offices", "look up production units by name".
+
+NOT FOR: Listing all branches of a known parent company (use norway_get_subunits instead).
+
+PARAMETERS:
+- query: Sub-unit name to search for (required)
+- page: Page number for pagination (optional, default 0)
+- size: Results per page (optional, default 20, max 100)
+- municipality: Filter by municipality number (optional)
+
+RETURNS: List of sub-units with organization numbers, names, parent company, addresses, and employee counts.
+
+EXAMPLES:
+- "Find branches named Equinor" → query: "Equinor"
+- "Search for sub-units in Oslo" → query: "*", municipality: "0301"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// REFERENCE DATA
+	// --------------------------------------------------------------------------
+	{
+		Name:     "norway_list_municipalities",
+		Method:   "ListMunicipalities",
+		Title:    "List Norwegian Municipalities",
+		Category: "reference",
+		Country:  "norway",
+		Description: `Get the list of Norwegian municipalities (kommuner) with their codes.
+
+USE WHEN: User asks "what are the municipality codes", "list Norwegian municipalities", "what is the code for Oslo".
+
+NOT FOR: Searching companies (use search tools with municipality filter).
+
+PARAMETERS: None required.
+
+RETURNS: List of municipalities with:
+- Municipality number (4-digit code)
+- Municipality name
+
+NOTE: This data is cached for 24 hours as it rarely changes. Useful for filtering company searches.
+
+EXAMPLES:
+- "List all Norwegian municipalities" → no parameters needed
+- "What is Oslo's municipality code?" → search result for "OSLO" with code "0301"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+	{
+		Name:     "norway_list_org_forms",
+		Method:   "ListOrgForms",
+		Title:    "List Norwegian Organization Forms",
+		Category: "reference",
+		Country:  "norway",
+		Description: `Get the list of Norwegian organization forms (AS, ENK, NUF, etc.) with descriptions.
+
+USE WHEN: User asks "what organization types exist", "what does AS mean", "list company types in Norway".
+
+NOT FOR: Searching companies (use search tools with org_form filter).
+
+PARAMETERS: None required.
+
+RETURNS: List of organization forms with:
+- Code (AS, ENK, NUF, etc.)
+- Description in Norwegian
+
+NOTE: This data is cached for 24 hours as it rarely changes. Common codes:
+- AS: Aksjeselskap (Limited company)
+- ASA: Allmennaksjeselskap (Public limited company)
+- ENK: Enkeltpersonforetak (Sole proprietorship)
+- NUF: Norsk avdeling av utenlandsk foretak (Norwegian branch of foreign company)
+
+EXAMPLES:
+- "List all organization forms" → no parameters needed
+- "What does ENK mean?" → search for code "ENK" in results`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+	{
+		Name:     "norway_get_subunit_updates",
+		Method:   "GetSubUnitUpdates",
+		Title:    "Get Sub-Unit Registry Updates",
+		Category: "updates",
+		Country:  "norway",
+		Description: `Get recent updates to sub-units (branch offices) from the Norwegian business registry.
+
+USE WHEN: User asks "what branch offices changed recently", "new sub-unit registrations", "sub-unit updates since yesterday".
+
+NOT FOR: Getting company updates (use norway_get_updates). Not for getting sub-unit details (use norway_get_subunit).
+
+PARAMETERS:
+- since: ISO 8601 timestamp to get updates from (required, e.g., "2024-01-15T00:00:00Z")
+- size: Maximum number of updates to return (optional, default 20)
+
+RETURNS: List of updates including:
+- Update ID
+- Organization number
+- Update timestamp
+- Change type (new registration, update, deletion)
+
+NOTE: This is a real-time feed and is NOT cached. Useful for monitoring branch office changes.
+
+EXAMPLES:
+- "What sub-units changed since yesterday?" → since: "2024-01-14T00:00:00Z"
+- "Get last 50 sub-unit updates" → since: <recent timestamp>, size: 50`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
 	// ==========================================================================
 	// DENMARK - CVR (Central Business Register / cvrapi.dk)
 	// ==========================================================================
@@ -319,6 +443,75 @@ RETURNS: List of production units including:
 
 EXAMPLES:
 - "What production units does CVR 10150817 have?" → cvr: "10150817"`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// PHONE SEARCH
+	// --------------------------------------------------------------------------
+	{
+		Name:     "denmark_search_by_phone",
+		Method:   "DKSearchByPhone",
+		Title:    "Search Danish Company by Phone",
+		Category: "search",
+		Country:  "denmark",
+		Description: `Search for a Danish company by phone number.
+
+USE WHEN: User asks "find company with phone X", "who has phone number X", "look up Danish business by phone".
+
+NOT FOR: Searching by company name (use denmark_search_companies) or CVR number (use denmark_get_company).
+
+PARAMETERS:
+- phone: Phone number to search for (required)
+  Spaces, dashes, and +45 prefix are automatically removed.
+
+RETURNS: Company information if found, including:
+- CVR number
+- Company name
+- Address, city, postal code
+- Company type, industry
+- Contact info (phone, email)
+
+NOTE: Not all companies have phone numbers registered. If a company is not found, it may have no registered phone.
+
+EXAMPLES:
+- "Find company with phone 33121212" → phone: "33121212"
+- "Who has phone +45 33 12 12 12?" → phone: "33121212" (normalized)`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	{
+		Name:     "denmark_get_by_pnumber",
+		Method:   "DKGetByPNumber",
+		Title:    "Get Danish Company by P-Number",
+		Category: "read",
+		Country:  "denmark",
+		Description: `Get a Danish company by production unit P-number.
+
+USE WHEN: User provides a P-number (production unit number), asks "find company with P-number X", "look up production unit X".
+
+NOT FOR: Searching by company name (use denmark_search_companies) or CVR number (use denmark_get_company).
+
+PARAMETERS:
+- p_number: Production unit P-number (required)
+  Spaces and dashes are automatically removed.
+
+RETURNS: Parent company information including:
+- CVR number
+- Company name
+- Address, city, postal code
+- Company type, industry
+- Contact info (phone, email)
+
+NOTE: P-numbers identify specific production units/locations. This returns the parent company that owns the production unit.
+
+EXAMPLES:
+- "Find company with P-number 1234567890" → p_number: "1234567890"
+- "Look up production unit 1234567890" → p_number: "1234567890"`,
 		ReadOnly:   true,
 		Idempotent: true,
 		OpenWorld:  true,

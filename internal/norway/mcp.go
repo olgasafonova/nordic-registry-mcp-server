@@ -212,6 +212,106 @@ func (c *Client) GetUpdatesMCP(ctx context.Context, args GetUpdatesArgs) (GetUpd
 	return GetUpdatesResult{Updates: updates}, nil
 }
 
+// SearchSubUnitsMCP is the MCP wrapper for SearchSubUnits
+func (c *Client) SearchSubUnitsMCP(ctx context.Context, args SearchSubUnitsArgs) (SearchSubUnitsResult, error) {
+	if err := ValidateSearchQuery(args.Query); err != nil {
+		return SearchSubUnitsResult{}, err
+	}
+	if args.Size > 0 {
+		if err := ValidateSize(args.Size); err != nil {
+			return SearchSubUnitsResult{}, err
+		}
+	}
+
+	opts := &SearchSubUnitsOptions{
+		Page:         args.Page,
+		Size:         args.Size,
+		Municipality: args.Municipality,
+	}
+
+	resp, err := c.SearchSubUnits(ctx, args.Query, opts)
+	if err != nil {
+		return SearchSubUnitsResult{}, err
+	}
+
+	// Convert to summary format
+	subunits := make([]SubUnitSummary, 0, len(resp.Embedded.SubUnits))
+	for _, su := range resp.Embedded.SubUnits {
+		summary := SubUnitSummary{
+			OrganizationNumber: su.OrganizationNumber,
+			Name:               su.Name,
+			ParentOrgNumber:    su.ParentOrganizationNumber,
+			EmployeeCount:      su.EmployeeCount,
+		}
+		if su.BusinessAddress != nil {
+			summary.BusinessAddress = formatAddress(su.BusinessAddress)
+		}
+		subunits = append(subunits, summary)
+	}
+
+	return SearchSubUnitsResult{
+		SubUnits:     subunits,
+		TotalResults: resp.Page.TotalElements,
+		Page:         resp.Page.Number,
+		TotalPages:   resp.Page.TotalPages,
+	}, nil
+}
+
+// ListMunicipalitiesMCP is the MCP wrapper for GetMunicipalities
+func (c *Client) ListMunicipalitiesMCP(ctx context.Context, args ListMunicipalitiesArgs) (ListMunicipalitiesResult, error) {
+	resp, err := c.GetMunicipalities(ctx)
+	if err != nil {
+		return ListMunicipalitiesResult{}, err
+	}
+
+	// Convert to summary format
+	municipalities := make([]MunicipalitySummary, 0, len(resp.Embedded.Municipalities))
+	for _, m := range resp.Embedded.Municipalities {
+		municipalities = append(municipalities, MunicipalitySummary(m))
+	}
+
+	return ListMunicipalitiesResult{
+		Municipalities: municipalities,
+		Count:          len(municipalities),
+	}, nil
+}
+
+// ListOrgFormsMCP is the MCP wrapper for GetOrgForms
+func (c *Client) ListOrgFormsMCP(ctx context.Context, args ListOrgFormsArgs) (ListOrgFormsResult, error) {
+	resp, err := c.GetOrgForms(ctx)
+	if err != nil {
+		return ListOrgFormsResult{}, err
+	}
+
+	// Convert to summary format
+	orgForms := make([]OrgFormSummary, 0, len(resp.Embedded.OrgForms))
+	for _, of := range resp.Embedded.OrgForms {
+		orgForms = append(orgForms, OrgFormSummary(of))
+	}
+
+	return ListOrgFormsResult{
+		OrgForms: orgForms,
+		Count:    len(orgForms),
+	}, nil
+}
+
+// GetSubUnitUpdatesMCP is the MCP wrapper for GetSubUnitUpdates
+func (c *Client) GetSubUnitUpdatesMCP(ctx context.Context, args GetSubUnitUpdatesArgs) (GetSubUnitUpdatesResult, error) {
+	opts := &UpdatesOptions{Size: args.Size}
+	resp, err := c.GetSubUnitUpdates(ctx, args.Since, opts)
+	if err != nil {
+		return GetSubUnitUpdatesResult{}, err
+	}
+
+	// Convert to summary format
+	updates := make([]SubUnitUpdateSummary, 0, len(resp.Embedded.Updates))
+	for _, u := range resp.Embedded.Updates {
+		updates = append(updates, SubUnitUpdateSummary(u))
+	}
+
+	return GetSubUnitUpdatesResult{Updates: updates}, nil
+}
+
 // formatAddress formats an address as a single string
 func formatAddress(addr *Address) string {
 	if addr == nil {

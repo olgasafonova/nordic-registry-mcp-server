@@ -27,29 +27,50 @@ const (
 // Client provides access to the Norwegian Brønnøysundregistrene API
 type Client struct {
 	*base.Client
+	baseURL string
 }
 
-// ClientOption configures the Client (re-export base.ClientOption for compatibility)
-type ClientOption = base.ClientOption
+// ClientOption configures the Client
+type ClientOption func(*Client)
 
 // WithHTTPClient sets a custom HTTP client
 func WithHTTPClient(c *http.Client) ClientOption {
-	return base.WithHTTPClient(c)
+	return func(client *Client) {
+		client.HTTPClient = c
+	}
 }
 
 // WithLogger sets a custom logger
 func WithLogger(l *slog.Logger) ClientOption {
-	return base.WithLogger(l)
+	return func(client *Client) {
+		client.Logger = l
+	}
 }
 
 // WithCache sets a custom cache
 func WithCache(c *infra.Cache) ClientOption {
-	return base.WithCache(c)
+	return func(client *Client) {
+		client.Cache = c
+	}
+}
+
+// WithBaseURL sets a custom base URL (for testing)
+func WithBaseURL(url string) ClientOption {
+	return func(client *Client) {
+		client.baseURL = url
+	}
 }
 
 // NewClient creates a new Brønnøysundregistrene client
 func NewClient(opts ...ClientOption) *Client {
-	return &Client{Client: base.NewClient(opts...)}
+	c := &Client{
+		Client:  base.NewClient(),
+		baseURL: BaseURL,
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // SearchCompanies searches for companies by name or other criteria
@@ -223,10 +244,102 @@ type UpdatesOptions struct {
 	Size int
 }
 
+// SearchSubUnitsOptions configures subunit search
+type SearchSubUnitsOptions struct {
+	Page         int
+	Size         int
+	Municipality string
+}
+
+// SearchSubUnits searches for sub-units by name
+func (c *Client) SearchSubUnits(ctx context.Context, query string, opts *SearchSubUnitsOptions) (*SubUnitSearchResponse, error) {
+	params := url.Values{}
+	params.Set("navn", query)
+
+	if opts != nil {
+		if opts.Page > 0 {
+			params.Set("page", strconv.Itoa(opts.Page))
+		}
+		if opts.Size > 0 {
+			params.Set("size", strconv.Itoa(opts.Size))
+		}
+		if opts.Municipality != "" {
+			params.Set("kommunenummer", opts.Municipality)
+		}
+	}
+
+	cacheKey := "search_subunits:" + params.Encode()
+	if cached, ok := c.Cache.Get(cacheKey); ok {
+		return cached.(*SubUnitSearchResponse), nil
+	}
+
+	var result SubUnitSearchResponse
+	if err := c.doRequest(ctx, "/underenheter", params, &result); err != nil {
+		return nil, err
+	}
+
+	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	return &result, nil
+}
+
+// GetMunicipalities retrieves the list of Norwegian municipalities
+func (c *Client) GetMunicipalities(ctx context.Context) (*MunicipalitiesResponse, error) {
+	cacheKey := "municipalities"
+	if cached, ok := c.Cache.Get(cacheKey); ok {
+		return cached.(*MunicipalitiesResponse), nil
+	}
+
+	var result MunicipalitiesResponse
+	if err := c.doRequest(ctx, "/kommuner", nil, &result); err != nil {
+		return nil, err
+	}
+
+	// Cache for longer since this data rarely changes
+	c.Cache.Set(cacheKey, &result, 24*time.Hour)
+	return &result, nil
+}
+
+// GetOrgForms retrieves the list of organization forms (AS, ENK, etc.)
+func (c *Client) GetOrgForms(ctx context.Context) (*OrgFormsResponse, error) {
+	cacheKey := "orgforms"
+	if cached, ok := c.Cache.Get(cacheKey); ok {
+		return cached.(*OrgFormsResponse), nil
+	}
+
+	var result OrgFormsResponse
+	if err := c.doRequest(ctx, "/organisasjonsformer", nil, &result); err != nil {
+		return nil, err
+	}
+
+	// Cache for longer since this data rarely changes
+	c.Cache.Set(cacheKey, &result, 24*time.Hour)
+	return &result, nil
+}
+
+// GetSubUnitUpdates retrieves recent updates to sub-units from the registry
+func (c *Client) GetSubUnitUpdates(ctx context.Context, since time.Time, opts *UpdatesOptions) (*SubUnitUpdatesResponse, error) {
+	params := url.Values{}
+	params.Set("dato", since.Format("2006-01-02T15:04:05.000Z"))
+
+	if opts != nil {
+		if opts.Size > 0 {
+			params.Set("size", strconv.Itoa(opts.Size))
+		}
+	}
+
+	// Updates are not cached as they represent real-time data
+	var result SubUnitUpdatesResponse
+	if err := c.doRequest(ctx, "/oppdateringer/underenheter", params, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
 // doRequest performs an HTTP request using the base client infrastructure
 func (c *Client) doRequest(ctx context.Context, path string, params url.Values, result interface{}) error {
 	// Build URL
-	reqURL := BaseURL + path
+	reqURL := c.baseURL + path
 	if len(params) > 0 {
 		reqURL += "?" + params.Encode()
 	}
