@@ -11,6 +11,7 @@ import (
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/sweden"
 	"github.com/olgasafonova/nordic-registry-mcp-server/metrics"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tracing"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,15 +24,17 @@ type HandlerRegistry struct {
 	norwayClient  *norway.Client
 	denmarkClient *denmark.Client
 	finlandClient *finland.Client
+	swedenClient  *sweden.Client // May be nil if OAuth2 credentials not configured
 	logger        *slog.Logger
 }
 
 // NewHandlerRegistry creates a new handler registry.
-func NewHandlerRegistry(norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client, logger *slog.Logger) *HandlerRegistry {
+func NewHandlerRegistry(norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client, swedenClient *sweden.Client, logger *slog.Logger) *HandlerRegistry {
 	return &HandlerRegistry{
 		norwayClient:  norwayClient,
 		denmarkClient: denmarkClient,
 		finlandClient: finlandClient,
+		swedenClient:  swedenClient,
 		logger:        logger,
 	}
 }
@@ -92,6 +95,26 @@ func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
 		h.register(server, tool, spec, h.finlandClient.SearchCompaniesMCP)
 	case "FIGetCompany":
 		h.register(server, tool, spec, h.finlandClient.GetCompanyMCP)
+
+	// Sweden tools (require OAuth2 credentials)
+	case "SEGetCompany":
+		if h.swedenClient != nil {
+			h.register(server, tool, spec, h.swedenClient.GetCompanyMCP)
+		} else {
+			h.logger.Warn("Sweden client not configured, skipping tool", "tool", spec.Name)
+		}
+	case "SEGetDocumentList":
+		if h.swedenClient != nil {
+			h.register(server, tool, spec, h.swedenClient.GetDocumentListMCP)
+		} else {
+			h.logger.Warn("Sweden client not configured, skipping tool", "tool", spec.Name)
+		}
+	case "SECheckStatus":
+		if h.swedenClient != nil {
+			h.register(server, tool, spec, h.swedenClient.CheckStatusMCP)
+		} else {
+			h.logger.Warn("Sweden client not configured, skipping tool", "tool", spec.Name)
+		}
 
 	default:
 		h.logger.Error("Unknown method, tool not registered", "method", spec.Method, "tool", spec.Name)
@@ -232,6 +255,13 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "query", a.Query)
 	case finland.GetCompanyArgs:
 		attrs = append(attrs, "business_id", a.BusinessID)
+	// Sweden args
+	case sweden.GetCompanyArgs:
+		attrs = append(attrs, "org_number", a.OrgNumber)
+	case sweden.GetDocumentListArgs:
+		attrs = append(attrs, "org_number", a.OrgNumber)
+	case sweden.CheckStatusArgs:
+		// No args to log
 	}
 
 	// Add extractable fields from result
@@ -269,6 +299,17 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 	// Finland results
 	case finland.SearchCompaniesResult:
 		attrs = append(attrs, "results_count", len(r.Companies), "total_results", r.TotalResults)
+	// Sweden results
+	case sweden.GetCompanyResult:
+		if r.Company != nil {
+			attrs = append(attrs, "found", true, "name", r.Company.Name)
+		} else {
+			attrs = append(attrs, "found", false)
+		}
+	case sweden.GetDocumentListResult:
+		attrs = append(attrs, "documents", r.Count)
+	case sweden.CheckStatusResult:
+		attrs = append(attrs, "available", r.Available)
 	}
 
 	h.logger.Info("Tool executed", attrs...)
@@ -319,6 +360,14 @@ func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec Tool
 	case func(context.Context, finland.SearchCompaniesArgs) (finland.SearchCompaniesResult, error):
 		register(h, server, tool, spec, m)
 	case func(context.Context, finland.GetCompanyArgs) (finland.GetCompanyResult, error):
+		register(h, server, tool, spec, m)
+
+	// Sweden tools
+	case func(context.Context, sweden.GetCompanyArgs) (sweden.GetCompanyResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, sweden.GetDocumentListArgs) (sweden.GetDocumentListResult, error):
+		register(h, server, tool, spec, m)
+	case func(context.Context, sweden.CheckStatusArgs) (sweden.CheckStatusResult, error):
 		register(h, server, tool, spec, m)
 
 	default:

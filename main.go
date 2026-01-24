@@ -24,6 +24,7 @@ import (
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/sweden"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tools"
 	"github.com/olgasafonova/nordic-registry-mcp-server/tracing"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -374,6 +375,20 @@ func main() {
 	finlandClient := finland.NewClient(finland.WithLogger(logger))
 	defer finlandClient.Close()
 
+	// Sweden client requires OAuth2 credentials (optional)
+	var swedenClient *sweden.Client
+	if sweden.IsConfigured() {
+		var err error
+		swedenClient, err = sweden.NewClient()
+		if err != nil {
+			logger.Warn("Failed to create Sweden client", "error", err)
+		} else {
+			logger.Info("Sweden client initialized (OAuth2 credentials configured)")
+		}
+	} else {
+		logger.Info("Sweden client not configured (set BOLAGSVERKET_CLIENT_ID and BOLAGSVERKET_CLIENT_SECRET)")
+	}
+
 	// Get bearer token from flag or environment
 	authToken := *bearerToken
 	if authToken == "" {
@@ -394,9 +409,7 @@ Currently supports:
 - **Norway** (Brønnøysundregistrene / data.brreg.no) - Norwegian business registry
 - **Denmark** (CVR / cvrapi.dk) - Danish business registry
 - **Finland** (PRH / avoindata.prh.fi) - Finnish business registry
-
-Coming soon:
-- Sweden (Bolagsverket)
+- **Sweden** (Bolagsverket / api.bolagsverket.se) - Swedish business registry (requires OAuth2 credentials)
 
 ## Tool Selection Guide
 
@@ -498,7 +511,7 @@ Common codes:
 	})
 
 	// Register all tools using the registry
-	registry := tools.NewHandlerRegistry(norwayClient, denmarkClient, finlandClient, logger)
+	registry := tools.NewHandlerRegistry(norwayClient, denmarkClient, finlandClient, swedenClient, logger)
 	registry.RegisterAll(server)
 
 	ctx := context.Background()

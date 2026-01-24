@@ -1,6 +1,6 @@
 # Nordic Registry MCP Server
 
-Query Nordic business registries with AI. Search companies, get details, find board members across Norway, Denmark, and Finland.
+Query Nordic business registries with AI. Search companies, get details, find board members, and access annual reports across Norway, Denmark, Finland, and Sweden.
 
 [![CI](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/olgasafonova/nordic-registry-mcp-server)](https://goreportcard.com/report/github.com/olgasafonova/nordic-registry-mcp-server)
@@ -17,8 +17,9 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 | Norway | [Brønnøysundregistrene](https://data.brreg.no) | 12 | 9 digits (e.g., `923609016`) |
 | Denmark | [CVR](https://datacvr.virk.dk) | 5 | 8 digits (e.g., `10150817`) |
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
+| Sweden | [Bolagsverket](https://bolagsverket.se) | 3 | 10 digits (e.g., `5560125790`) |
 
-All APIs are free and require no authentication.
+Norway, Denmark, and Finland APIs are free and require no authentication. Sweden requires OAuth2 credentials (free registration at [portal.api.bolagsverket.se](https://portal.api.bolagsverket.se)).
 
 ---
 
@@ -34,6 +35,8 @@ Once connected, just ask your AI:
 | *"Find Danish company Novo Nordisk"* | Searches CVR registry |
 | *"Look up Finnish company Nokia"* | Searches PRH registry |
 | *"Get company 0112038-9 from Finland"* | Returns Nokia's full details |
+| *"Get Swedish company 5560125790"* | Returns company info from Bolagsverket |
+| *"List annual reports for Swedish company X"* | Lists available årsredovisningar |
 
 ---
 
@@ -117,6 +120,16 @@ Restart Claude Desktop after changes.
 | `finland_search_companies` | Search companies by name |
 | `finland_get_company` | Get company details by business ID |
 
+### Sweden (Bolagsverket)
+
+Requires OAuth2 credentials. Set `BOLAGSVERKET_CLIENT_ID` and `BOLAGSVERKET_CLIENT_SECRET` environment variables.
+
+| Tool | Description |
+|------|-------------|
+| `sweden_get_company` | Get company details by organization number |
+| `sweden_get_document_list` | List annual reports (årsredovisningar) |
+| `sweden_check_status` | Check API availability and OAuth2 status |
+
 ---
 
 ## Example Prompts
@@ -126,6 +139,7 @@ Restart Claude Desktop after changes.
 - *"Search for AS companies in Oslo"*
 - *"Find Danish companies named Carlsberg"*
 - *"Look up Finnish company Kone"*
+- *"Find voluntary organizations named Røde Kors"*
 
 ### Company Details
 - *"Get details for Norwegian org 923609016"*
@@ -167,6 +181,29 @@ Restart Claude Desktop after changes.
 - *"Find company with phone 33121212"*
 - *"Look up production unit P-number 1234567890"*
 
+### Sweden Lookups
+- *"Get Swedish company 5560125790"*
+- *"Look up Volvo's organization number in Sweden"*
+- *"What annual reports are available for 5560125790?"*
+- *"List årsredovisningar for Swedish company X"*
+- *"Is the Swedish API working?"*
+
+---
+
+## Sweden Setup
+
+Sweden's Bolagsverket API requires OAuth2 authentication (free).
+
+1. Register at [portal.api.bolagsverket.se](https://portal.api.bolagsverket.se)
+2. Create an application and subscribe to "VärdefullaDatamängder" (High-Value Datasets) API
+3. Set environment variables:
+   ```bash
+   export BOLAGSVERKET_CLIENT_ID="your-client-id"
+   export BOLAGSVERKET_CLIENT_SECRET="your-client-secret"
+   ```
+
+The server will log whether Sweden credentials are configured on startup. If not configured, Sweden tools are simply not registered.
+
 ---
 
 ## HTTP Mode
@@ -205,7 +242,8 @@ nordic-registry-mcp-server/
 │   │   └── resilience.go  # Circuit breaker, request deduplication
 │   ├── norway/            # Norwegian registry client
 │   ├── denmark/           # Danish registry client
-│   └── finland/           # Finnish registry client
+│   ├── finland/           # Finnish registry client
+│   └── sweden/            # Swedish registry client (OAuth2)
 ├── tools/
 │   ├── definitions.go     # Tool specifications
 │   └── handlers.go        # MCP tool registration
@@ -229,15 +267,9 @@ nordic-registry-mcp-server/
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/API.md) | Complete reference for all 19 tools with parameters, return values, and examples |
+| [API Reference](docs/API.md) | Complete reference for all 22 tools with parameters, return values, and examples |
 | [Architecture](docs/ARCHITECTURE.md) | System design, request flow, resilience patterns |
 | [Production Readiness](docs/PRODUCTION.md) | Deployment checklist, monitoring, known limitations |
-
----
-
-## Why Not Sweden?
-
-Sweden's Bolagsverket doesn't offer a free public API like the other Nordic countries. Options exist (Eniro API, OpenCorporates) but require payment or have restrictions. We may add Sweden if Bolagsverket releases a proper open data API.
 
 ---
 
@@ -263,4 +295,4 @@ MIT License
 ## Credits
 
 - Built with [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk)
-- Data from [Brønnøysundregistrene](https://data.brreg.no), [CVR](https://datacvr.virk.dk), [PRH](https://avoindata.prh.fi)
+- Data from [Brønnøysundregistrene](https://data.brreg.no), [CVR](https://datacvr.virk.dk), [PRH](https://avoindata.prh.fi), [Bolagsverket](https://bolagsverket.se)

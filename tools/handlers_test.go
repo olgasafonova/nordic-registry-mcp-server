@@ -19,7 +19,7 @@ func TestNewHandlerRegistry(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -47,7 +47,7 @@ func TestBuildTool(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
 
 	tests := []struct {
 		name      string
@@ -131,7 +131,7 @@ func TestRecoverPanic(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
 
 	// Test that recoverPanic doesn't panic itself
 	func() {
@@ -151,7 +151,7 @@ func TestLogExecution(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, logger)
+	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
 	spec := ToolSpec{Name: "test_tool", Country: "norway"}
 
 	// Test with SearchCompaniesArgs
@@ -224,6 +224,10 @@ func TestToolSpecMethods(t *testing.T) {
 		// Finland tools
 		"FISearchCompanies": true,
 		"FIGetCompany":      true,
+		// Sweden tools
+		"SEGetCompany":      true,
+		"SEGetDocumentList": true,
+		"SECheckStatus":     true,
 	}
 
 	for _, spec := range AllTools {
