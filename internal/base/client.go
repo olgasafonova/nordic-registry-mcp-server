@@ -4,8 +4,10 @@ package base
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/infra"
@@ -118,6 +120,129 @@ func (c *Client) CheckCircuitBreaker() error {
 		}
 	}
 	return nil
+}
+
+// RequestConfig configures a single HTTP request
+type RequestConfig struct {
+	URL       string
+	UserAgent string
+	MaxRetry  int // defaults to 3
+}
+
+// DoRequest performs an HTTP request with circuit breaker, rate limiting, and retries.
+// Returns the response body on success. The caller handles response parsing.
+func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int, error) {
+	// Check circuit breaker
+	if err := c.CheckCircuitBreaker(); err != nil {
+		return nil, 0, err
+	}
+
+	// Rate limiting via semaphore
+	if err := c.AcquireSlot(ctx); err != nil {
+		return nil, 0, err
+	}
+	defer c.ReleaseSlot()
+
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.URL, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if cfg.UserAgent != "" {
+		req.Header.Set("User-Agent", cfg.UserAgent)
+	} else {
+		req.Header.Set("User-Agent", "nordic-registry-mcp-server/1.0")
+	}
+
+	maxRetry := cfg.MaxRetry
+	if maxRetry <= 0 {
+		maxRetry = 3
+	}
+
+	// Execute with retry
+	var lastErr error
+	for attempt := 0; attempt < maxRetry; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff
+			backoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return nil, 0, fmt.Errorf("context canceled during backoff: %w", ctx.Err())
+			}
+		}
+
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("request failed: %w", err)
+			c.Logger.Warn("API request failed, retrying",
+				"attempt", attempt+1,
+				"url", cfg.URL,
+				"error", err)
+			continue
+		}
+
+		body, err := readAndClose(resp)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read response: %w", err)
+			continue
+		}
+
+		// Handle rate limiting with Retry-After header
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+				if seconds, parseErr := strconv.Atoi(retryAfter); parseErr == nil {
+					select {
+					case <-time.After(time.Duration(seconds) * time.Second):
+					case <-ctx.Done():
+						return nil, 0, ctx.Err()
+					}
+					continue
+				}
+			}
+			lastErr = fmt.Errorf("rate limited (429)")
+			continue
+		}
+
+		// Server errors (5xx) should be retried
+		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("server error %d: %s", resp.StatusCode, truncate(string(body), 200))
+			continue
+		}
+
+		// Return body and status code for caller to handle
+		return body, resp.StatusCode, nil
+	}
+
+	c.CircuitBreaker.RecordFailure()
+	return nil, 0, lastErr
+}
+
+// RecordSuccess records a successful request with the circuit breaker
+func (c *Client) RecordSuccess() {
+	c.CircuitBreaker.RecordSuccess()
+}
+
+// RecordFailure records a failed request with the circuit breaker
+func (c *Client) RecordFailure() {
+	c.CircuitBreaker.RecordFailure()
+}
+
+// readAndClose reads the response body and closes it
+func readAndClose(resp *http.Response) ([]byte, error) {
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	return body, err
+}
+
+// truncate shortens a string to maxLen, adding "..." if truncated
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // newHTTPClient creates an HTTP client with optimized transport settings

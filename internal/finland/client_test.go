@@ -1,8 +1,11 @@
 package finland
 
 import (
+	"net/http"
 	"testing"
 	"time"
+
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/base"
 )
 
 func TestNewClient(t *testing.T) {
@@ -10,26 +13,27 @@ func TestNewClient(t *testing.T) {
 	if client == nil {
 		t.Fatal("NewClient returned nil")
 	}
-	if client.httpClient == nil {
-		t.Error("httpClient is nil")
+	if client.HTTPClient == nil {
+		t.Error("HTTPClient is nil")
 	}
-	if client.cache == nil {
-		t.Error("cache is nil")
+	if client.Cache == nil {
+		t.Error("Cache is nil")
 	}
-	if client.dedup == nil {
-		t.Error("dedup is nil")
+	if client.Dedup == nil {
+		t.Error("Dedup is nil")
 	}
-	if client.circuitBreaker == nil {
-		t.Error("circuitBreaker is nil")
+	if client.CircuitBreaker == nil {
+		t.Error("CircuitBreaker is nil")
 	}
 	client.Close()
 }
 
 func TestNewClientWithOptions(t *testing.T) {
-	client := NewClient(WithTimeout(60 * time.Second))
+	customHTTPClient := &http.Client{Timeout: 60 * time.Second}
+	client := NewClient(WithHTTPClient(customHTTPClient))
 
-	if client.httpClient.Timeout != 60*time.Second {
-		t.Errorf("custom timeout was not set: got %v", client.httpClient.Timeout)
+	if client.HTTPClient != customHTTPClient {
+		t.Error("custom HTTP client was not set")
 	}
 	client.Close()
 }
@@ -39,8 +43,8 @@ func TestClient_ConcurrencyLimit(t *testing.T) {
 	defer client.Close()
 
 	// Check semaphore capacity
-	if cap(client.semaphore) != MaxConcurrentRequests {
-		t.Errorf("semaphore capacity = %d, want %d", cap(client.semaphore), MaxConcurrentRequests)
+	if cap(client.Semaphore) != base.MaxConcurrentRequests {
+		t.Errorf("semaphore capacity = %d, want %d", cap(client.Semaphore), base.MaxConcurrentRequests)
 	}
 }
 
@@ -48,8 +52,8 @@ func TestClient_DefaultTimeout(t *testing.T) {
 	client := NewClient()
 	defer client.Close()
 
-	if client.httpClient.Timeout != DefaultTimeout {
-		t.Errorf("timeout = %v, want %v", client.httpClient.Timeout, DefaultTimeout)
+	if client.HTTPClient.Timeout != base.DefaultTimeout {
+		t.Errorf("timeout = %v, want %v", client.HTTPClient.Timeout, base.DefaultTimeout)
 	}
 }
 
@@ -88,13 +92,13 @@ func TestClient_Initialization(t *testing.T) {
 	defer client.Close()
 
 	// Verify all client components are properly initialized
-	if client.cache == nil {
+	if client.Cache == nil {
 		t.Error("cache should not be nil")
 	}
-	if client.circuitBreaker == nil {
+	if client.CircuitBreaker == nil {
 		t.Error("circuit breaker should not be nil")
 	}
-	if client.dedup == nil {
+	if client.Dedup == nil {
 		t.Error("dedup should not be nil")
 	}
 }
