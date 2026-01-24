@@ -1,10 +1,12 @@
 # Binaries
+nordic-registry-mcp-server
 mediawiki-mcp-server
 mediawiki-mcp-server-*
 *.exe
 *.dll
 *.so
 *.dylib
+*.log
 
 # Build output
 dist/
