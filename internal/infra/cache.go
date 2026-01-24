@@ -29,6 +29,9 @@ type Cache struct {
 	maxEntries int64
 	mu         sync.Mutex // Protects eviction operations
 
+	// Eviction deduplication
+	evicting int32 // Atomic flag to prevent duplicate eviction goroutines
+
 	// Graceful shutdown
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -85,8 +88,18 @@ func (c *Cache) Set(key string, data interface{}, ttl time.Duration) {
 		newCount := atomic.AddInt64(&c.count, 1)
 
 		// Trigger eviction if over limit (async to not block caller)
+		// Use atomic compare-and-swap to prevent duplicate eviction goroutines
 		if newCount > c.maxEntries {
-			go c.evictLRU(int(newCount - c.maxEntries + c.maxEntries/10))
+			if atomic.CompareAndSwapInt32(&c.evicting, 0, 1) {
+				go func() {
+					defer atomic.StoreInt32(&c.evicting, 0)
+					// Re-check current count as more entries may have been added
+					currentCount := atomic.LoadInt64(&c.count)
+					if currentCount > c.maxEntries {
+						c.evictLRU(int(currentCount - c.maxEntries + c.maxEntries/10))
+					}
+				}()
+			}
 		}
 	}
 }

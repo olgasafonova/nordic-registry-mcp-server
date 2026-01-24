@@ -19,6 +19,9 @@ func ValidateOrgNumber(orgNumber string) error {
 	return nil
 }
 
+// MaxQueryLength is the maximum allowed search query length
+const MaxQueryLength = 500
+
 // ValidateSearchQuery validates a search query.
 func ValidateSearchQuery(query string) error {
 	if query == "" {
@@ -26,6 +29,9 @@ func ValidateSearchQuery(query string) error {
 	}
 	if len(query) < 2 {
 		return fmt.Errorf("search query must be at least 2 characters")
+	}
+	if len(query) > MaxQueryLength {
+		return fmt.Errorf("search query exceeds maximum length of %d characters", MaxQueryLength)
 	}
 	return nil
 }

@@ -115,6 +115,9 @@ func (h *HandlerRegistry) buildTool(spec ToolSpec) *mcp.Tool {
 	}
 }
 
+// ToolTimeout is the maximum time allowed for a tool to complete
+const ToolTimeout = 30 * time.Second
+
 // register is a generic helper that registers a tool with the MCP server.
 // It wraps the client method with panic recovery, metrics, tracing, and logging.
 func register[Args, Result any](
@@ -126,6 +129,10 @@ func register[Args, Result any](
 ) {
 	mcp.AddTool(server, tool, func(ctx context.Context, req *mcp.CallToolRequest, args Args) (*mcp.CallToolResult, Result, error) {
 		defer h.recoverPanic(spec.Name)
+
+		// Add timeout to prevent hanging requests
+		ctx, cancel := context.WithTimeout(ctx, ToolTimeout)
+		defer cancel()
 
 		// Start trace span
 		ctx, span := tracing.StartSpan(ctx, "mcp.tool."+spec.Name)

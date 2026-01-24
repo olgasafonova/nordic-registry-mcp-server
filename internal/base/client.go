@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -22,6 +23,9 @@ const (
 
 	// MaxConcurrentRequests limits parallel API calls
 	MaxConcurrentRequests = 5
+
+	// MaxResponseSize limits response body size to prevent memory exhaustion (10 MB)
+	MaxResponseSize = 10 * 1024 * 1024
 )
 
 // Client provides common HTTP client infrastructure with caching, rate limiting,
@@ -165,8 +169,10 @@ func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int,
 	var lastErr error
 	for attempt := 0; attempt < maxRetry; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff
-			backoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
+			// Exponential backoff with jitter to prevent thundering herd
+			baseBackoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
+			jitter := time.Duration(rand.Int63n(int64(baseBackoff / 2))) // 0-50% jitter
+			backoff := baseBackoff + jitter
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
@@ -230,11 +236,23 @@ func (c *Client) RecordFailure() {
 	c.CircuitBreaker.RecordFailure()
 }
 
-// readAndClose reads the response body and closes it
+// readAndClose reads the response body (limited to MaxResponseSize) and closes it
 func readAndClose(resp *http.Response) ([]byte, error) {
-	body, err := io.ReadAll(resp.Body)
+	// Limit response size to prevent memory exhaustion
+	limited := io.LimitReader(resp.Body, MaxResponseSize+1)
+	body, err := io.ReadAll(limited)
 	_ = resp.Body.Close()
-	return body, err
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if we hit the limit (read more than MaxResponseSize)
+	if len(body) > MaxResponseSize {
+		return nil, fmt.Errorf("response exceeds maximum size of %d bytes", MaxResponseSize)
+	}
+
+	return body, nil
 }
 
 // truncate shortens a string to maxLen, adding "..." if truncated

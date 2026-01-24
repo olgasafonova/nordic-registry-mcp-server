@@ -19,7 +19,10 @@ const (
 	// BaseURL is the CVR API endpoint
 	BaseURL = "https://cvrapi.dk/api"
 
-	// DefaultCacheTTL for cached responses
+	// SearchCacheTTL for search results (shorter to ensure fresher results)
+	SearchCacheTTL = 2 * time.Minute
+
+	// DefaultCacheTTL for company details and other cached responses
 	DefaultCacheTTL = 5 * time.Minute
 
 	// DefaultUserAgent is the default user agent for CVR API requests
@@ -98,7 +101,7 @@ func (c *Client) SearchCompany(ctx context.Context, query string) (*Company, err
 		return nil, apierrors.NewNotFoundError("denmark", query)
 	}
 
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	c.Cache.Set(cacheKey, &result, SearchCacheTTL)
 	return &result, nil
 }
 
@@ -107,6 +110,11 @@ func (c *Client) GetByPNumber(ctx context.Context, pnumber string) (*Company, er
 	// Normalize P-number - remove spaces and dashes
 	pnumber = strings.ReplaceAll(pnumber, " ", "")
 	pnumber = strings.ReplaceAll(pnumber, "-", "")
+
+	// Validate after normalization
+	if err := ValidatePNumber(pnumber); err != nil {
+		return nil, err
+	}
 
 	params := url.Values{}
 	params.Set("produ", pnumber)
@@ -137,6 +145,11 @@ func (c *Client) SearchByPhone(ctx context.Context, phone string) (*Company, err
 	phone = strings.ReplaceAll(phone, " ", "")
 	phone = strings.ReplaceAll(phone, "-", "")
 	phone = strings.ReplaceAll(phone, "+45", "")
+
+	// Validate after normalization
+	if err := ValidatePhone(phone); err != nil {
+		return nil, err
+	}
 
 	params := url.Values{}
 	params.Set("phone", phone)

@@ -20,7 +20,10 @@ const (
 	// BaseURL is the Brønnøysundregistrene API endpoint
 	BaseURL = "https://data.brreg.no/enhetsregisteret/api"
 
-	// DefaultCacheTTL for cached responses
+	// SearchCacheTTL for search results (shorter to ensure fresher results)
+	SearchCacheTTL = 2 * time.Minute
+
+	// DefaultCacheTTL for company details and other cached responses
 	DefaultCacheTTL = 5 * time.Minute
 )
 
@@ -109,7 +112,7 @@ func (c *Client) SearchCompanies(ctx context.Context, query string, opts *Search
 		return nil, err
 	}
 
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	c.Cache.Set(cacheKey, &result, SearchCacheTTL)
 	return &result, nil
 }
 
@@ -278,7 +281,7 @@ func (c *Client) SearchSubUnits(ctx context.Context, query string, opts *SearchS
 		return nil, err
 	}
 
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
+	c.Cache.Set(cacheKey, &result, SearchCacheTTL)
 	return &result, nil
 }
 

@@ -56,6 +56,9 @@ func ValidateBusinessID(businessID string) error {
 	return nil
 }
 
+// MaxQueryLength is the maximum allowed search query length
+const MaxQueryLength = 500
+
 // ValidateSearchQuery validates a search query.
 func ValidateSearchQuery(query string) error {
 	if query == "" {
@@ -63,6 +66,9 @@ func ValidateSearchQuery(query string) error {
 	}
 	if len(query) < 2 {
 		return apierrors.NewValidationError("query", query, "must be at least 2 characters")
+	}
+	if len(query) > MaxQueryLength {
+		return apierrors.NewValidationError("query", query, "exceeds maximum length of 500 characters")
 	}
 	return nil
 }
