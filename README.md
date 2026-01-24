@@ -19,7 +19,7 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
 | Sweden | [Bolagsverket](https://bolagsverket.se) | 3 | 10 digits (e.g., `5560125790`) |
 
-Norway, Denmark, and Finland APIs are free and require no authentication. Sweden requires OAuth2 credentials (free registration at [Bolagsverket Developer Portal](https://portal.api.bolagsverket.se/devportal/)).
+All APIs are free. Norway, Denmark, and Finland require no authentication. Sweden requires OAuth2 credentials (free registration at [Bolagsverket Developer Portal](https://portal.api.bolagsverket.se/devportal/)).
 
 ---
 
