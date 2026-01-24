@@ -647,6 +647,115 @@ Get detailed information about a Finnish company.
 
 ---
 
+## Sweden (Bolagsverket)
+
+**Note:** Sweden requires OAuth2 credentials. Register at [portal.api.bolagsverket.se/devportal](https://portal.api.bolagsverket.se/devportal) and set environment variables:
+- `BOLAGSVERKET_CLIENT_ID`
+- `BOLAGSVERKET_CLIENT_SECRET`
+
+### sweden_get_company
+
+Get detailed information about a Swedish company by organization number.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `org_number` | string | Yes | Swedish organization number (10 digits) or personal number (12 digits) |
+
+**Org Number Formats (all accepted):**
+- `5560125790` (digits only)
+- `5560-1257-90` (with dashes)
+- `556012-5790` (common Swedish format)
+
+**Returns:**
+
+```json
+{
+  "company": {
+    "organization_number": "5560125790",
+    "name": "Volvo Personvagnar AB",
+    "organization_form": "AB",
+    "organization_form_description": "Aktiebolag",
+    "legal_form": "Privat aktiebolag",
+    "business_description": "Tillverkning av personbilar",
+    "registration_date": "1927-04-14",
+    "registration_country": "Sverige",
+    "address": "Assar Gabrielssons Väg, 405 31 GÖTEBORG",
+    "is_active": true,
+    "ad_block": false,
+    "sni_codes": [
+      {"code": "29102", "description": "Tillverkning av personbilar"}
+    ]
+  }
+}
+```
+
+**Example prompts:**
+- "Get Swedish company 5560125790"
+- "Look up 5560-1257-90"
+- "Get details for Volvo's org number"
+
+---
+
+### sweden_get_document_list
+
+List available annual reports (årsredovisningar) for a Swedish company.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `org_number` | string | Yes | Swedish organization number (10 digits) |
+
+**Returns:**
+
+```json
+{
+  "documents": [
+    {
+      "document_id": "abc123",
+      "format": "XBRL",
+      "period_end": "2023-12-31",
+      "registration_date": "2024-06-15"
+    }
+  ],
+  "count": 5
+}
+```
+
+**Note:** Returns metadata about available reports, not the reports themselves. Reports are ZIP files containing XBRL or PDF data.
+
+**Example prompts:**
+- "What annual reports exist for 5560125790?"
+- "List financial reports for Swedish company X"
+- "Show årsredovisningar for Volvo"
+
+---
+
+### sweden_check_status
+
+Check the status of the Swedish Bolagsverket API and OAuth2 connection.
+
+**Parameters:** None
+
+**Returns:**
+
+```json
+{
+  "available": true,
+  "circuit_breaker_status": "closed",
+  "cache_entries": 42
+}
+```
+
+**Example prompts:**
+- "Is the Swedish API working?"
+- "Check connection to Bolagsverket"
+- "Status of Sweden registry"
+
+---
+
 ## Error Responses
 
 All tools return consistent error messages:
@@ -721,3 +830,16 @@ All tools return consistent error messages:
 | Ay | Avoin yhtiö | General partnership |
 | Tmi | Toiminimi | Sole proprietorship |
 | Osk | Osuuskunta | Cooperative |
+
+### Sweden
+
+| Code | Swedish | English |
+|------|---------|---------|
+| AB | Aktiebolag | Private limited company |
+| Publikt AB | Publikt aktiebolag | Public limited company |
+| E | Enskild firma | Sole proprietorship |
+| HB | Handelsbolag | General partnership |
+| KB | Kommanditbolag | Limited partnership |
+| EK | Ekonomisk förening | Cooperative |
+| BRF | Bostadsrättsförening | Housing cooperative |
+| FL | Filial | Branch of foreign company |

@@ -19,7 +19,7 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
 | Sweden | [Bolagsverket](https://bolagsverket.se) | 3 | 10 digits (e.g., `5560125790`) |
 
-Norway, Denmark, and Finland APIs are free and require no authentication. Sweden requires OAuth2 credentials (free registration at [portal.api.bolagsverket.se](https://portal.api.bolagsverket.se)).
+Norway, Denmark, and Finland APIs are free and require no authentication. Sweden requires OAuth2 credentials (free registration at [Bolagsverket Developer Portal](https://portal.api.bolagsverket.se/devportal/)).
 
 ---
 
@@ -194,7 +194,7 @@ Requires OAuth2 credentials. Set `BOLAGSVERKET_CLIENT_ID` and `BOLAGSVERKET_CLIE
 
 Sweden's Bolagsverket API requires OAuth2 authentication (free).
 
-1. Register at [portal.api.bolagsverket.se](https://portal.api.bolagsverket.se)
+1. Register at [Bolagsverket Developer Portal](https://portal.api.bolagsverket.se/devportal/)
 2. Create an application and subscribe to "VärdefullaDatamängder" (High-Value Datasets) API
 3. Set environment variables:
    ```bash
