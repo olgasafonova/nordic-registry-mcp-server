@@ -28,8 +28,9 @@ type CompanySummary struct {
 	OrganizationForm   string `json:"organization_form,omitempty"`
 	PostalAddress      string `json:"postal_address,omitempty"`
 	BusinessAddress    string `json:"business_address,omitempty"`
-	Bankrupt           bool   `json:"bankrupt,omitempty"`
-	UnderLiquidation   bool   `json:"under_liquidation,omitempty"`
+	Status             string `json:"status,omitempty"`           // ACTIVE, BANKRUPT, LIQUIDATING
+	Bankrupt           bool   `json:"bankrupt,omitempty"`         // Deprecated: use Status
+	UnderLiquidation   bool   `json:"under_liquidation,omitempty"` // Deprecated: use Status
 }
 
 // GetCompanyArgs contains parameters for getting a single company
@@ -56,8 +57,9 @@ type CompanyDetailSummary struct {
 	Industry           string `json:"industry,omitempty"`
 	Website            string `json:"website,omitempty"`
 	VATRegistered      bool   `json:"vat_registered,omitempty"`
-	Bankrupt           bool   `json:"bankrupt,omitempty"`
-	UnderLiquidation   bool   `json:"under_liquidation,omitempty"`
+	Status             string `json:"status,omitempty"`           // ACTIVE, BANKRUPT, LIQUIDATING
+	Bankrupt           bool   `json:"bankrupt,omitempty"`         // Deprecated: use Status
+	UnderLiquidation   bool   `json:"under_liquidation,omitempty"` // Deprecated: use Status
 }
 
 // GetRolesArgs contains parameters for getting company roles

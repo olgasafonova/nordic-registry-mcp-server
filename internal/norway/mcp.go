@@ -39,6 +39,7 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		summary := CompanySummary{
 			OrganizationNumber: co.OrganizationNumber,
 			Name:               co.Name,
+			Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
 			Bankrupt:           co.Bankrupt,
 			UnderLiquidation:   co.UnderLiquidation,
 		}
@@ -86,6 +87,7 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		EmployeeCount:      company.EmployeeCount,
 		Website:            company.Website,
 		VATRegistered:      company.RegisteredInVAT,
+		Status:             getStatus(company.Bankrupt, company.UnderLiquidation),
 		Bankrupt:           company.Bankrupt,
 		UnderLiquidation:   company.UnderLiquidation,
 	}
@@ -389,6 +391,17 @@ func (c *Client) GetSignatureRightsMCP(ctx context.Context, args GetSignatureRig
 	result.Summary = summary.String()
 
 	return result, nil
+}
+
+// getStatus derives company status from boolean flags
+func getStatus(bankrupt, underLiquidation bool) string {
+	if bankrupt {
+		return "BANKRUPT"
+	}
+	if underLiquidation {
+		return "LIQUIDATING"
+	}
+	return "ACTIVE"
 }
 
 // formatAddress formats an address as a single string

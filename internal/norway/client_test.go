@@ -1569,3 +1569,46 @@ func TestWithBaseURL(t *testing.T) {
 		t.Errorf("baseURL = %q, want %q", client.baseURL, "http://test.example.com")
 	}
 }
+
+func TestGetStatus(t *testing.T) {
+	tests := []struct {
+		name             string
+		bankrupt         bool
+		underLiquidation bool
+		expected         string
+	}{
+		{
+			name:             "active company",
+			bankrupt:         false,
+			underLiquidation: false,
+			expected:         "ACTIVE",
+		},
+		{
+			name:             "bankrupt company",
+			bankrupt:         true,
+			underLiquidation: false,
+			expected:         "BANKRUPT",
+		},
+		{
+			name:             "company under liquidation",
+			bankrupt:         false,
+			underLiquidation: true,
+			expected:         "LIQUIDATING",
+		},
+		{
+			name:             "bankrupt takes priority over liquidation",
+			bankrupt:         true,
+			underLiquidation: true,
+			expected:         "BANKRUPT",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := getStatus(tt.bankrupt, tt.underLiquidation)
+			if status != tt.expected {
+				t.Errorf("getStatus(%v, %v) = %q, want %q", tt.bankrupt, tt.underLiquidation, status, tt.expected)
+			}
+		})
+	}
+}
