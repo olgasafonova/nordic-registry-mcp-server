@@ -672,7 +672,7 @@ EXAMPLES:
 	// ==========================================================================
 	// NOTE: Sweden tools require OAuth2 credentials. Set BOLAGSVERKET_CLIENT_ID
 	// and BOLAGSVERKET_CLIENT_SECRET environment variables. Register for free
-	// at https://portal.api.bolagsverket.se/devportal/
+	// at https://bolagsverket.se/apierochoppnadata/vardefulladatamangder/kundanmalantillapiforvardefulladatamangder.5528.html
 
 	// --------------------------------------------------------------------------
 	// COMPANY DETAILS

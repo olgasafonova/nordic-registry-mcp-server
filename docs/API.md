@@ -649,7 +649,11 @@ Get detailed information about a Finnish company.
 
 ## Sweden (Bolagsverket)
 
-**Note:** Sweden requires OAuth2 credentials. Register at [portal.api.bolagsverket.se/devportal](https://portal.api.bolagsverket.se/devportal) and set environment variables:
+Uses the free **värdefulla datamängder** (High Value Datasets) API, mandated by EU Open Data Directive.
+
+**Registration:** [Kundanmälan till API för värdefulla datamängder](https://bolagsverket.se/apierochoppnadata/vardefulladatamangder/kundanmalantillapiforvardefulladatamangder.5528.html) (free, requires OAuth2 credentials)
+
+Set environment variables:
 - `BOLAGSVERKET_CLIENT_ID`
 - `BOLAGSVERKET_CLIENT_SECRET`
 
