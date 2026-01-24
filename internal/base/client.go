@@ -171,7 +171,7 @@ func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int,
 		if attempt > 0 {
 			// Exponential backoff with jitter to prevent thundering herd
 			baseBackoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
-			jitter := time.Duration(rand.Int63n(int64(baseBackoff / 2))) // 0-50% jitter
+			jitter := time.Duration(rand.Int63n(int64(baseBackoff / 2))) //nolint:gosec // G404: jitter for timing, not security
 			backoff := baseBackoff + jitter
 			select {
 			case <-time.After(backoff):
