@@ -29,9 +29,7 @@ type CompanySummary struct {
 	OrganizationForm   string `json:"organization_form,omitempty"`
 	PostalAddress      string `json:"postal_address,omitempty"`
 	BusinessAddress    string `json:"business_address,omitempty"`
-	Status             string `json:"status,omitempty"`            // ACTIVE, BANKRUPT, LIQUIDATING
-	Bankrupt           bool   `json:"bankrupt,omitempty"`          // Deprecated: use Status
-	UnderLiquidation   bool   `json:"under_liquidation,omitempty"` // Deprecated: use Status
+	Status             string `json:"status,omitempty"` // ACTIVE, BANKRUPT, LIQUIDATING
 }
 
 // GetCompanyArgs contains parameters for getting a single company
@@ -58,9 +56,7 @@ type CompanyDetailSummary struct {
 	Industry                  string   `json:"industry,omitempty"`
 	Website                   string   `json:"website,omitempty"`
 	VATRegistered             bool     `json:"vat_registered,omitempty"`
-	Status                    string   `json:"status,omitempty"`            // ACTIVE, BANKRUPT, LIQUIDATING
-	Bankrupt                  bool     `json:"bankrupt,omitempty"`          // Deprecated: use Status
-	UnderLiquidation          bool     `json:"under_liquidation,omitempty"` // Deprecated: use Status
+	Status                    string   `json:"status,omitempty"` // ACTIVE, BANKRUPT, LIQUIDATING
 	RegisteredInVoluntary     bool     `json:"registered_in_voluntary,omitempty"`
 	VoluntaryRegistrationDate string   `json:"voluntary_registration_date,omitempty"` // When registered in Frivillighetsregisteret
 	Activity                  []string `json:"activity,omitempty"`                    // Activity description for voluntary orgs

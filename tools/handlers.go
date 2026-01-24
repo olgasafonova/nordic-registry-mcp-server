@@ -18,6 +18,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+// registrationFunc is a function that registers a tool with the MCP server.
+type registrationFunc func(server *mcp.Server, tool *mcp.Tool, spec ToolSpec)
+
 // HandlerRegistry provides type-safe tool registration by mapping
 // tool names to their concrete handler implementations.
 type HandlerRegistry struct {
@@ -26,99 +29,89 @@ type HandlerRegistry struct {
 	finlandClient *finland.Client
 	swedenClient  *sweden.Client // May be nil if OAuth2 credentials not configured
 	logger        *slog.Logger
+	handlers      map[string]registrationFunc // Method name -> registration function
 }
 
-// NewHandlerRegistry creates a new handler registry.
+// NewHandlerRegistry creates a new handler registry with all handlers pre-built.
 func NewHandlerRegistry(norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client, swedenClient *sweden.Client, logger *slog.Logger) *HandlerRegistry {
-	return &HandlerRegistry{
+	h := &HandlerRegistry{
 		norwayClient:  norwayClient,
 		denmarkClient: denmarkClient,
 		finlandClient: finlandClient,
 		swedenClient:  swedenClient,
 		logger:        logger,
+		handlers:      make(map[string]registrationFunc),
+	}
+	h.initHandlers()
+	return h
+}
+
+// initHandlers builds the handler map once at startup.
+// This eliminates runtime switch statements during registration.
+func (h *HandlerRegistry) initHandlers() {
+	// Norway tools
+	h.handlers["SearchCompanies"] = makeHandler(h, h.norwayClient.SearchCompaniesMCP)
+	h.handlers["GetCompany"] = makeHandler(h, h.norwayClient.GetCompanyMCP)
+	h.handlers["GetRoles"] = makeHandler(h, h.norwayClient.GetRolesMCP)
+	h.handlers["GetSubUnits"] = makeHandler(h, h.norwayClient.GetSubUnitsMCP)
+	h.handlers["GetSubUnit"] = makeHandler(h, h.norwayClient.GetSubUnitMCP)
+	h.handlers["GetUpdates"] = makeHandler(h, h.norwayClient.GetUpdatesMCP)
+	h.handlers["SearchSubUnits"] = makeHandler(h, h.norwayClient.SearchSubUnitsMCP)
+	h.handlers["ListMunicipalities"] = makeHandler(h, h.norwayClient.ListMunicipalitiesMCP)
+	h.handlers["ListOrgForms"] = makeHandler(h, h.norwayClient.ListOrgFormsMCP)
+	h.handlers["GetSubUnitUpdates"] = makeHandler(h, h.norwayClient.GetSubUnitUpdatesMCP)
+	h.handlers["GetSignatureRights"] = makeHandler(h, h.norwayClient.GetSignatureRightsMCP)
+	h.handlers["BatchGetCompanies"] = makeHandler(h, h.norwayClient.BatchGetCompaniesMCP)
+
+	// Denmark tools
+	h.handlers["DKSearchCompanies"] = makeHandler(h, h.denmarkClient.SearchCompaniesMCP)
+	h.handlers["DKGetCompany"] = makeHandler(h, h.denmarkClient.GetCompanyMCP)
+	h.handlers["DKGetProductionUnits"] = makeHandler(h, h.denmarkClient.GetProductionUnitsMCP)
+	h.handlers["DKSearchByPhone"] = makeHandler(h, h.denmarkClient.SearchByPhoneMCP)
+	h.handlers["DKGetByPNumber"] = makeHandler(h, h.denmarkClient.GetByPNumberMCP)
+
+	// Finland tools
+	h.handlers["FISearchCompanies"] = makeHandler(h, h.finlandClient.SearchCompaniesMCP)
+	h.handlers["FIGetCompany"] = makeHandler(h, h.finlandClient.GetCompanyMCP)
+
+	// Sweden tools (only if client configured)
+	if h.swedenClient != nil {
+		h.handlers["SEGetCompany"] = makeHandler(h, h.swedenClient.GetCompanyMCP)
+		h.handlers["SEGetDocumentList"] = makeHandler(h, h.swedenClient.GetDocumentListMCP)
+		h.handlers["SECheckStatus"] = makeHandler(h, h.swedenClient.CheckStatusMCP)
+	}
+}
+
+// makeHandler creates a registration function for a typed handler method.
+// This is the only place where type-specific code is needed.
+func makeHandler[Args, Result any](h *HandlerRegistry, method func(context.Context, Args) (Result, error)) registrationFunc {
+	return func(server *mcp.Server, tool *mcp.Tool, spec ToolSpec) {
+		register(h, server, tool, spec, method)
 	}
 }
 
 // RegisterAll registers all tools with the MCP server.
 func (h *HandlerRegistry) RegisterAll(server *mcp.Server) {
+	registered := 0
 	for _, spec := range AllTools {
-		h.registerByName(server, spec)
+		if h.registerTool(server, spec) {
+			registered++
+		}
 	}
-	h.logger.Info("Registered all tools", "count", len(AllTools))
+	h.logger.Info("Registered all tools", "count", registered)
 }
 
-// registerByName dispatches to the correct typed registration function.
-func (h *HandlerRegistry) registerByName(server *mcp.Server, spec ToolSpec) {
-	tool := h.buildTool(spec)
-
-	switch spec.Method {
-	// Norway tools
-	case "SearchCompanies":
-		h.register(server, tool, spec, h.norwayClient.SearchCompaniesMCP)
-	case "GetCompany":
-		h.register(server, tool, spec, h.norwayClient.GetCompanyMCP)
-	case "GetRoles":
-		h.register(server, tool, spec, h.norwayClient.GetRolesMCP)
-	case "GetSubUnits":
-		h.register(server, tool, spec, h.norwayClient.GetSubUnitsMCP)
-	case "GetSubUnit":
-		h.register(server, tool, spec, h.norwayClient.GetSubUnitMCP)
-	case "GetUpdates":
-		h.register(server, tool, spec, h.norwayClient.GetUpdatesMCP)
-	case "SearchSubUnits":
-		h.register(server, tool, spec, h.norwayClient.SearchSubUnitsMCP)
-	case "ListMunicipalities":
-		h.register(server, tool, spec, h.norwayClient.ListMunicipalitiesMCP)
-	case "ListOrgForms":
-		h.register(server, tool, spec, h.norwayClient.ListOrgFormsMCP)
-	case "GetSubUnitUpdates":
-		h.register(server, tool, spec, h.norwayClient.GetSubUnitUpdatesMCP)
-	case "GetSignatureRights":
-		h.register(server, tool, spec, h.norwayClient.GetSignatureRightsMCP)
-	case "BatchGetCompanies":
-		h.register(server, tool, spec, h.norwayClient.BatchGetCompaniesMCP)
-
-	// Denmark tools
-	case "DKSearchCompanies":
-		h.register(server, tool, spec, h.denmarkClient.SearchCompaniesMCP)
-	case "DKGetCompany":
-		h.register(server, tool, spec, h.denmarkClient.GetCompanyMCP)
-	case "DKGetProductionUnits":
-		h.register(server, tool, spec, h.denmarkClient.GetProductionUnitsMCP)
-	case "DKSearchByPhone":
-		h.register(server, tool, spec, h.denmarkClient.SearchByPhoneMCP)
-	case "DKGetByPNumber":
-		h.register(server, tool, spec, h.denmarkClient.GetByPNumberMCP)
-
-	// Finland tools
-	case "FISearchCompanies":
-		h.register(server, tool, spec, h.finlandClient.SearchCompaniesMCP)
-	case "FIGetCompany":
-		h.register(server, tool, spec, h.finlandClient.GetCompanyMCP)
-
-	// Sweden tools (require OAuth2 credentials)
-	case "SEGetCompany":
-		if h.swedenClient != nil {
-			h.register(server, tool, spec, h.swedenClient.GetCompanyMCP)
-		} else {
-			h.logger.Warn("Sweden client not configured, skipping tool", "tool", spec.Name)
-		}
-	case "SEGetDocumentList":
-		if h.swedenClient != nil {
-			h.register(server, tool, spec, h.swedenClient.GetDocumentListMCP)
-		} else {
-			h.logger.Warn("Sweden client not configured, skipping tool", "tool", spec.Name)
-		}
-	case "SECheckStatus":
-		if h.swedenClient != nil {
-			h.register(server, tool, spec, h.swedenClient.CheckStatusMCP)
-		} else {
-			h.logger.Warn("Sweden client not configured, skipping tool", "tool", spec.Name)
-		}
-
-	default:
-		h.logger.Error("Unknown method, tool not registered", "method", spec.Method, "tool", spec.Name)
+// registerTool uses the pre-built handler map for O(1) dispatch.
+func (h *HandlerRegistry) registerTool(server *mcp.Server, spec ToolSpec) bool {
+	handler, ok := h.handlers[spec.Method]
+	if !ok {
+		h.logger.Warn("No handler for method, skipping tool", "method", spec.Method, "tool", spec.Name)
+		return false
 	}
+
+	tool := h.buildTool(spec)
+	handler(server, tool, spec)
+	return true
 }
 
 // buildTool creates an mcp.Tool from a ToolSpec.
@@ -313,64 +306,4 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 	}
 
 	h.logger.Info("Tool executed", attrs...)
-}
-
-// Convenience function to call the generic register with method receiver
-func (h *HandlerRegistry) register(server *mcp.Server, tool *mcp.Tool, spec ToolSpec, method any) {
-	switch m := method.(type) {
-	// Norway tools
-	case func(context.Context, norway.SearchCompaniesArgs) (norway.SearchCompaniesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetCompanyArgs) (norway.GetCompanyResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetRolesArgs) (norway.GetRolesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetSubUnitsArgs) (norway.GetSubUnitsResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetSubUnitArgs) (norway.GetSubUnitResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetUpdatesArgs) (norway.GetUpdatesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.SearchSubUnitsArgs) (norway.SearchSubUnitsResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.ListMunicipalitiesArgs) (norway.ListMunicipalitiesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.ListOrgFormsArgs) (norway.ListOrgFormsResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetSubUnitUpdatesArgs) (norway.GetSubUnitUpdatesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.GetSignatureRightsArgs) (norway.GetSignatureRightsResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, norway.BatchGetCompaniesArgs) (norway.BatchGetCompaniesResult, error):
-		register(h, server, tool, spec, m)
-
-	// Denmark tools
-	case func(context.Context, denmark.SearchCompaniesArgs) (denmark.SearchCompaniesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, denmark.GetCompanyArgs) (denmark.GetCompanyResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, denmark.GetProductionUnitsArgs) (denmark.GetProductionUnitsResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, denmark.SearchByPhoneArgs) (denmark.SearchByPhoneResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, denmark.GetByPNumberArgs) (denmark.GetByPNumberResult, error):
-		register(h, server, tool, spec, m)
-
-	// Finland tools
-	case func(context.Context, finland.SearchCompaniesArgs) (finland.SearchCompaniesResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, finland.GetCompanyArgs) (finland.GetCompanyResult, error):
-		register(h, server, tool, spec, m)
-
-	// Sweden tools
-	case func(context.Context, sweden.GetCompanyArgs) (sweden.GetCompanyResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, sweden.GetDocumentListArgs) (sweden.GetDocumentListResult, error):
-		register(h, server, tool, spec, m)
-	case func(context.Context, sweden.CheckStatusArgs) (sweden.CheckStatusResult, error):
-		register(h, server, tool, spec, m)
-
-	default:
-		h.logger.Error("Unknown method type, tool not registered", "tool", spec.Name)
-	}
 }

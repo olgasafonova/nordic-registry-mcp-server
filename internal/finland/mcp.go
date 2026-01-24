@@ -1,12 +1,17 @@
 package finland
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // SearchCompaniesMCP wraps SearchCompanies for MCP tool handlers
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
-	if err := ValidateSearchQuery(args.Query); err != nil {
+	query := strings.TrimSpace(args.Query)
+	if err := ValidateSearchQuery(query); err != nil {
 		return SearchCompaniesResult{}, err
 	}
+	args.Query = query
 
 	resp, err := c.SearchCompanies(ctx, args)
 	if err != nil {

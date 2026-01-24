@@ -10,9 +10,11 @@ import (
 
 // SearchCompaniesMCP is the MCP wrapper for SearchCompanies
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
-	if err := ValidateSearchQuery(args.Query); err != nil {
+	query := strings.TrimSpace(args.Query)
+	if err := ValidateSearchQuery(query); err != nil {
 		return SearchCompaniesResult{}, err
 	}
+	args.Query = query
 	if args.Size > 0 {
 		if err := ValidateSize(args.Size); err != nil {
 			return SearchCompaniesResult{}, err
@@ -34,15 +36,13 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		return SearchCompaniesResult{}, err
 	}
 
-	// Convert to summary format
-	companies := make([]CompanySummary, 0, len(resp.Embedded.Companies))
-	for _, co := range resp.Embedded.Companies {
+	// Convert to summary format - pre-allocate exact size
+	companies := make([]CompanySummary, len(resp.Embedded.Companies))
+	for i, co := range resp.Embedded.Companies {
 		summary := CompanySummary{
 			OrganizationNumber: co.OrganizationNumber,
 			Name:               co.Name,
 			Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
-			Bankrupt:           co.Bankrupt,
-			UnderLiquidation:   co.UnderLiquidation,
 		}
 		if co.OrganizationForm != nil {
 			summary.OrganizationForm = co.OrganizationForm.Code
@@ -53,7 +53,7 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		if co.BusinessAddress != nil {
 			summary.BusinessAddress = formatAddress(co.BusinessAddress)
 		}
-		companies = append(companies, summary)
+		companies[i] = summary
 	}
 
 	return SearchCompaniesResult{
@@ -89,8 +89,6 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		Website:                   company.Website,
 		VATRegistered:             company.RegisteredInVAT,
 		Status:                    getStatus(company.Bankrupt, company.UnderLiquidation),
-		Bankrupt:                  company.Bankrupt,
-		UnderLiquidation:          company.UnderLiquidation,
 		RegisteredInVoluntary:     company.RegisteredInVoluntary,
 		VoluntaryRegistrationDate: company.VoluntaryRegistrationDate,
 		Activity:                  company.Activity,
@@ -167,9 +165,9 @@ func (c *Client) GetSubUnitsMCP(ctx context.Context, args GetSubUnitsArgs) (GetS
 		return GetSubUnitsResult{}, err
 	}
 
-	// Convert to summary format
-	subunits := make([]SubUnitSummary, 0, len(resp.Embedded.SubUnits))
-	for _, su := range resp.Embedded.SubUnits {
+	// Convert to summary format - pre-allocate exact size
+	subunits := make([]SubUnitSummary, len(resp.Embedded.SubUnits))
+	for i, su := range resp.Embedded.SubUnits {
 		summary := SubUnitSummary{
 			OrganizationNumber: su.OrganizationNumber,
 			Name:               su.Name,
@@ -179,7 +177,7 @@ func (c *Client) GetSubUnitsMCP(ctx context.Context, args GetSubUnitsArgs) (GetS
 		if su.BusinessAddress != nil {
 			summary.BusinessAddress = formatAddress(su.BusinessAddress)
 		}
-		subunits = append(subunits, summary)
+		subunits[i] = summary
 	}
 
 	return GetSubUnitsResult{
@@ -220,9 +218,11 @@ func (c *Client) GetUpdatesMCP(ctx context.Context, args GetUpdatesArgs) (GetUpd
 
 // SearchSubUnitsMCP is the MCP wrapper for SearchSubUnits
 func (c *Client) SearchSubUnitsMCP(ctx context.Context, args SearchSubUnitsArgs) (SearchSubUnitsResult, error) {
-	if err := ValidateSearchQuery(args.Query); err != nil {
+	query := strings.TrimSpace(args.Query)
+	if err := ValidateSearchQuery(query); err != nil {
 		return SearchSubUnitsResult{}, err
 	}
+	args.Query = query
 	if args.Size > 0 {
 		if err := ValidateSize(args.Size); err != nil {
 			return SearchSubUnitsResult{}, err
@@ -416,16 +416,14 @@ func (c *Client) BatchGetCompaniesMCP(ctx context.Context, args BatchGetCompanie
 	}
 
 	// Build a set of found org numbers for quick lookup
-	found := make(map[string]bool)
-	companies := make([]CompanySummary, 0, len(resp.Embedded.Companies))
-	for _, co := range resp.Embedded.Companies {
+	found := make(map[string]bool, len(resp.Embedded.Companies))
+	companies := make([]CompanySummary, len(resp.Embedded.Companies))
+	for i, co := range resp.Embedded.Companies {
 		found[co.OrganizationNumber] = true
 		summary := CompanySummary{
 			OrganizationNumber: co.OrganizationNumber,
 			Name:               co.Name,
 			Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
-			Bankrupt:           co.Bankrupt,
-			UnderLiquidation:   co.UnderLiquidation,
 		}
 		if co.OrganizationForm != nil {
 			summary.OrganizationForm = co.OrganizationForm.Code
@@ -436,7 +434,7 @@ func (c *Client) BatchGetCompaniesMCP(ctx context.Context, args BatchGetCompanie
 		if co.BusinessAddress != nil {
 			summary.BusinessAddress = formatAddress(co.BusinessAddress)
 		}
-		companies = append(companies, summary)
+		companies[i] = summary
 	}
 
 	// Identify not found org numbers

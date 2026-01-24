@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 )
@@ -13,11 +14,12 @@ import (
 
 // SearchCompaniesMCP is the MCP wrapper for SearchCompany
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
-	if err := ValidateSearchQuery(args.Query); err != nil {
+	query := strings.TrimSpace(args.Query)
+	if err := ValidateSearchQuery(query); err != nil {
 		return SearchCompaniesResult{}, err
 	}
 
-	company, err := c.SearchCompany(ctx, args.Query)
+	company, err := c.SearchCompany(ctx, query)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return SearchCompaniesResult{
@@ -127,11 +129,12 @@ func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUn
 
 // SearchByPhoneMCP is the MCP wrapper for SearchByPhone
 func (c *Client) SearchByPhoneMCP(ctx context.Context, args SearchByPhoneArgs) (SearchByPhoneResult, error) {
-	if args.Phone == "" {
+	phone := strings.TrimSpace(args.Phone)
+	if phone == "" {
 		return SearchByPhoneResult{}, fmt.Errorf("phone number is required")
 	}
 
-	company, err := c.SearchByPhone(ctx, args.Phone)
+	company, err := c.SearchByPhone(ctx, phone)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return SearchByPhoneResult{
@@ -165,11 +168,12 @@ func (c *Client) SearchByPhoneMCP(ctx context.Context, args SearchByPhoneArgs) (
 
 // GetByPNumberMCP is the MCP wrapper for GetByPNumber
 func (c *Client) GetByPNumberMCP(ctx context.Context, args GetByPNumberArgs) (GetByPNumberResult, error) {
-	if args.PNumber == "" {
+	pnumber := strings.TrimSpace(args.PNumber)
+	if pnumber == "" {
 		return GetByPNumberResult{}, fmt.Errorf("P-number is required")
 	}
 
-	company, err := c.GetByPNumber(ctx, args.PNumber)
+	company, err := c.GetByPNumber(ctx, pnumber)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return GetByPNumberResult{
