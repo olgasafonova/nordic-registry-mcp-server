@@ -4,13 +4,14 @@ import "time"
 
 // SearchCompaniesArgs contains parameters for company search
 type SearchCompaniesArgs struct {
-	Query           string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
-	Page            int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
-	Size            int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
-	OrgForm         string `json:"org_form,omitempty" jsonschema_description:"Organization form code (AS, ENK, NUF, etc.)"`
-	Municipality    string `json:"municipality,omitempty" jsonschema_description:"Municipality number"`
-	RegisteredInVAT *bool  `json:"registered_in_vat,omitempty" jsonschema_description:"Filter by VAT registration"`
-	Bankrupt        *bool  `json:"bankrupt,omitempty" jsonschema_description:"Filter by bankruptcy status"`
+	Query                 string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
+	Page                  int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
+	Size                  int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
+	OrgForm               string `json:"org_form,omitempty" jsonschema_description:"Organization form code (AS, ENK, NUF, etc.)"`
+	Municipality          string `json:"municipality,omitempty" jsonschema_description:"Municipality number"`
+	RegisteredInVAT       *bool  `json:"registered_in_vat,omitempty" jsonschema_description:"Filter by VAT registration"`
+	Bankrupt              *bool  `json:"bankrupt,omitempty" jsonschema_description:"Filter by bankruptcy status"`
+	RegisteredInVoluntary *bool  `json:"registered_in_voluntary,omitempty" jsonschema_description:"Filter for voluntary/non-profit organizations (Frivillighetsregisteret)"`
 }
 
 // SearchCompaniesResult is the result of a company search
@@ -47,19 +48,22 @@ type GetCompanyResult struct {
 
 // CompanyDetailSummary is a compact company representation for get_company responses
 type CompanyDetailSummary struct {
-	OrganizationNumber string `json:"organization_number"`
-	Name               string `json:"name"`
-	OrganizationForm   string `json:"organization_form,omitempty"`
-	BusinessAddress    string `json:"business_address,omitempty"`
-	PostalAddress      string `json:"postal_address,omitempty"`
-	RegistrationDate   string `json:"registration_date,omitempty"`
-	EmployeeCount      int    `json:"employee_count,omitempty"`
-	Industry           string `json:"industry,omitempty"`
-	Website            string `json:"website,omitempty"`
-	VATRegistered      bool   `json:"vat_registered,omitempty"`
-	Status             string `json:"status,omitempty"`            // ACTIVE, BANKRUPT, LIQUIDATING
-	Bankrupt           bool   `json:"bankrupt,omitempty"`          // Deprecated: use Status
-	UnderLiquidation   bool   `json:"under_liquidation,omitempty"` // Deprecated: use Status
+	OrganizationNumber        string   `json:"organization_number"`
+	Name                      string   `json:"name"`
+	OrganizationForm          string   `json:"organization_form,omitempty"`
+	BusinessAddress           string   `json:"business_address,omitempty"`
+	PostalAddress             string   `json:"postal_address,omitempty"`
+	RegistrationDate          string   `json:"registration_date,omitempty"`
+	EmployeeCount             int      `json:"employee_count,omitempty"`
+	Industry                  string   `json:"industry,omitempty"`
+	Website                   string   `json:"website,omitempty"`
+	VATRegistered             bool     `json:"vat_registered,omitempty"`
+	Status                    string   `json:"status,omitempty"`            // ACTIVE, BANKRUPT, LIQUIDATING
+	Bankrupt                  bool     `json:"bankrupt,omitempty"`          // Deprecated: use Status
+	UnderLiquidation          bool     `json:"under_liquidation,omitempty"` // Deprecated: use Status
+	RegisteredInVoluntary     bool     `json:"registered_in_voluntary,omitempty"`
+	VoluntaryRegistrationDate string   `json:"voluntary_registration_date,omitempty"` // When registered in Frivillighetsregisteret
+	Activity                  []string `json:"activity,omitempty"`                    // Activity description for voluntary orgs
 }
 
 // GetRolesArgs contains parameters for getting company roles

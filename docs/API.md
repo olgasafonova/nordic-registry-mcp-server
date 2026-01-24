@@ -21,6 +21,7 @@ Search for Norwegian companies by name.
 | `municipality` | string | No | Filter by municipality code |
 | `registered_in_vat` | bool | No | Filter by VAT registration status |
 | `bankrupt` | bool | No | Filter by bankruptcy status |
+| `registered_in_voluntary` | bool | No | Filter for voluntary/non-profit organizations (Frivillighetsregisteret) |
 
 **Returns:**
 
@@ -46,6 +47,8 @@ Search for Norwegian companies by name.
 - "Find Norwegian companies named Equinor"
 - "Search for AS companies in Oslo"
 - "Find bankrupt companies named Restaurant"
+- "Find voluntary organizations named Røde Kors"
+- "Search for non-profit organizations in Frivillighetsregisteret"
 
 ---
 
@@ -80,7 +83,30 @@ Get detailed information about a Norwegian company.
     "industry": "Utvinning av råolje",
     "website": "https://www.equinor.com",
     "vat_registered": true,
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "registered_in_voluntary": false,
+    "voluntary_registration_date": null,
+    "activity": null
+  }
+}
+```
+
+For voluntary organizations:
+
+```json
+{
+  "summary": {
+    "organization_number": "916627939",
+    "name": "- P A L M E R A -",
+    "organization_form": "FLI - Forening/lag/innretning",
+    "status": "ACTIVE",
+    "registered_in_voluntary": true,
+    "voluntary_registration_date": "2022-06-18",
+    "activity": [
+      "Er et non-profit kunstnerstyrt visningsrom og kunstgalleri i",
+      "Bergen sentrum. Stiller ut samtidskunst fra lokale og",
+      "internasjonale kunstnere."
+    ]
   }
 }
 ```

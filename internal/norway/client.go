@@ -100,6 +100,9 @@ func (c *Client) SearchCompanies(ctx context.Context, query string, opts *Search
 		if opts.Bankrupt != nil {
 			params.Set("konkurs", strconv.FormatBool(*opts.Bankrupt))
 		}
+		if opts.RegisteredInVoluntary != nil {
+			params.Set("registrertIFrivillighetsregisteret", strconv.FormatBool(*opts.RegisteredInVoluntary))
+		}
 	}
 
 	cacheKey := "search:" + params.Encode()
@@ -118,12 +121,13 @@ func (c *Client) SearchCompanies(ctx context.Context, query string, opts *Search
 
 // SearchOptions configures company search
 type SearchOptions struct {
-	Page            int
-	Size            int
-	OrgForm         string // Organization form code (AS, ENK, etc.)
-	Municipality    string // Kommune number
-	RegisteredInVAT *bool
-	Bankrupt        *bool
+	Page                  int
+	Size                  int
+	OrgForm               string // Organization form code (AS, ENK, etc.)
+	Municipality          string // Kommune number
+	RegisteredInVAT       *bool
+	Bankrupt              *bool
+	RegisteredInVoluntary *bool // Filter for voluntary organizations (Frivillighetsregisteret)
 }
 
 // GetCompany retrieves a company by organization number

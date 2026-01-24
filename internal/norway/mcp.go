@@ -20,12 +20,13 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 	}
 
 	opts := &SearchOptions{
-		Page:            args.Page,
-		Size:            args.Size,
-		OrgForm:         args.OrgForm,
-		Municipality:    args.Municipality,
-		RegisteredInVAT: args.RegisteredInVAT,
-		Bankrupt:        args.Bankrupt,
+		Page:                  args.Page,
+		Size:                  args.Size,
+		OrgForm:               args.OrgForm,
+		Municipality:          args.Municipality,
+		RegisteredInVAT:       args.RegisteredInVAT,
+		Bankrupt:              args.Bankrupt,
+		RegisteredInVoluntary: args.RegisteredInVoluntary,
 	}
 
 	resp, err := c.SearchCompanies(ctx, args.Query, opts)
@@ -81,15 +82,18 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 
 	// Default: return summary
 	summary := &CompanyDetailSummary{
-		OrganizationNumber: company.OrganizationNumber,
-		Name:               company.Name,
-		RegistrationDate:   company.RegistrationDate,
-		EmployeeCount:      company.EmployeeCount,
-		Website:            company.Website,
-		VATRegistered:      company.RegisteredInVAT,
-		Status:             getStatus(company.Bankrupt, company.UnderLiquidation),
-		Bankrupt:           company.Bankrupt,
-		UnderLiquidation:   company.UnderLiquidation,
+		OrganizationNumber:        company.OrganizationNumber,
+		Name:                      company.Name,
+		RegistrationDate:          company.RegistrationDate,
+		EmployeeCount:             company.EmployeeCount,
+		Website:                   company.Website,
+		VATRegistered:             company.RegisteredInVAT,
+		Status:                    getStatus(company.Bankrupt, company.UnderLiquidation),
+		Bankrupt:                  company.Bankrupt,
+		UnderLiquidation:          company.UnderLiquidation,
+		RegisteredInVoluntary:     company.RegisteredInVoluntary,
+		VoluntaryRegistrationDate: company.VoluntaryRegistrationDate,
+		Activity:                  company.Activity,
 	}
 	if company.OrganizationForm != nil {
 		summary.OrganizationForm = company.OrganizationForm.Code + " - " + company.OrganizationForm.Description
