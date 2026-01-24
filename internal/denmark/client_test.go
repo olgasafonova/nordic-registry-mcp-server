@@ -1,6 +1,7 @@
 package denmark
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -744,7 +745,7 @@ func TestWithBaseURL(t *testing.T) {
 	}
 }
 
-func TestValidateCVR(t *testing.T) {
+func TestValidateCVR_internal(t *testing.T) {
 	tests := []struct {
 		name    string
 		cvr     string
