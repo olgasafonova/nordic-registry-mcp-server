@@ -41,3 +41,4 @@ notes/
 # Claude Code
 .mcp.json
 .mcpregistry_*
+.playwright-mcp/
