@@ -225,6 +225,16 @@ nordic-registry-mcp-server/
 
 ---
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/API.md) | Complete reference for all 19 tools with parameters, return values, and examples |
+| [Architecture](docs/ARCHITECTURE.md) | System design, request flow, resilience patterns |
+| [Production Readiness](docs/PRODUCTION.md) | Deployment checklist, monitoring, known limitations |
+
+---
+
 ## Why Not Sweden?
 
 Sweden's Bolagsverket doesn't offer a free public API like the other Nordic countries. Options exist (Eniro API, OpenCorporates) but require payment or have restrictions. We may add Sweden if Bolagsverket releases a proper open data API.
