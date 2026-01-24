@@ -41,20 +41,20 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		return GetCompanyResult{}, err
 	}
 
-	// Handle case where no organisation was found
+	// Handle case where no organization was found
 	if resp == nil || len(resp.Organisationer) == 0 {
 		return GetCompanyResult{}, fmt.Errorf("no company found for organization number %s", args.OrgNumber)
 	}
 
-	// Take the first organisation (there can be multiple for sole proprietors)
+	// Take the first organization (there can be multiple for sole proprietors)
 	org := resp.Organisationer[0]
 
 	summary := &CompanySummary{
-		OrganizationNumber: org.GetOrgNumber(),
-		Name:               org.GetName(),
-		IsActive:           org.IsActive(),
-		RegistrationDate:   org.GetRegistrationDate(),
-		PostalAddress:      org.GetAddress(),
+		OrganizationNumber:  org.GetOrgNumber(),
+		Name:                org.GetName(),
+		IsActive:            org.IsActive(),
+		RegistrationDate:    org.GetRegistrationDate(),
+		PostalAddress:       org.GetAddress(),
 		BusinessDescription: org.GetBusinessDescription(),
 	}
 

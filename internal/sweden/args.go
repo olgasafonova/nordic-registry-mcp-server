@@ -14,8 +14,8 @@ type GetCompanyResult struct {
 type CompanySummary struct {
 	OrganizationNumber  string   `json:"organization_number"`
 	Name                string   `json:"name"`
-	OrganizationForm    string   `json:"organization_form,omitempty"`     // e.g., "AB - Aktiebolag"
-	LegalForm           string   `json:"legal_form,omitempty"`            // e.g., "49 - Övriga aktiebolag"
+	OrganizationForm    string   `json:"organization_form,omitempty"`    // e.g., "AB - Aktiebolag"
+	LegalForm           string   `json:"legal_form,omitempty"`           // e.g., "49 - Övriga aktiebolag"
 	BusinessDescription string   `json:"business_description,omitempty"` // Free text description
 	RegistrationDate    string   `json:"registration_date,omitempty"`
 	RegistrationCountry string   `json:"registration_country,omitempty"`

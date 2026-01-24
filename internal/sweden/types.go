@@ -17,10 +17,10 @@ const (
 type FelTyp string
 
 const (
-	FelTypOrganisationFinnsEj      FelTyp = "ORGANISATION_FINNS_EJ"
-	FelTypOgiltigBegaran           FelTyp = "OGILTIG_BEGARAN"
+	FelTypOrganisationFinnsEj       FelTyp = "ORGANISATION_FINNS_EJ" //nolint:misspell // Swedish API value
+	FelTypOgiltigBegaran            FelTyp = "OGILTIG_BEGARAN"
 	FelTypOtillgangligUppgiftskalla FelTyp = "OTILLGANGLIG_UPPGIFTSKALLA"
-	FelTypTimeout                  FelTyp = "TIMEOUT"
+	FelTypTimeout                   FelTyp = "TIMEOUT"
 )
 
 // JaNej represents a yes/no value in Swedish.
@@ -43,7 +43,7 @@ type KodKlartext struct {
 	Klartext string `json:"klartext"`
 }
 
-// Identitetsbeteckning is the unique identification of an organisation.
+// Identitetsbeteckning is the unique identification of an organization.
 // Can be organisationsnummer (10 digits), personnummer (12 digits),
 // samordningsnummer (12 digits), or GD-nummer (10 digits starting with 302).
 type Identitetsbeteckning struct {
@@ -53,20 +53,20 @@ type Identitetsbeteckning struct {
 
 // OrganisationsnamnObjekt represents a single business name.
 type OrganisationsnamnObjekt struct {
-	Namn                                    string       `json:"namn,omitempty"`
-	Organisationsnamntyp                    *KodKlartext `json:"organisationsnamntyp,omitempty"`
-	Registreringsdatum                      string       `json:"registreringsdatum,omitempty"`
+	Namn                                       string       `json:"namn,omitempty"`
+	Organisationsnamntyp                       *KodKlartext `json:"organisationsnamntyp,omitempty"`
+	Registreringsdatum                         string       `json:"registreringsdatum,omitempty"`
 	VerksamhetsbeskrivningSarskiltForetagsnamn string       `json:"verksamhetsbeskrivningSarskiltForetagsnamn,omitempty"`
 }
 
-// Organisationsnamn contains the business names associated with the organisation.
+// Organisationsnamn contains the business names associated with the organization.
 type Organisationsnamn struct {
 	OrganisationsnamnLista []OrganisationsnamnObjekt `json:"organisationsnamnLista,omitempty"`
 	Dataproducent          Dataproducent             `json:"dataproducent,omitempty"`
 	Fel                    *Fel                      `json:"fel,omitempty"`
 }
 
-// Reklamsparr indicates if the organisation is blocked from receiving advertisements.
+// Reklamsparr indicates if the organization is blocked from receiving advertisements.
 type Reklamsparr struct {
 	Kod           JaNej         `json:"kod,omitempty"`
 	Dataproducent Dataproducent `json:"dataproducent,omitempty"`
@@ -81,14 +81,14 @@ type Organisationsform struct {
 	Fel           *Fel          `json:"fel,omitempty"`
 }
 
-// AvregistreradOrganisation contains the date an organisation was removed from the register.
+// AvregistreradOrganisation contains the date an organization was removed from the register.
 type AvregistreradOrganisation struct {
 	Avregistreringsdatum string        `json:"avregistreringsdatum,omitempty"`
 	Dataproducent        Dataproducent `json:"dataproducent,omitempty"`
 	Fel                  *Fel          `json:"fel,omitempty"`
 }
 
-// Avregistreringsorsak contains the reason an organisation was removed from the register.
+// Avregistreringsorsak contains the reason an organization was removed from the register.
 type Avregistreringsorsak struct {
 	Kod           string        `json:"kod,omitempty"`
 	Klartext      string        `json:"klartext,omitempty"`
@@ -108,8 +108,8 @@ type PagaendeAvvecklingsEllerOmstruktureringsforfarandeObjekt struct {
 // restructuring procedures.
 type PagaendeAvvecklingsEllerOmstruktureringsforfarande struct {
 	PagaendeAvvecklingsEllerOmstruktureringsforfarandeLista []PagaendeAvvecklingsEllerOmstruktureringsforfarandeObjekt `json:"pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista,omitempty"`
-	Dataproducent                                            Dataproducent                                              `json:"dataproducent,omitempty"`
-	Fel                                                      *Fel                                                       `json:"fel,omitempty"`
+	Dataproducent                                           Dataproducent                                              `json:"dataproducent,omitempty"`
+	Fel                                                     *Fel                                                       `json:"fel,omitempty"`
 }
 
 // JuridiskForm is the legal form registered at the Swedish Tax Agency.
@@ -120,14 +120,14 @@ type JuridiskForm struct {
 	Fel           *Fel          `json:"fel,omitempty"`
 }
 
-// VerksamOrganisation indicates if the organisation is active.
+// VerksamOrganisation indicates if the organization is active.
 type VerksamOrganisation struct {
 	Kod           JaNej         `json:"kod,omitempty"`
 	Dataproducent Dataproducent `json:"dataproducent,omitempty"`
 	Fel           *Fel          `json:"fel,omitempty"`
 }
 
-// Organisationsdatum contains the date an organisation was registered.
+// Organisationsdatum contains the date an organization was registered.
 type Organisationsdatum struct {
 	Registreringsdatum string        `json:"registreringsdatum,omitempty"`
 	InfortHosScb       string        `json:"infortHosScb,omitempty"`
@@ -166,6 +166,8 @@ type PostadressOrganisation struct {
 }
 
 // Organisation contains all company information from the API.
+//
+//nolint:misspell // Swedish API uses "organisation"
 type Organisation struct {
 	Organisationsidentitet                             *Identitetsbeteckning                               `json:"organisationsidentitet,omitempty"`
 	Namnskyddslopnummer                                *int                                                `json:"namnskyddslopnummer,omitempty"`
@@ -190,8 +192,10 @@ type OrganisationerBegaran struct {
 }
 
 // OrganisationerSvar is the response from the /organisationer endpoint.
+//
+//nolint:misspell // Swedish API uses "organisationer"
 type OrganisationerSvar struct {
-	Organisationer []Organisation `json:"organisationer,omitempty"`
+	Organisationer []Organisation `json:"organisationer,omitempty"` //nolint:misspell
 }
 
 // DokumentlistaBegaran is the request body for the /dokumentlista endpoint.
@@ -231,7 +235,9 @@ type TokenResponse struct {
 	Scope       string `json:"scope,omitempty"`
 }
 
-// GetName returns the primary business name for the organisation.
+// GetName returns the primary business name for the organization.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetName() string {
 	if o.Organisationsnamn == nil || len(o.Organisationsnamn.OrganisationsnamnLista) == 0 {
 		return ""
@@ -240,7 +246,9 @@ func (o *Organisation) GetName() string {
 	return o.Organisationsnamn.OrganisationsnamnLista[0].Namn
 }
 
-// GetOrgNumber returns the organisation number.
+// GetOrgNumber returns the organization number.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetOrgNumber() string {
 	if o.Organisationsidentitet == nil {
 		return ""
@@ -248,7 +256,9 @@ func (o *Organisation) GetOrgNumber() string {
 	return o.Organisationsidentitet.Identitetsbeteckning
 }
 
-// GetFormCode returns the organisation form code (e.g., AB, E, HB).
+// GetFormCode returns the organization form code (e.g., AB, E, HB).
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetFormCode() string {
 	if o.Organisationsform == nil {
 		return ""
@@ -256,7 +266,9 @@ func (o *Organisation) GetFormCode() string {
 	return o.Organisationsform.Kod
 }
 
-// GetFormDescription returns the organisation form description.
+// GetFormDescription returns the organization form description.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetFormDescription() string {
 	if o.Organisationsform == nil {
 		return ""
@@ -264,7 +276,9 @@ func (o *Organisation) GetFormDescription() string {
 	return o.Organisationsform.Klartext
 }
 
-// IsActive returns true if the organisation is currently active.
+// IsActive returns true if the organization is currently active.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) IsActive() bool {
 	if o.VerksamOrganisation != nil && o.VerksamOrganisation.Kod == JaNejJA {
 		return true
@@ -277,6 +291,8 @@ func (o *Organisation) IsActive() bool {
 }
 
 // GetRegistrationDate returns the registration date.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetRegistrationDate() string {
 	if o.Organisationsdatum == nil {
 		return ""
@@ -285,6 +301,8 @@ func (o *Organisation) GetRegistrationDate() string {
 }
 
 // GetAddress returns a formatted address string.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetAddress() string {
 	if o.PostadressOrganisation == nil || o.PostadressOrganisation.Postadress == nil {
 		return ""
@@ -307,6 +325,8 @@ func (o *Organisation) GetAddress() string {
 }
 
 // GetBusinessDescription returns the business activity description.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetBusinessDescription() string {
 	if o.Verksamhetsbeskrivning == nil {
 		return ""
@@ -315,6 +335,8 @@ func (o *Organisation) GetBusinessDescription() string {
 }
 
 // GetSNICodes returns the SNI industry codes.
+//
+//nolint:misspell // Organisation is the Swedish API type name
 func (o *Organisation) GetSNICodes() []KodKlartext {
 	if o.NaringsgrenOrganisation == nil {
 		return nil

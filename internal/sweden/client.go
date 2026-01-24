@@ -248,7 +248,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body an
 	return respBody, nil
 }
 
-// NormalizeOrgNumber normalizes a Swedish organisation number.
+// NormalizeOrgNumber normalizes a Swedish organization number.
 // Swedish org numbers are 10 digits (NNNNNNNNNN) or 12 digits for personnummer.
 // This removes any dashes or spaces.
 func NormalizeOrgNumber(orgNumber string) string {
@@ -258,11 +258,11 @@ func NormalizeOrgNumber(orgNumber string) string {
 	return strings.TrimSpace(orgNumber)
 }
 
-// GetCompany retrieves company information by organisation number.
+// GetCompany retrieves company information by organization number.
 func (c *Client) GetCompany(ctx context.Context, orgNumber string) (*OrganisationerSvar, error) {
 	orgNumber = NormalizeOrgNumber(orgNumber)
 	if orgNumber == "" {
-		return nil, errors.New("sweden: organisation number is required")
+		return nil, errors.New("sweden: organization number is required")
 	}
 
 	// Check cache
@@ -305,7 +305,7 @@ func (c *Client) GetCompany(ctx context.Context, orgNumber string) (*Organisatio
 func (c *Client) GetDocumentList(ctx context.Context, orgNumber string) (*DokumentlistaSvar, error) {
 	orgNumber = NormalizeOrgNumber(orgNumber)
 	if orgNumber == "" {
-		return nil, errors.New("sweden: organisation number is required")
+		return nil, errors.New("sweden: organization number is required")
 	}
 
 	// Check cache
