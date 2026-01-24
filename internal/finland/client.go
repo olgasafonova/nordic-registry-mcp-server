@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/base"
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/infra"
 )
 
@@ -187,7 +188,7 @@ func (c *Client) doGetCompany(ctx context.Context, businessID string) (*Company,
 
 	if len(result.Companies) == 0 {
 		c.RecordSuccess()
-		return nil, fmt.Errorf("company not found: %s", businessID)
+		return nil, apierrors.NewNotFoundError("finland", businessID)
 	}
 
 	c.RecordSuccess()

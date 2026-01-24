@@ -1,9 +1,10 @@
 package finland
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
+
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 )
 
 // ValidateBusinessID validates a Finnish business ID (Y-tunnus).
@@ -11,7 +12,7 @@ import (
 // Uses NormalizeBusinessID for format validation and adds check digit verification.
 func ValidateBusinessID(businessID string) error {
 	if businessID == "" {
-		return fmt.Errorf("business ID is required")
+		return apierrors.NewValidationError("business_id", "", "is required")
 	}
 
 	// Use existing normalization which validates format
@@ -24,7 +25,7 @@ func ValidateBusinessID(businessID string) error {
 	// Weights: 7, 9, 10, 5, 8, 4, 2
 	parts := strings.Split(normalized, "-")
 	if len(parts) != 2 {
-		return fmt.Errorf("invalid Finnish business ID format: %s", businessID)
+		return apierrors.NewValidationError("business_id", businessID, "invalid format")
 	}
 
 	digits := parts[0]
@@ -43,13 +44,13 @@ func ValidateBusinessID(businessID string) error {
 		expectedCheck = 0
 	} else if remainder == 1 {
 		// Check digit 1 is not valid, this business ID would not be issued
-		return fmt.Errorf("invalid Finnish business ID %q: invalid check digit", businessID)
+		return apierrors.NewValidationError("business_id", businessID, "invalid check digit")
 	} else {
 		expectedCheck = 11 - remainder
 	}
 
 	if checkDigit != expectedCheck {
-		return fmt.Errorf("invalid Finnish business ID %q: check digit should be %d", businessID, expectedCheck)
+		return apierrors.NewValidationError("business_id", businessID, "incorrect check digit")
 	}
 
 	return nil
@@ -58,10 +59,10 @@ func ValidateBusinessID(businessID string) error {
 // ValidateSearchQuery validates a search query.
 func ValidateSearchQuery(query string) error {
 	if query == "" {
-		return fmt.Errorf("search query is required")
+		return apierrors.NewValidationError("query", "", "is required")
 	}
 	if len(query) < 2 {
-		return fmt.Errorf("search query must be at least 2 characters")
+		return apierrors.NewValidationError("query", query, "must be at least 2 characters")
 	}
 	return nil
 }
