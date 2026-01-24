@@ -4,7 +4,7 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 
 [![CI](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/olgasafonova/nordic-registry-mcp-server)](https://goreportcard.com/report/github.com/olgasafonova/nordic-registry-mcp-server)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 **Works with:** Claude Desktop, Claude Code, Cursor, and any MCP-compatible tool.
 
@@ -456,7 +456,7 @@ golangci-lint run
 
 ## License
 
-MIT License
+Apache License 2.0
 
 ## Credits
 
