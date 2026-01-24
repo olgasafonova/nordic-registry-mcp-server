@@ -21,7 +21,7 @@ import (
 const (
 	// API endpoints
 	defaultBaseURL  = "https://gw.api.bolagsverket.se/vardefulla-datamangder/v1"
-	defaultTokenURL = "https://portal.api.bolagsverket.se/oauth2/token"
+	defaultTokenURL = "https://portal.api.bolagsverket.se/oauth2/token" //nolint:gosec // G101 false positive: public OAuth endpoint URL
 
 	// OAuth2 scopes
 	scopeRead = "vardefulla-datamangder:read"
@@ -29,7 +29,7 @@ const (
 
 	// Environment variable names
 	envClientID     = "BOLAGSVERKET_CLIENT_ID"
-	envClientSecret = "BOLAGSVERKET_CLIENT_SECRET"
+	envClientSecret = "BOLAGSVERKET_CLIENT_SECRET" //nolint:gosec // G101 false positive: env var name, not actual secret
 
 	// Timeouts and retries
 	defaultTimeout     = 30 * time.Second
