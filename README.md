@@ -14,8 +14,8 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 
 | Country | Registry | Tools | ID Format |
 |---------|----------|-------|-----------|
-| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 6 | 9 digits (e.g., `923609016`) |
-| Denmark | [CVR](https://datacvr.virk.dk) | 3 | 8 digits (e.g., `10150817`) |
+| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 10 | 9 digits (e.g., `923609016`) |
+| Denmark | [CVR](https://datacvr.virk.dk) | 5 | 8 digits (e.g., `10150817`) |
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
 
 All APIs are free and require no authentication.
@@ -90,9 +90,13 @@ Restart Claude Desktop after changes.
 | `norway_search_companies` | Search companies by name |
 | `norway_get_company` | Get company details by org number |
 | `norway_get_roles` | Get board members, CEO, auditors |
-| `norway_get_subunits` | List branch offices |
+| `norway_get_subunits` | List branch offices for a company |
 | `norway_get_subunit` | Get specific branch office details |
+| `norway_search_subunits` | Search branch offices by name |
 | `norway_get_updates` | Get recent registry changes |
+| `norway_get_subunit_updates` | Get recent branch office changes |
+| `norway_list_municipalities` | List municipality codes |
+| `norway_list_org_forms` | List organization form codes (AS, ENK, etc.) |
 
 ### Denmark (CVR)
 
@@ -101,6 +105,8 @@ Restart Claude Desktop after changes.
 | `denmark_search_companies` | Search companies by name |
 | `denmark_get_company` | Get company details by CVR number |
 | `denmark_get_production_units` | List production units (P-numbers) |
+| `denmark_search_by_phone` | Find company by phone number |
+| `denmark_get_by_pnumber` | Get company by P-number |
 
 ### Finland (PRH)
 
@@ -131,11 +137,23 @@ Restart Claude Desktop after changes.
 
 ### Branch Offices
 - *"What branches does 923609016 have?"*
+- *"Search for branch offices named Equinor"*
 - *"List production units for CVR 10150817"*
 
 ### Registry Updates (Norway only)
 - *"What companies changed since yesterday?"*
 - *"Get recent registry updates"*
+- *"What branch offices changed recently?"*
+
+### Reference Data (Norway only)
+- *"List all Norwegian municipalities"*
+- *"What is Oslo's municipality code?"*
+- *"What does AS mean?"*
+- *"List organization form codes"*
+
+### Phone & P-Number Lookup (Denmark)
+- *"Find company with phone 33121212"*
+- *"Look up production unit P-number 1234567890"*
 
 ---
 
