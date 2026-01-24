@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/base"
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/infra"
 )
 
@@ -75,7 +76,7 @@ func (c *Client) SearchCompany(ctx context.Context, query string) (*Company, err
 
 	// Check if we got a valid result
 	if result.CVR == 0 {
-		return nil, &NotFoundError{Query: query}
+		return nil, apierrors.NewNotFoundError("denmark", query)
 	}
 
 	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
@@ -107,7 +108,7 @@ func (c *Client) GetCompany(ctx context.Context, cvr string) (*Company, error) {
 
 		// Check if we got a valid result
 		if company.CVR == 0 {
-			return nil, &NotFoundError{CVR: cvr}
+			return nil, apierrors.NewNotFoundError("denmark", cvr)
 		}
 
 		return &company, nil
@@ -138,7 +139,7 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 	// Handle HTTP errors
 	if statusCode == http.StatusNotFound {
 		c.RecordSuccess()
-		return &NotFoundError{Query: params.Get("search")}
+		return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
 	}
 
 	if statusCode >= 400 {
@@ -148,7 +149,7 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 			// Check for "not found" type errors
 			if apiErr.T == 1 || strings.Contains(strings.ToLower(apiErr.Error), "not found") {
 				c.RecordSuccess()
-				return &NotFoundError{Query: params.Get("search"), CVR: params.Get("vat")}
+				return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
 			}
 			c.RecordSuccess() // Client errors don't indicate service issues
 			return fmt.Errorf("API error %d: %s", statusCode, apiErr.String())
@@ -162,7 +163,7 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 	if json.Unmarshal(body, &apiErr) == nil && apiErr.Error != "" {
 		if apiErr.T == 1 || strings.Contains(strings.ToLower(apiErr.Error), "not found") {
 			c.RecordSuccess()
-			return &NotFoundError{Query: params.Get("search"), CVR: params.Get("vat")}
+			return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
 		}
 	}
 
@@ -175,17 +176,12 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 	return nil
 }
 
-// NotFoundError indicates a company was not found
-type NotFoundError struct {
-	Query string
-	CVR   string
-}
-
-func (e *NotFoundError) Error() string {
-	if e.CVR != "" {
-		return fmt.Sprintf("company not found with CVR: %s", e.CVR)
+// notFoundIdentifier extracts the best identifier from request params
+func notFoundIdentifier(params url.Values) string {
+	if cvr := params.Get("vat"); cvr != "" {
+		return cvr
 	}
-	return fmt.Sprintf("company not found: %s", e.Query)
+	return params.Get("search")
 }
 
 // normalizeCVR removes spaces and dashes from CVR number

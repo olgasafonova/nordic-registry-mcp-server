@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/base"
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/infra"
 )
 
@@ -238,7 +239,7 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 	// Handle HTTP errors
 	if statusCode == http.StatusNotFound {
 		c.RecordSuccess()
-		return &NotFoundError{OrgNumber: path}
+		return apierrors.NewNotFoundError("norway", path)
 	}
 
 	if statusCode >= 400 {
@@ -259,15 +260,6 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 
 	c.RecordSuccess()
 	return nil
-}
-
-// NotFoundError indicates a company was not found
-type NotFoundError struct {
-	OrgNumber string
-}
-
-func (e *NotFoundError) Error() string {
-	return fmt.Sprintf("organization not found: %s", e.OrgNumber)
 }
 
 // normalizeOrgNumber removes spaces and dashes from organization number

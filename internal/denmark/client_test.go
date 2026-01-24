@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/base"
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 )
 
 func TestNewClient(t *testing.T) {
@@ -62,18 +63,18 @@ func TestClient_DefaultTimeout(t *testing.T) {
 func TestNotFoundError(t *testing.T) {
 	tests := []struct {
 		name     string
-		err      *NotFoundError
+		err      *apierrors.NotFoundError
 		expected string
 	}{
 		{
 			name:     "with query",
-			err:      &NotFoundError{Query: "test company"},
-			expected: "company not found: test company",
+			err:      apierrors.NewNotFoundError("denmark", "test company"),
+			expected: "company not found in denmark registry: test company",
 		},
 		{
 			name:     "with CVR",
-			err:      &NotFoundError{CVR: "12345678"},
-			expected: "company not found with CVR: 12345678",
+			err:      apierrors.NewNotFoundError("denmark", "12345678"),
+			expected: "company not found in denmark registry: 12345678",
 		},
 	}
 

@@ -2,8 +2,9 @@ package denmark
 
 import (
 	"context"
-	"errors"
 	"strconv"
+
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 )
 
 // MCP Tool wrapper methods
@@ -17,8 +18,7 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 
 	company, err := c.SearchCompany(ctx, args.Query)
 	if err != nil {
-		var notFound *NotFoundError
-		if errors.As(err, &notFound) {
+		if apierrors.IsNotFound(err) {
 			return SearchCompaniesResult{
 				Found:   false,
 				Message: "No company found matching: " + args.Query,
