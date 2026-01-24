@@ -126,6 +126,7 @@ Restart Claude Desktop after changes.
 - *"Search for AS companies in Oslo"*
 - *"Find Danish companies named Carlsberg"*
 - *"Look up Finnish company Kone"*
+- *"Find voluntary organizations named Røde Kors"*
 
 ### Company Details
 - *"Get details for Norwegian org 923609016"*

@@ -22,6 +22,10 @@ type Company struct {
 	RegisteredInFoundation bool `json:"registrertIStiftelsesregisteret"`
 	RegisteredInVoluntary  bool `json:"registrertIFrivillighetsregisteret"`
 
+	// Voluntary organizations (Frivillighetsregisteret)
+	VoluntaryRegistrationDate string   `json:"registreringsdatoFrivillighetsregisteret,omitempty"`
+	Activity                  []string `json:"aktivitet,omitempty"` // Activity description for voluntary orgs
+
 	// Status flags
 	Bankrupt               bool `json:"konkurs"`
 	UnderLiquidation       bool `json:"underAvvikling"`

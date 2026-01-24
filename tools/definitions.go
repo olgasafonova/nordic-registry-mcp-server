@@ -31,16 +31,18 @@ PARAMETERS:
 - query: Company name to search for (required)
 - page: Page number for pagination (optional, default 0)
 - size: Results per page (optional, default 20, max 100)
-- org_form: Filter by organization form code, e.g., "AS", "ENK", "NUF" (optional)
+- org_form: Filter by organization form code, e.g., "AS", "ENK", "NUF", "FLI" (optional)
 - municipality: Filter by municipality number (optional)
 - registered_in_vat: Filter by VAT registration status (optional)
 - bankrupt: Filter by bankruptcy status (optional)
+- registered_in_voluntary: Filter for voluntary/non-profit orgs in Frivillighetsregisteret (optional)
 
 RETURNS: List of companies with organization numbers, names, addresses, and basic info.
 
 EXAMPLES:
 - "Find companies named Equinor" → query: "Equinor"
-- "Search for AS companies in Oslo" → query: "*", org_form: "AS", municipality: "0301"`,
+- "Search for AS companies in Oslo" → query: "*", org_form: "AS", municipality: "0301"
+- "Find voluntary organizations named Røde Kors" → query: "Røde Kors", registered_in_voluntary: true`,
 		ReadOnly:   true,
 		Idempotent: true,
 		OpenWorld:  true,
@@ -71,6 +73,10 @@ RETURNS: By default returns a compact summary with:
 - Business and postal addresses (formatted)
 - Employee count, industry, website
 - Status flags (VAT registered, bankrupt, under liquidation)
+- Voluntary organization info (if registered in Frivillighetsregisteret):
+  - registered_in_voluntary: Whether registered
+  - voluntary_registration_date: Date registered
+  - activity: Activity description
 
 With full=true, returns complete data including all addresses, industry codes, capital info, and HAL links.
 
@@ -656,6 +662,123 @@ EXAMPLES:
 - "Get Finnish company 0112038-9" → business_id: "0112038-9"
 - "Look up Nokia's details" → First search, then use business_id: "0112038-9"
 - "Get full details for 0112038-9" → business_id: "0112038-9", full: true`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// ==========================================================================
+	// SWEDEN - Bolagsverket (High-Value Datasets API)
+	// ==========================================================================
+	// NOTE: Sweden tools require OAuth2 credentials. Set BOLAGSVERKET_CLIENT_ID
+	// and BOLAGSVERKET_CLIENT_SECRET environment variables. Register for free
+	// at https://portal.api.bolagsverket.se/
+
+	// --------------------------------------------------------------------------
+	// COMPANY DETAILS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "sweden_get_company",
+		Method:   "SEGetCompany",
+		Title:    "Get Swedish Company Details",
+		Category: "read",
+		Country:  "sweden",
+		Description: `Get detailed information about a Swedish company by organization number.
+
+USE WHEN: User provides a Swedish organization number, asks "get details for 5560125790", "look up Swedish company X".
+
+NOT FOR: Searching by company name (Bolagsverket API doesn't support name search).
+
+PARAMETERS:
+- org_number: Swedish organization number (required)
+  - Organization number: 10 digits (e.g., 5560125790)
+  - Personal number: 12 digits (e.g., 194009272719)
+  - Spaces and dashes are automatically removed.
+
+RETURNS: Company summary including:
+- Organization number, name, organization form (AB, E, HB, etc.)
+- Legal form (juridisk form from Skatteverket)
+- Business description
+- Registration date and country
+- Postal address
+- Status flags (active, deregistered, bankruptcy/liquidation)
+- Industry codes (SNI)
+- Ad block status (reklamsparr)
+
+NOTE: Unlike Norway/Denmark/Finland, the Swedish API requires OAuth2 credentials.
+If credentials are not configured, the tool will return an error.
+
+EXAMPLES:
+- "Get Swedish company 5560125790" → org_number: "5560125790"
+- "Look up 5560-1257-90" → org_number: "5560125790" (dashes removed)`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// ANNUAL REPORTS
+	// --------------------------------------------------------------------------
+	{
+		Name:     "sweden_get_document_list",
+		Method:   "SEGetDocumentList",
+		Title:    "List Swedish Annual Reports",
+		Category: "documents",
+		Country:  "sweden",
+		Description: `Get a list of available annual reports (årsredovisningar) for a Swedish company.
+
+USE WHEN: User asks "what annual reports are available for company X", "list årsredovisningar for X", "find financial reports for Swedish company X".
+
+NOT FOR: Getting company details (use sweden_get_company). Not for downloading reports (that requires additional processing).
+
+PARAMETERS:
+- org_number: Swedish organization number (required, 10 digits)
+
+RETURNS: List of available annual reports including:
+- Document ID (used for downloading)
+- File format
+- Reporting period end date (end of financial year)
+- Registration timestamp (when filed with Bolagsverket)
+
+NOTE: This returns metadata about available reports, not the reports themselves.
+The actual reports are ZIP files containing XBRL or PDF data.
+
+EXAMPLES:
+- "What annual reports exist for 5560125790?" → org_number: "5560125790"
+- "List financial reports for Swedish company X" → First get org number, then use this tool`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
+
+	// --------------------------------------------------------------------------
+	// STATUS CHECK
+	// --------------------------------------------------------------------------
+	{
+		Name:     "sweden_check_status",
+		Method:   "SECheckStatus",
+		Title:    "Check Swedish API Status",
+		Category: "status",
+		Country:  "sweden",
+		Description: `Check the status of the Swedish Bolagsverket API and connection.
+
+USE WHEN: User asks "is the Swedish API working", "check Sweden connection", "status of Bolagsverket".
+
+NOT FOR: Getting company data. Use sweden_get_company for that.
+
+PARAMETERS: None required.
+
+RETURNS:
+- available: Whether the API is responding
+- circuit_breaker_status: Current circuit breaker state (closed/open/half-open)
+- cache_entries: Number of cached responses
+
+NOTE: This tool verifies that OAuth2 credentials are valid and the API is reachable.
+Useful for debugging connection issues.
+
+EXAMPLES:
+- "Is the Swedish API working?" → no parameters needed
+- "Check connection to Bolagsverket" → no parameters needed`,
 		ReadOnly:   true,
 		Idempotent: true,
 		OpenWorld:  true,
