@@ -133,7 +133,7 @@ func TestCompanyStatus(t *testing.T) {
 		},
 		{
 			name:     "bankrupt company",
-			company:  &Company{CreditEnd: "2024-01-01"},
+			company:  &Company{CreditEnd: true},
 			expected: "BANKRUPT",
 		},
 	}

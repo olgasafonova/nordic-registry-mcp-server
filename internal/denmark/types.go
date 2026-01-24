@@ -4,7 +4,7 @@ package denmark
 
 // Company represents a Danish business entity from CVR
 type Company struct {
-	CVR          string `json:"vat"`             // 8-digit CVR number
+	CVR          int    `json:"vat"`             // 8-digit CVR number
 	Name         string `json:"name"`            // Company name
 	Address      string `json:"address"`         // Street address
 	Zipcode      string `json:"zipcode"`         // Postal code
@@ -14,12 +14,12 @@ type Company struct {
 	Email        string `json:"email"`           // Email address
 	StartDate    string `json:"startdate"`       // Registration date (YYYY-MM-DD)
 	EndDate      string `json:"enddate"`         // Dissolution date if applicable
-	Employees    string `json:"employees"`       // Employee count or range
+	Employees    int    `json:"employees"`       // Employee count
 	CompanyType  string `json:"companydesc"`     // Company type description (ApS, A/S, etc.)
-	IndustryCode string `json:"industrycode"`    // NACE industry code
+	IndustryCode int    `json:"industrycode"`    // NACE industry code
 	IndustryDesc string `json:"industrydesc"`    // Industry description
 	CreditStart  string `json:"creditstartdate"` // Credit registration date
-	CreditEnd    string `json:"creditbankrupt"`  // Credit bankruptcy status
+	CreditEnd    bool   `json:"creditbankrupt"`  // Credit bankruptcy status
 	Status       string `json:"status"`          // Company status
 	// Production units (P-numbers)
 	ProductionUnits []ProductionUnit `json:"productionunits,omitempty"`
@@ -29,7 +29,7 @@ type Company struct {
 
 // ProductionUnit represents a Danish P-number (production unit)
 type ProductionUnit struct {
-	PNumber      string `json:"pno"`          // P-number
+	PNumber      int64  `json:"pno"`          // P-number
 	Main         bool   `json:"main"`         // Is main production unit
 	Name         string `json:"name"`         // Unit name
 	Address      string `json:"address"`      // Street address
@@ -39,8 +39,8 @@ type ProductionUnit struct {
 	Email        string `json:"email"`        // Email address
 	StartDate    string `json:"startdate"`    // Start date
 	EndDate      string `json:"enddate"`      // End date if closed
-	Employees    string `json:"employees"`    // Employee count
-	IndustryCode string `json:"industrycode"` // Industry code
+	Employees    any    `json:"employees"`    // Employee count (can be int, string, or null)
+	IndustryCode int    `json:"industrycode"` // Industry code
 	IndustryDesc string `json:"industrydesc"` // Industry description
 }
 

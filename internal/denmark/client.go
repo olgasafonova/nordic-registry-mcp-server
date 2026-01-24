@@ -128,7 +128,7 @@ func (c *Client) SearchCompany(ctx context.Context, query string) (*Company, err
 	}
 
 	// Check if we got a valid result
-	if result.CVR == "" {
+	if result.CVR == 0 {
 		return nil, &NotFoundError{Query: query}
 	}
 
@@ -160,7 +160,7 @@ func (c *Client) GetCompany(ctx context.Context, cvr string) (*Company, error) {
 		}
 
 		// Check if we got a valid result
-		if company.CVR == "" {
+		if company.CVR == 0 {
 			return nil, &NotFoundError{CVR: cvr}
 		}
 

@@ -3,6 +3,7 @@ package denmark
 import (
 	"context"
 	"errors"
+	"strconv"
 )
 
 // MCP Tool wrapper methods
@@ -27,14 +28,14 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 	}
 
 	summary := &CompanySummary{
-		CVR:          company.CVR,
+		CVR:          strconv.Itoa(company.CVR),
 		Name:         company.Name,
 		Address:      company.Address,
 		City:         company.City,
 		Zipcode:      company.Zipcode,
 		CompanyType:  company.CompanyType,
 		IndustryDesc: company.IndustryDesc,
-		Employees:    company.Employees,
+		Employees:    strconv.Itoa(company.Employees),
 		StartDate:    company.StartDate,
 		Status:       getStatus(company),
 		Phone:        company.Phone,
@@ -73,14 +74,23 @@ func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUn
 
 	units := make([]ProductionUnitSummary, 0, len(company.ProductionUnits))
 	for _, pu := range company.ProductionUnits {
+		employees := ""
+		switch v := pu.Employees.(type) {
+		case float64:
+			employees = strconv.Itoa(int(v))
+		case int:
+			employees = strconv.Itoa(v)
+		case string:
+			employees = v
+		}
 		units = append(units, ProductionUnitSummary{
-			PNumber:      pu.PNumber,
+			PNumber:      strconv.FormatInt(pu.PNumber, 10),
 			Name:         pu.Name,
 			Address:      pu.Address,
 			City:         pu.City,
 			Zipcode:      pu.Zipcode,
 			IsMain:       pu.Main,
-			Employees:    pu.Employees,
+			Employees:    employees,
 			IndustryDesc: pu.IndustryDesc,
 		})
 	}
@@ -96,7 +106,7 @@ func getStatus(c *Company) string {
 	if c.EndDate != "" {
 		return "DISSOLVED"
 	}
-	if c.CreditEnd != "" {
+	if c.CreditEnd {
 		return "BANKRUPT"
 	}
 	return "ACTIVE"

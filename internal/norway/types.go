@@ -149,7 +149,7 @@ type Role struct {
 	Resigned            bool        `json:"fratraadt"`
 	Deregistered        bool        `json:"avregistrert,omitempty"`
 	ResponsibilityShare string      `json:"ansvarsandel,omitempty"`
-	ElectedBy           string      `json:"valgtAv,omitempty"`
+	ElectedBy           *ElectedBy  `json:"valgtAv,omitempty"`
 }
 
 // Person represents a natural person in a role
@@ -182,6 +182,13 @@ func (n PersonName) FullName() string {
 		name += n.LastName
 	}
 	return name
+}
+
+// ElectedBy represents who elected/appointed a role holder
+type ElectedBy struct {
+	Code        string `json:"kode"`
+	Description string `json:"beskrivelse"`
+	Links       *Links `json:"_links,omitempty"`
 }
 
 // RoleEntity represents an organization in a role (for corporate roles)
