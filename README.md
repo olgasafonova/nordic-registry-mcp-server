@@ -14,7 +14,7 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 
 | Country | Registry | Tools | ID Format |
 |---------|----------|-------|-----------|
-| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 10 | 9 digits (e.g., `923609016`) |
+| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 11 | 9 digits (e.g., `923609016`) |
 | Denmark | [CVR](https://datacvr.virk.dk) | 5 | 8 digits (e.g., `10150817`) |
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
 
@@ -90,6 +90,7 @@ Restart Claude Desktop after changes.
 | `norway_search_companies` | Search companies by name |
 | `norway_get_company` | Get company details by org number |
 | `norway_get_roles` | Get board members, CEO, auditors |
+| `norway_get_signature_rights` | Get signature rights and prokura |
 | `norway_get_subunits` | List branch offices for a company |
 | `norway_get_subunit` | Get specific branch office details |
 | `norway_search_subunits` | Search branch offices by name |
@@ -134,6 +135,11 @@ Restart Claude Desktop after changes.
 - *"Who is on the board of 923609016?"*
 - *"Find the CEO of Equinor"*
 - *"List all directors for org 914778271"*
+
+### Signature Rights (Norway only)
+- *"Who can sign for company 923609016?"*
+- *"Get signature rights for Equinor"*
+- *"Who has prokura for 914778271?"*
 
 ### Branch Offices
 - *"What branches does 923609016 have?"*

@@ -212,7 +212,8 @@ func TestToolSpecMethods(t *testing.T) {
 		"SearchSubUnits":     true,
 		"ListMunicipalities": true,
 		"ListOrgForms":       true,
-		"GetSubUnitUpdates":  true,
+		"GetSubUnitUpdates":   true,
+		"GetSignatureRights":  true,
 		// Denmark tools
 		"DKSearchCompanies":    true,
 		"DKGetCompany":         true,

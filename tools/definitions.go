@@ -114,6 +114,35 @@ EXAMPLES:
 		Idempotent: true,
 		OpenWorld:  true,
 	},
+	{
+		Name:     "norway_get_signature_rights",
+		Method:   "GetSignatureRights",
+		Title:    "Get Company Signature Rights",
+		Category: "roles",
+		Country:  "norway",
+		Description: `Get signature rights (signaturrett) and prokura for a Norwegian company.
+
+USE WHEN: User asks "who can sign for company X", "signature rights for X", "who has prokura", "signing authority".
+
+NOT FOR: Getting all board members (use norway_get_roles). Not for company details (use norway_get_company).
+
+PARAMETERS:
+- org_number: 9-digit Norwegian organization number (required)
+
+RETURNS: Signature-related roles including:
+- SignatureRights: People/entities with signaturrett (SIGN role code)
+- Prokura: People/entities with prokura authority (PROK role code)
+- Summary: Human-readable summary of who can sign
+
+NOTE: Data is extracted from the roles API, filtering for SIGN and PROK role codes only.
+
+EXAMPLES:
+- "Who can sign for 923609016?" → org_number: "923609016"
+- "Get signature rights for Equinor" → First search for Equinor, then use org number`,
+		ReadOnly:   true,
+		Idempotent: true,
+		OpenWorld:  true,
+	},
 
 	// --------------------------------------------------------------------------
 	// SUB-UNITS (Branch Offices)

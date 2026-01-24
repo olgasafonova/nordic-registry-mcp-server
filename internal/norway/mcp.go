@@ -312,6 +312,85 @@ func (c *Client) GetSubUnitUpdatesMCP(ctx context.Context, args GetSubUnitUpdate
 	return GetSubUnitUpdatesResult{Updates: updates}, nil
 }
 
+// GetSignatureRightsMCP is the MCP wrapper for getting signature rights
+func (c *Client) GetSignatureRightsMCP(ctx context.Context, args GetSignatureRightsArgs) (GetSignatureRightsResult, error) {
+	if err := ValidateOrgNumber(args.OrgNumber); err != nil {
+		return GetSignatureRightsResult{}, err
+	}
+
+	// Get roles data - signature rights are part of roles
+	resp, err := c.GetRoles(ctx, args.OrgNumber)
+	if err != nil {
+		return GetSignatureRightsResult{}, err
+	}
+
+	result := GetSignatureRightsResult{
+		OrganizationNumber: args.OrgNumber,
+		SignatureRights:    []SignatureRight{},
+		Prokura:            []SignatureRight{},
+	}
+
+	// Extract signature-related roles (SIGN = signaturrett, PROK = prokura)
+	for _, rg := range resp.RoleGroups {
+		for _, r := range rg.Roles {
+			if r.Resigned {
+				continue
+			}
+
+			sr := SignatureRight{
+				Type:        r.Type.Code,
+				Description: r.Type.Description,
+			}
+
+			if r.Person != nil {
+				sr.Name = r.Person.Name.FullName()
+				sr.BirthDate = r.Person.BirthDate
+			}
+			if r.Entity != nil {
+				sr.EntityOrgNr = r.Entity.OrganizationNumber
+				if len(r.Entity.Name) > 0 {
+					sr.Name = strings.Join(r.Entity.Name, " ")
+				}
+			}
+
+			switch r.Type.Code {
+			case "SIGN":
+				result.SignatureRights = append(result.SignatureRights, sr)
+			case "PROK":
+				result.Prokura = append(result.Prokura, sr)
+			}
+		}
+	}
+
+	// Build summary
+	var summary strings.Builder
+	if len(result.SignatureRights) > 0 {
+		summary.WriteString("Signature rights: ")
+		names := make([]string, len(result.SignatureRights))
+		for i, sr := range result.SignatureRights {
+			names[i] = sr.Name
+		}
+		summary.WriteString(strings.Join(names, ", "))
+	}
+	if len(result.Prokura) > 0 {
+		if summary.Len() > 0 {
+			summary.WriteString(". ")
+		}
+		summary.WriteString("Prokura: ")
+		names := make([]string, len(result.Prokura))
+		for i, sr := range result.Prokura {
+			names[i] = sr.Name
+		}
+		summary.WriteString(strings.Join(names, ", "))
+	}
+	if summary.Len() == 0 {
+		summary.WriteString("No signature rights or prokura found")
+	}
+	result.Summary = summary.String()
+
+	return result, nil
+}
+
 // formatAddress formats an address as a single string
 func formatAddress(addr *Address) string {
 	if addr == nil {

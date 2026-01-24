@@ -205,3 +205,27 @@ type SubUnitUpdateSummary struct {
 	UpdatedAt          time.Time `json:"updated_at"`
 	ChangeType         string    `json:"change_type,omitempty"`
 }
+
+// GetSignatureRightsArgs contains parameters for getting signature rights
+type GetSignatureRightsArgs struct {
+	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
+}
+
+// GetSignatureRightsResult is the result of getting signature rights
+type GetSignatureRightsResult struct {
+	OrganizationNumber string           `json:"organization_number"`
+	CompanyName        string           `json:"company_name,omitempty"`
+	SignatureRights    []SignatureRight `json:"signature_rights"`
+	Prokura            []SignatureRight `json:"prokura"`
+	Summary            string           `json:"summary"`
+}
+
+// SignatureRight represents a person or entity with signing authority
+type SignatureRight struct {
+	Type        string `json:"type"`                    // SIGN, PROK, etc.
+	Description string `json:"description"`             // Norwegian description
+	Name        string `json:"name"`                    // Person or entity name
+	BirthDate   string `json:"birth_date,omitempty"`    // For persons
+	EntityOrgNr string `json:"entity_org_nr,omitempty"` // For corporate signatories
+	Resigned    bool   `json:"resigned,omitempty"`
+}
