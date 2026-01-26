@@ -451,6 +451,21 @@ Currently supports:
 "What production units does CVR 10150817 have?"
 -> USE: denmark_get_production_units
 
+### IMPORTANT: Danish Search Returns Only ONE Result
+
+The CVR API returns only one company per search. Large companies often have multiple legal entities with similar names. When searching for well-known or international companies, TRY MULTIPLE VARIATIONS:
+
+1. "[Company] Denmark" - Danish subsidiary (e.g., "Tietoevry Denmark")
+2. "[Company] A/S" or "[Company] ApS" - with legal form
+3. "[Company] DK" - common naming pattern
+4. "[Company] Holding" - holding company vs operating company
+5. Pre-merger/historical names - companies change names after M&A
+6. "[Company] filial" - branch of foreign company
+
+Example: Searching "Tietoevry" returns TIETOEVRY DK A/S (11 employees), but "Tietoevry Denmark" returns TIETOEVRY DENMARK A/S (56 employees) - a completely different legal entity.
+
+Always ask the user to clarify if the first result seems wrong (wrong size, wrong address, wrong industry).
+
 ## Finnish Company Lookups
 
 ### Search for Finnish companies by name:

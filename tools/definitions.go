@@ -149,7 +149,7 @@ var AllTools = []ToolSpec{
 		Title:       "Search Danish Companies",
 		Category:    "search",
 		Country:     "denmark",
-		Description: `Search Danish companies by name. WARNING: Returns only ONE result (CVR API limitation). For multiple matches, try variations of the name. If you have an 8-digit CVR number, use denmark_get_company instead.`,
+		Description: `Search Danish companies by name. WARNING: Returns only ONE result (CVR API limitation). Large companies often have multiple legal entities. Try variations: "[Company] Denmark", "[Company] A/S", "[Company] DK", "[Company] Holding", or pre-merger names. If you have an 8-digit CVR number, use denmark_get_company instead.`,
 		ReadOnly:    true,
 		Idempotent:  true,
 		OpenWorld:   true,
