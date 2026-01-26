@@ -30,7 +30,7 @@ type Company struct {
 	Bankrupt               bool `json:"konkurs"`
 	UnderLiquidation       bool `json:"underAvvikling"`
 	UnderForcedLiquidation bool `json:"underTvangsavviklingEllerTvangsopplosning"`
-	Deleted                bool `json:"slettedato,omitempty"`
+	Deleted                string `json:"slettedato,omitempty"`
 
 	// Industry codes
 	IndustryCode1 *IndustryCode `json:"naeringskode1,omitempty"`
@@ -122,7 +122,7 @@ type SubUnit struct {
 
 	// Other
 	EmployeeCount int  `json:"antallAnsatte"`
-	Deleted       bool `json:"nedleggelsesdato,omitempty"`
+	Deleted       string `json:"nedleggelsesdato,omitempty"`
 
 	Links *Links `json:"_links,omitempty"`
 }
@@ -200,7 +200,7 @@ type RoleEntity struct {
 	OrganizationNumber string            `json:"organisasjonsnummer"`
 	OrganizationForm   *OrganizationForm `json:"organisasjonsform,omitempty"`
 	Name               []string          `json:"navn,omitempty"`
-	Deleted            bool              `json:"slettedato,omitempty"`
+	Deleted            string            `json:"slettedato,omitempty"`
 }
 
 // SearchResponse represents the paginated search response

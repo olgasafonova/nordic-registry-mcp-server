@@ -32,7 +32,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_get_roles",
 		Method:      "GetRoles",
-		Title:       "Get Company Board & Roles",
+		Title:       "Get Norwegian Company Board & Roles",
 		Category:    "roles",
 		Country:     "norway",
 		Description: `Get board members, CEO, auditors, and other roles for a Norwegian company. Returns person names, birth dates, resignation status. For signature authority only, use norway_get_signature_rights.`,
@@ -43,7 +43,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_get_signature_rights",
 		Method:      "GetSignatureRights",
-		Title:       "Get Company Signature Rights",
+		Title:       "Get Norwegian Company Signature Rights",
 		Category:    "roles",
 		Country:     "norway",
 		Description: `Get who can sign for a company (signaturrett) and prokura holders. For full board/role list, use norway_get_roles instead.`,
@@ -54,7 +54,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_batch_get_companies",
 		Method:      "BatchGetCompanies",
-		Title:       "Batch Get Companies",
+		Title:       "Batch Get Norwegian Companies",
 		Category:    "batch",
 		Country:     "norway",
 		Description: `Look up multiple companies at once (max 2000 org numbers). Returns company summaries and list of not_found entries. More efficient than individual lookups.`,
@@ -65,7 +65,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_get_subunits",
 		Method:      "GetSubUnits",
-		Title:       "Get Company Branch Offices",
+		Title:       "Get Norwegian Company Branch Offices",
 		Category:    "subunits",
 		Country:     "norway",
 		Description: `Get all sub-units (branches) for a parent company. For a specific sub-unit's details, use norway_get_subunit. For searching branches by name, use norway_search_subunits.`,
@@ -76,7 +76,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_get_subunit",
 		Method:      "GetSubUnit",
-		Title:       "Get Sub-Unit Details",
+		Title:       "Get Norwegian Sub-Unit Details",
 		Category:    "subunits",
 		Country:     "norway",
 		Description: `Get details for a specific sub-unit (branch office) by its org number. For listing all branches of a parent, use norway_get_subunits.`,
@@ -87,7 +87,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_get_updates",
 		Method:      "GetUpdates",
-		Title:       "Get Registry Updates",
+		Title:       "Get Norwegian Registry Updates",
 		Category:    "updates",
 		Country:     "norway",
 		Description: `Get registry changes since a timestamp (ISO 8601). Not cached - real-time feed. For sub-unit changes, use norway_get_subunit_updates.`,
@@ -131,7 +131,7 @@ var AllTools = []ToolSpec{
 	{
 		Name:        "norway_get_subunit_updates",
 		Method:      "GetSubUnitUpdates",
-		Title:       "Get Sub-Unit Registry Updates",
+		Title:       "Get Norwegian Sub-Unit Registry Updates",
 		Category:    "updates",
 		Country:     "norway",
 		Description: `Get sub-unit (branch) registry changes since a timestamp. Not cached. For main company updates, use norway_get_updates.`,
