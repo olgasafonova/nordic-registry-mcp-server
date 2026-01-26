@@ -1474,6 +1474,30 @@ func TestClient_DownloadDocument_TokenError(t *testing.T) {
 	}
 }
 
+func TestClient_DownloadDocument_NetworkError(t *testing.T) {
+	// Create a server that responds to token requests but is closed before document request
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+	}))
+	defer tokenServer.Close()
+
+	// Use an invalid URL for the base URL to cause network error on document request
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL("http://localhost:1"), // Invalid port that won't connect
+		WithTokenURL(tokenServer.URL),
+	)
+
+	_, err := client.DownloadDocument(context.Background(), "test-id")
+	if err == nil {
+		t.Error("Expected error on network failure")
+	}
+	if !strings.Contains(err.Error(), "request failed") {
+		t.Errorf("Expected 'request failed' error, got: %v", err)
+	}
+}
+
 func TestGetCompanyMCP_OngoingProceedings(t *testing.T) {
 	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
 		resp := OrganisationerSvar{

@@ -3,6 +3,7 @@ package denmark
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -584,6 +585,28 @@ func TestSearchCompany_NoResults_WithMockServer(t *testing.T) {
 	_, err := client.SearchCompany(ctx(), "nonexistent company xyz123")
 	if err == nil {
 		t.Fatal("Expected error for no results, got nil")
+	}
+}
+
+func TestSearchCompany_404Response_WithMockServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return 404 to trigger notFoundIdentifier with search param
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.SearchCompany(ctx(), "testquery")
+	if err == nil {
+		t.Fatal("Expected error for 404, got nil")
+	}
+
+	// Verify it's a NotFoundError
+	var notFoundErr *apierrors.NotFoundError
+	if !errors.As(err, &notFoundErr) {
+		t.Errorf("Expected NotFoundError, got %T: %v", err, err)
 	}
 }
 
