@@ -737,6 +737,36 @@ List available annual reports (årsredovisningar) for a Swedish company.
 
 ---
 
+### sweden_download_document
+
+Download an annual report (årsredovisning) by document ID.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `document_id` | string | Yes | Document ID from `sweden_get_document_list` |
+
+**Returns:**
+
+```json
+{
+  "document_id": "abc123",
+  "filename": "arsredovisning_5560125790_2023.zip",
+  "content_base64": "UEsDBBQAAAAI...",
+  "size_bytes": 45678,
+  "format": "XBRL"
+}
+```
+
+**Note:** Returns a base64-encoded ZIP file containing XBRL/iXBRL files. Use `sweden_get_document_list` first to get available document IDs.
+
+**Example prompts:**
+- "Download the 2023 annual report for company X"
+- "Get the årsredovisning with document ID abc123"
+
+---
+
 ### sweden_check_status
 
 Check the status of the Swedish Bolagsverket API and OAuth2 connection.

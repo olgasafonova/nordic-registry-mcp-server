@@ -294,6 +294,7 @@ Requires OAuth2 credentials. Set `BOLAGSVERKET_CLIENT_ID` and `BOLAGSVERKET_CLIE
 |------|-------------|
 | `sweden_get_company` | Get company details by organization number |
 | `sweden_get_document_list` | List annual reports (årsredovisningar) |
+| `sweden_download_document` | Download annual report by document ID |
 | `sweden_check_status` | Check API availability and OAuth2 status |
 
 ---
