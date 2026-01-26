@@ -269,3 +269,26 @@ func TestTracerName(t *testing.T) {
 		t.Errorf("Expected TracerName 'nordic-registry-mcp-server', got %q", TracerName)
 	}
 }
+
+func TestSetup_EnabledWithOTLP(t *testing.T) {
+	cfg := Config{
+		ServiceName:    "test-service",
+		ServiceVersion: "1.0.0",
+		Environment:    "test",
+		Enabled:        true,
+		OTLPEndpoint:   "localhost:4318", // Won't actually connect, just creates exporter
+		SampleRate:     1.0,
+	}
+
+	shutdown, err := Setup(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Setup failed: %v", err)
+	}
+	defer func() { _ = shutdown(context.Background()) }()
+
+	// Verify tracing is set up
+	tracer := Tracer()
+	if tracer == nil {
+		t.Error("Expected tracer to be non-nil")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1177,5 +1178,724 @@ func TestParseTokenResponse(t *testing.T) {
 	}
 	if resp.ExpiresIn != 3600 {
 		t.Errorf("ExpiresIn = %d, want 3600", resp.ExpiresIn)
+	}
+}
+
+func TestIsConfigured(t *testing.T) {
+	t.Run("not configured", func(t *testing.T) {
+		// Save and clear env vars
+		oldID := os.Getenv(envClientID)
+		oldSecret := os.Getenv(envClientSecret)
+		_ = os.Unsetenv(envClientID)
+		_ = os.Unsetenv(envClientSecret)
+		defer func() {
+			if oldID != "" {
+				_ = os.Setenv(envClientID, oldID)
+			}
+			if oldSecret != "" {
+				_ = os.Setenv(envClientSecret, oldSecret)
+			}
+		}()
+
+		if IsConfigured() {
+			t.Error("Expected IsConfigured to return false when env vars are not set")
+		}
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		// Save env vars
+		oldID := os.Getenv(envClientID)
+		oldSecret := os.Getenv(envClientSecret)
+		_ = os.Setenv(envClientID, "test-id")
+		_ = os.Setenv(envClientSecret, "test-secret")
+		defer func() {
+			if oldID != "" {
+				_ = os.Setenv(envClientID, oldID)
+			} else {
+				_ = os.Unsetenv(envClientID)
+			}
+			if oldSecret != "" {
+				_ = os.Setenv(envClientSecret, oldSecret)
+			} else {
+				_ = os.Unsetenv(envClientSecret)
+			}
+		}()
+
+		if !IsConfigured() {
+			t.Error("Expected IsConfigured to return true when env vars are set")
+		}
+	})
+
+	t.Run("partially configured", func(t *testing.T) {
+		// Save env vars
+		oldID := os.Getenv(envClientID)
+		oldSecret := os.Getenv(envClientSecret)
+		_ = os.Setenv(envClientID, "test-id")
+		_ = os.Unsetenv(envClientSecret)
+		defer func() {
+			if oldID != "" {
+				_ = os.Setenv(envClientID, oldID)
+			} else {
+				_ = os.Unsetenv(envClientID)
+			}
+			if oldSecret != "" {
+				_ = os.Setenv(envClientSecret, oldSecret)
+			}
+		}()
+
+		if IsConfigured() {
+			t.Error("Expected IsConfigured to return false when only one env var is set")
+		}
+	})
+}
+
+func TestClient_GetDocumentList_EmptyOrgNumber(t *testing.T) {
+	client, _ := NewClient(WithCredentials("test-id", "test-secret"))
+
+	_, err := client.GetDocumentList(context.Background(), "")
+	if err == nil {
+		t.Error("Expected error for empty org number")
+	}
+}
+
+func TestClient_GetDocumentList_InvalidOrgNumber(t *testing.T) {
+	client, _ := NewClient(WithCredentials("test-id", "test-secret"))
+
+	_, err := client.GetDocumentList(context.Background(), "invalid")
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestClient_GetDocumentList_NotFound(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		calls++
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"status":404,"title":"Not Found","detail":"Organisation not found"}`))
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	_, err := client.GetDocumentList(context.Background(), "5560125790")
+	if err == nil {
+		t.Error("Expected error for not found")
+	}
+}
+
+func TestClient_DownloadDocument_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"status":404,"title":"Not Found"}`))
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	_, err := client.DownloadDocument(context.Background(), "nonexistent-id")
+	if err == nil {
+		t.Error("Expected error for not found document")
+	}
+}
+
+func TestClient_DownloadDocument_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	_, err := client.DownloadDocument(context.Background(), "test-id")
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestOrganisation_GetFormDescription_NilForm(t *testing.T) {
+	org := &Organisation{
+		Organisationsform: nil,
+	}
+	if org.GetFormDescription() != "" {
+		t.Error("Expected empty string for nil Organisationsform")
+	}
+}
+
+func TestOrganisation_GetFormDescription_WithKlartext(t *testing.T) {
+	org := &Organisation{
+		Organisationsform: &Organisationsform{
+			Klartext: "Aktiebolag",
+		},
+	}
+	if org.GetFormDescription() != "Aktiebolag" {
+		t.Errorf("GetFormDescription() = %q, want %q", org.GetFormDescription(), "Aktiebolag")
+	}
+}
+
+func TestGetDocumentListMCP_ValidationError(t *testing.T) {
+	client, _ := NewClient(WithCredentials("test-id", "test-secret"))
+
+	// Empty org number should fail validation
+	_, err := client.GetDocumentListMCP(context.Background(), GetDocumentListArgs{OrgNumber: ""})
+	if err == nil {
+		t.Error("Expected error for empty org number")
+	}
+
+	// Invalid org number should fail validation
+	_, err = client.GetDocumentListMCP(context.Background(), GetDocumentListArgs{OrgNumber: "invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestDownloadDocumentMCP_ValidationError(t *testing.T) {
+	client, _ := NewClient(WithCredentials("test-id", "test-secret"))
+
+	// Empty document ID should fail validation
+	_, err := client.DownloadDocumentMCP(context.Background(), DownloadDocumentArgs{DocumentID: ""})
+	if err == nil {
+		t.Error("Expected error for empty document ID")
+	}
+}
+
+// =============================================================================
+// Additional Edge Case Tests for Higher Coverage
+// =============================================================================
+
+func TestClient_DownloadDocument_CircuitBreakerOpen(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	// Trip the circuit breaker with multiple failures
+	for range 10 {
+		_, _ = client.GetCompany(context.Background(), "5560125790")
+	}
+
+	// Now DownloadDocument should fail with circuit breaker open
+	_, err := client.DownloadDocument(context.Background(), "test-id")
+	if err == nil {
+		t.Error("Expected error when circuit breaker is open")
+	}
+	if !strings.Contains(err.Error(), "circuit breaker open") {
+		t.Errorf("Expected circuit breaker error, got: %v", err)
+	}
+}
+
+func TestClient_DownloadDocument_APIErrorWithDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		resp := APIError{
+			Status: 400,
+			Title:  "Bad Request",
+			Detail: "Invalid document ID format",
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	_, err := client.DownloadDocument(context.Background(), "invalid-id")
+	if err == nil {
+		t.Error("Expected error for bad request")
+	}
+	if !strings.Contains(err.Error(), "Invalid document ID format") {
+		t.Errorf("Expected error detail in message, got: %v", err)
+	}
+}
+
+func TestClient_DownloadDocument_TokenError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Token endpoint always fails
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL),
+	)
+
+	_, err := client.DownloadDocument(context.Background(), "test-id")
+	if err == nil {
+		t.Error("Expected error when token fails")
+	}
+}
+
+func TestGetCompanyMCP_OngoingProceedings(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		resp := OrganisationerSvar{
+			Organisationer: []Organisation{
+				{
+					Organisationsidentitet: &Identitetsbeteckning{
+						Identitetsbeteckning: "5560125790",
+					},
+					Organisationsnamn: &Organisationsnamn{
+						OrganisationsnamnLista: []OrganisationsnamnObjekt{
+							{Namn: "BANKRUPT AB"},
+						},
+					},
+					PagaendeAvvecklingsEllerOmstruktureringsforfarande: &PagaendeAvvecklingsEllerOmstruktureringsforfarande{
+						PagaendeAvvecklingsEllerOmstruktureringsforfarandeLista: []PagaendeAvvecklingsEllerOmstruktureringsforfarandeObjekt{
+							{Kod: "KONKURS", Klartext: "Konkurs", FromDatum: "2024-01-15"},
+							{Kod: "LIKVIDATION", FromDatum: "2024-02-01"}, // No Klartext, should use Kod
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "5560125790"})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if len(result.Company.OngoingProceedings) != 2 {
+		t.Errorf("Expected 2 ongoing proceedings, got %d", len(result.Company.OngoingProceedings))
+	}
+	if !strings.Contains(result.Company.OngoingProceedings[0], "Konkurs") {
+		t.Errorf("First proceeding should contain 'Konkurs', got: %s", result.Company.OngoingProceedings[0])
+	}
+	if !strings.Contains(result.Company.OngoingProceedings[0], "2024-01-15") {
+		t.Errorf("First proceeding should contain date, got: %s", result.Company.OngoingProceedings[0])
+	}
+}
+
+func TestGetCompanyMCP_JuridiskFormWithoutKlartext(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		resp := OrganisationerSvar{
+			Organisationer: []Organisation{
+				{
+					Organisationsidentitet: &Identitetsbeteckning{
+						Identitetsbeteckning: "5560125790",
+					},
+					Organisationsnamn: &Organisationsnamn{
+						OrganisationsnamnLista: []OrganisationsnamnObjekt{
+							{Namn: "TEST AB"},
+						},
+					},
+					JuridiskForm: &JuridiskForm{
+						Kod: "49",
+						// No Klartext
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "5560125790"})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if result.Company.LegalForm != "49" {
+		t.Errorf("LegalForm = %q, want %q (just code without klartext)", result.Company.LegalForm, "49")
+	}
+}
+
+func TestGetCompanyMCP_OrganisationsformWithoutKlartext(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		resp := OrganisationerSvar{
+			Organisationer: []Organisation{
+				{
+					Organisationsidentitet: &Identitetsbeteckning{
+						Identitetsbeteckning: "5560125790",
+					},
+					Organisationsnamn: &Organisationsnamn{
+						OrganisationsnamnLista: []OrganisationsnamnObjekt{
+							{Namn: "TEST AB"},
+						},
+					},
+					Organisationsform: &Organisationsform{
+						Kod: "AB",
+						// No Klartext
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "5560125790"})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if result.Company.OrganizationForm != "AB" {
+		t.Errorf("OrganizationForm = %q, want %q (just code without klartext)", result.Company.OrganizationForm, "AB")
+	}
+}
+
+func TestGetCompanyMCP_WithRegistreringsland(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		resp := OrganisationerSvar{
+			Organisationer: []Organisation{
+				{
+					Organisationsidentitet: &Identitetsbeteckning{
+						Identitetsbeteckning: "5560125790",
+					},
+					Organisationsnamn: &Organisationsnamn{
+						OrganisationsnamnLista: []OrganisationsnamnObjekt{
+							{Namn: "FOREIGN AB"},
+						},
+					},
+					Registreringsland: &KodKlartext{
+						Kod:      "SE",
+						Klartext: "Sverige",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "5560125790"})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if result.Company.RegistrationCountry != "Sverige" {
+		t.Errorf("RegistrationCountry = %q, want %q", result.Company.RegistrationCountry, "Sverige")
+	}
+}
+
+func TestGetCompanyMCP_SNICodesWithoutKlartext(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		resp := OrganisationerSvar{
+			Organisationer: []Organisation{
+				{
+					Organisationsidentitet: &Identitetsbeteckning{
+						Identitetsbeteckning: "5560125790",
+					},
+					Organisationsnamn: &Organisationsnamn{
+						OrganisationsnamnLista: []OrganisationsnamnObjekt{
+							{Namn: "TEST AB"},
+						},
+					},
+					NaringsgrenOrganisation: &NaringsgrenOrganisation{
+						SNI: []KodKlartext{
+							{Kod: "62010"}, // No Klartext
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "5560125790"})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if len(result.Company.IndustryCodes) != 1 {
+		t.Errorf("Expected 1 industry code, got %d", len(result.Company.IndustryCodes))
+	}
+	if result.Company.IndustryCodes[0] != "62010" {
+		t.Errorf("IndustryCode = %q, want %q", result.Company.IndustryCodes[0], "62010")
+	}
+}
+
+func TestGetCompanyMCP_APIError(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"status":500,"title":"Server Error","detail":"Internal error"}`))
+	})
+
+	_, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "5560125790"})
+	if err == nil {
+		t.Error("Expected error for API error")
+	}
+}
+
+func TestGetDocumentListMCP_APIError(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"status":500,"title":"Server Error","detail":"Internal error"}`))
+	})
+
+	_, err := client.GetDocumentListMCP(context.Background(), GetDocumentListArgs{OrgNumber: "5560125790"})
+	if err == nil {
+		t.Error("Expected error for API error")
+	}
+}
+
+func TestDownloadDocumentMCP_APIError(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"status":404,"title":"Not Found","detail":"Document not found"}`))
+	})
+
+	_, err := client.DownloadDocumentMCP(context.Background(), DownloadDocumentArgs{DocumentID: "nonexistent"})
+	if err == nil {
+		t.Error("Expected error for API error")
+	}
+}
+
+func TestClient_doRequest_CircuitBreakerOpen(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	// Trip the circuit breaker
+	for range 10 {
+		_, _ = client.GetCompany(context.Background(), "5560125790")
+	}
+
+	// Circuit breaker should be open
+	_, err := client.GetCompany(context.Background(), "5560125790")
+	if err == nil {
+		t.Error("Expected error when circuit breaker is open")
+	}
+	if !strings.Contains(err.Error(), "circuit breaker open") {
+		t.Errorf("Expected circuit breaker error, got: %v", err)
+	}
+}
+
+func TestClient_doRequest_TokenError(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+	}))
+	defer tokenServer.Close()
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("API should not be called when token fails")
+	}))
+	defer apiServer.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithTokenURL(tokenServer.URL),
+		WithBaseURL(apiServer.URL),
+	)
+
+	_, err := client.GetCompany(context.Background(), "5560125790")
+	if err == nil {
+		t.Error("Expected error when token fails")
+	}
+}
+
+func TestOrganisation_GetRegistrationDate_NilDatum(t *testing.T) {
+	org := Organisation{
+		Organisationsdatum: nil,
+	}
+	if org.GetRegistrationDate() != "" {
+		t.Error("Expected empty string for nil Organisationsdatum")
+	}
+}
+
+func TestOrganisation_GetBusinessDescription_NilDescription(t *testing.T) {
+	org := Organisation{
+		Verksamhetsbeskrivning: nil,
+	}
+	if org.GetBusinessDescription() != "" {
+		t.Error("Expected empty string for nil Verksamhetsbeskrivning")
+	}
+}
+
+func TestOrganisation_GetSNICodes_NilNaringsgren(t *testing.T) {
+	org := Organisation{
+		NaringsgrenOrganisation: nil,
+	}
+	codes := org.GetSNICodes()
+	if codes != nil {
+		t.Errorf("Expected nil for nil NaringsgrenOrganisation, got %v", codes)
+	}
+}
+
+func TestClient_refreshToken_DecodeError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`invalid json`)) // Invalid JSON
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithTokenURL(server.URL),
+	)
+
+	_, err := client.getToken(context.Background())
+	if err == nil {
+		t.Error("Expected error for invalid JSON token response")
+	}
+	if !strings.Contains(err.Error(), "decoding token response") {
+		t.Errorf("Expected decode error, got: %v", err)
+	}
+}
+
+func TestClient_GetCompany_DecodeError(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`invalid json`))
+	})
+
+	_, err := client.GetCompany(context.Background(), "5560125790")
+	if err == nil {
+		t.Error("Expected error for invalid JSON response")
+	}
+	if !strings.Contains(err.Error(), "decoding company response") {
+		t.Errorf("Expected decode error, got: %v", err)
+	}
+}
+
+func TestClient_GetDocumentList_DecodeError(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`invalid json`))
+	})
+
+	_, err := client.GetDocumentList(context.Background(), "5560125790")
+	if err == nil {
+		t.Error("Expected error for invalid JSON response")
+	}
+	if !strings.Contains(err.Error(), "decoding document list response") {
+		t.Errorf("Expected decode error, got: %v", err)
+	}
+}
+
+func TestClient_doRequest_APIErrorWithoutDetail(t *testing.T) {
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`not json`)) // Cannot be parsed as APIError
+	})
+
+	_, err := client.GetCompany(context.Background(), "5560125790")
+	if err == nil {
+		t.Error("Expected error for bad request")
+	}
+	// Should return raw body since it's not parseable as APIError
+	if !strings.Contains(err.Error(), "request returned 400") {
+		t.Errorf("Expected raw error, got: %v", err)
+	}
+}
+
+func TestClient_DownloadDocument_APIErrorWithoutDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/oauth2/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`plain text error`)) // Not JSON
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(
+		WithCredentials("test-id", "test-secret"),
+		WithBaseURL(server.URL),
+		WithTokenURL(server.URL+"/oauth2/token"),
+	)
+
+	_, err := client.DownloadDocument(context.Background(), "test-id")
+	if err == nil {
+		t.Error("Expected error for bad request")
+	}
+	if !strings.Contains(err.Error(), "request returned 400") {
+		t.Errorf("Expected raw error, got: %v", err)
+	}
+}
+
+func TestClient_GetDocumentList_Caching(t *testing.T) {
+	apiCalls := 0
+	client := createTestClient(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		apiCalls++
+		resp := DokumentlistaSvar{
+			Dokument: []Dokument{
+				{DokumentID: "doc-123"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	// First call
+	_, err := client.GetDocumentList(context.Background(), "5560125790")
+	if err != nil {
+		t.Fatalf("First call failed: %v", err)
+	}
+
+	// Second call should be cached
+	_, err = client.GetDocumentList(context.Background(), "5560125790")
+	if err != nil {
+		t.Fatalf("Second call failed: %v", err)
+	}
+
+	if apiCalls != 1 {
+		t.Errorf("API called %d times, want 1 (cached)", apiCalls)
 	}
 }

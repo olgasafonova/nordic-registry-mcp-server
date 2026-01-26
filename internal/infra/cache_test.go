@@ -193,7 +193,7 @@ func TestCache_LRUEviction(t *testing.T) {
 	defer c.Close()
 
 	// Fill the cache
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		c.Set(string(rune('a'+i)), i, 5*time.Minute)
 	}
 
@@ -234,11 +234,11 @@ func TestCache_ConcurrencySafety(t *testing.T) {
 	var ops int64
 
 	// Concurrent reads and writes
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				key := string(rune('a' + (id+j)%26))
 				c.Set(key, j, 5*time.Minute)
 				atomic.AddInt64(&ops, 1)
@@ -248,7 +248,7 @@ func TestCache_ConcurrencySafety(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				key := string(rune('a' + (id+j)%26))
 				c.Get(key)
 				atomic.AddInt64(&ops, 1)
@@ -362,5 +362,242 @@ func TestCache_AccessTimeUpdated(t *testing.T) {
 
 	if !ce.AccessedAt.After(firstAccess) {
 		t.Error("access time should be updated after Get")
+	}
+}
+
+func TestCache_Cleanup_RemovesExpiredEntries(t *testing.T) {
+	c := NewCache(100)
+	defer c.Close()
+
+	// Add entries with very short TTL
+	c.Set("expired1", "value1", 10*time.Millisecond)
+	c.Set("expired2", "value2", 10*time.Millisecond)
+	c.Set("valid", "value3", 5*time.Minute)
+
+	if c.Size() != 3 {
+		t.Errorf("expected size=3, got %d", c.Size())
+	}
+
+	// Wait for entries to expire
+	time.Sleep(20 * time.Millisecond)
+
+	// Call cleanup directly
+	c.cleanup()
+
+	// Expired entries should be removed
+	if c.Size() != 1 {
+		t.Errorf("expected size=1 after cleanup, got %d", c.Size())
+	}
+
+	// Valid entry should still exist
+	if _, ok := c.Get("valid"); !ok {
+		t.Error("valid entry should still exist")
+	}
+
+	// Expired entries should be gone
+	if _, ok := c.Get("expired1"); ok {
+		t.Error("expired1 should be removed")
+	}
+	if _, ok := c.Get("expired2"); ok {
+		t.Error("expired2 should be removed")
+	}
+}
+
+func TestCache_Cleanup_TriggersLRUEviction(t *testing.T) {
+	c := NewCache(5)
+	defer c.Close()
+
+	// Overfill the cache without triggering async eviction
+	// (by setting entries directly using the sync.Map)
+	now := time.Now()
+	for i := range 10 {
+		key := string(rune('a' + i))
+		c.entries.Store(key, &CacheEntry{
+			Data:       i,
+			ExpiresAt:  now.Add(5 * time.Minute),
+			AccessedAt: now.Add(time.Duration(i) * time.Millisecond), // Stagger access times
+			Key:        key,
+		})
+	}
+	atomic.StoreInt64(&c.count, 10)
+
+	// Verify we're over the limit
+	if c.Size() != 10 {
+		t.Errorf("expected size=10, got %d", c.Size())
+	}
+
+	// Call cleanup which should trigger LRU eviction
+	c.cleanup()
+
+	// Size should be reduced
+	if c.Size() > 5 {
+		t.Errorf("expected size <= 5 after cleanup, got %d", c.Size())
+	}
+
+	// The most recently accessed entries should survive (j, i, h...)
+	// The least recently accessed should be evicted (a, b, c...)
+}
+
+func TestCache_Cleanup_NoExpiredEntries(t *testing.T) {
+	c := NewCache(100)
+	defer c.Close()
+
+	// Add entries with long TTL
+	c.Set("key1", "value1", 5*time.Minute)
+	c.Set("key2", "value2", 5*time.Minute)
+	c.Set("key3", "value3", 5*time.Minute)
+
+	initialSize := c.Size()
+
+	// Call cleanup
+	c.cleanup()
+
+	// Size should remain unchanged
+	if c.Size() != initialSize {
+		t.Errorf("expected size=%d, got %d", initialSize, c.Size())
+	}
+}
+
+func TestCache_EvictLRU_EmptyCache(t *testing.T) {
+	c := NewCache(100)
+	defer c.Close()
+
+	// Evict from empty cache should not panic
+	c.evictLRU(10)
+
+	if c.Size() != 0 {
+		t.Errorf("expected size=0, got %d", c.Size())
+	}
+}
+
+func TestCache_EvictLRU_EvictsOldestFirst(t *testing.T) {
+	c := NewCache(100)
+	defer c.Close()
+
+	now := time.Now()
+
+	// Add entries with explicit access times (oldest to newest)
+	for i := range 5 {
+		key := string(rune('a' + i))
+		c.entries.Store(key, &CacheEntry{
+			Data:       i,
+			ExpiresAt:  now.Add(5 * time.Minute),
+			AccessedAt: now.Add(time.Duration(i) * time.Second), // a=oldest, e=newest
+			Key:        key,
+		})
+	}
+	atomic.StoreInt64(&c.count, 5)
+
+	// Evict 2 oldest entries
+	c.evictLRU(2)
+
+	// Should have 3 entries left
+	if c.Size() != 3 {
+		t.Errorf("expected size=3, got %d", c.Size())
+	}
+
+	// 'a' and 'b' (oldest) should be evicted
+	if _, ok := c.entries.Load("a"); ok {
+		t.Error("'a' should be evicted (oldest)")
+	}
+	if _, ok := c.entries.Load("b"); ok {
+		t.Error("'b' should be evicted (second oldest)")
+	}
+
+	// 'c', 'd', 'e' (newest) should survive
+	if _, ok := c.entries.Load("c"); !ok {
+		t.Error("'c' should survive")
+	}
+	if _, ok := c.entries.Load("d"); !ok {
+		t.Error("'d' should survive")
+	}
+	if _, ok := c.entries.Load("e"); !ok {
+		t.Error("'e' should survive")
+	}
+}
+
+func TestCache_EvictLRU_EvictMoreThanExists(t *testing.T) {
+	c := NewCache(100)
+	defer c.Close()
+
+	now := time.Now()
+
+	// Add 3 entries
+	for i := range 3 {
+		key := string(rune('a' + i))
+		c.entries.Store(key, &CacheEntry{
+			Data:       i,
+			ExpiresAt:  now.Add(5 * time.Minute),
+			AccessedAt: now,
+			Key:        key,
+		})
+	}
+	atomic.StoreInt64(&c.count, 3)
+
+	// Try to evict 10 (more than exist)
+	c.evictLRU(10)
+
+	// All entries should be evicted
+	if c.Size() != 0 {
+		t.Errorf("expected size=0, got %d", c.Size())
+	}
+}
+
+func TestCache_CleanupLoop_StopsOnClose(t *testing.T) {
+	c := NewCache(100)
+
+	// Ensure cleanup goroutine is running
+	time.Sleep(10 * time.Millisecond)
+
+	// Close should stop the cleanup loop
+	c.Close()
+
+	// Multiple closes should not panic
+	c.Close()
+	c.Close()
+}
+
+func TestCache_Set_EvictionDeduplication(t *testing.T) {
+	c := NewCache(5)
+	defer c.Close()
+
+	// Fill the cache past capacity rapidly to trigger eviction
+	for i := range 20 {
+		c.Set(string(rune('a'+i)), i, 5*time.Minute)
+	}
+
+	// Wait for async eviction
+	time.Sleep(100 * time.Millisecond)
+
+	// Size should be near maxEntries (not exactly due to async nature)
+	if c.Size() > 10 {
+		t.Errorf("expected size <= 10 after eviction, got %d", c.Size())
+	}
+}
+
+func TestCache_Get_ExpirationDuringGet(t *testing.T) {
+	c := NewCache(100)
+	defer c.Close()
+
+	// Set entry with very short TTL
+	c.Set("key", "value", 5*time.Millisecond)
+
+	// Verify it exists
+	if c.Size() != 1 {
+		t.Error("expected entry to exist")
+	}
+
+	// Wait for expiration
+	time.Sleep(10 * time.Millisecond)
+
+	// Get should remove the expired entry and decrement count
+	_, ok := c.Get("key")
+	if ok {
+		t.Error("expected entry to be expired")
+	}
+
+	// Count should be decremented
+	if c.Size() != 0 {
+		t.Errorf("expected size=0 after expired Get, got %d", c.Size())
 	}
 }

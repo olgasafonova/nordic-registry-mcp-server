@@ -784,6 +784,11 @@ func TestAPIError_String(t *testing.T) {
 			err:      APIError{},
 			expected: "",
 		},
+		{
+			name:     "with message field (takes priority)",
+			err:      APIError{Error: "error", Message: "Detailed message"},
+			expected: "Detailed message",
+		},
 	}
 
 	for _, tt := range tests {
@@ -793,6 +798,210 @@ func TestAPIError_String(t *testing.T) {
 				t.Errorf("APIError.String() = %q, want %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+// doRequest error handling tests
+
+func TestDoRequest_APIErrorInResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return 400 with API error
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error": "Invalid request", "t": 2, "message": "Invalid CVR format"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompany(ctx(), "12345678")
+	if err == nil {
+		t.Error("Expected error for bad request")
+	}
+}
+
+func TestDoRequest_NotFoundAPIErrorWithT1(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CVR API returns 200 with error type 1 for not found
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"error": "Not found", "t": 1}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompany(ctx(), "00000000")
+	if err == nil {
+		t.Error("Expected error for not found")
+	}
+}
+
+func TestDoRequest_NotFoundErrorWithMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return 400 with "not found" in message
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error": "Company not found", "t": 0}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompany(ctx(), "00000000")
+	if err == nil {
+		t.Error("Expected error for not found")
+	}
+}
+
+func TestSearchCompany_CacheHit(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		company := Company{CVR: 12345678, Name: "Test Company"}
+		_ = json.NewEncoder(w).Encode(company)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, err := client.SearchCompany(ctx(), "Test")
+	if err != nil {
+		t.Fatalf("First search failed: %v", err)
+	}
+
+	// Second call should be cached
+	_, err = client.SearchCompany(ctx(), "Test")
+	if err != nil {
+		t.Fatalf("Second search failed: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestGetByPNumber_CacheHit(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		company := Company{CVR: 12345678, Name: "Test Company"}
+		_ = json.NewEncoder(w).Encode(company)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, err := client.GetByPNumber(ctx(), "1234567890")
+	if err != nil {
+		t.Fatalf("First GetByPNumber failed: %v", err)
+	}
+
+	// Second call should be cached
+	_, err = client.GetByPNumber(ctx(), "1234567890")
+	if err != nil {
+		t.Fatalf("Second GetByPNumber failed: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestSearchByPhone_CacheHit(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		company := Company{CVR: 12345678, Name: "Test Company"}
+		_ = json.NewEncoder(w).Encode(company)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, err := client.SearchByPhone(ctx(), "12345678")
+	if err != nil {
+		t.Fatalf("First SearchByPhone failed: %v", err)
+	}
+
+	// Second call should be cached
+	_, err = client.SearchByPhone(ctx(), "12345678")
+	if err != nil {
+		t.Fatalf("Second SearchByPhone failed: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestGetByPNumber_InvalidPNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetByPNumber(ctx(), "123") // Too short
+	if err == nil {
+		t.Error("Expected error for invalid P-number")
+	}
+}
+
+func TestSearchByPhone_InvalidPhone(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.SearchByPhone(ctx(), "123") // Too short
+	if err == nil {
+		t.Error("Expected error for invalid phone")
+	}
+}
+
+func TestGetCompany_InvalidCVR(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetCompany(ctx(), "123") // Too short
+	if err == nil {
+		t.Error("Expected error for invalid CVR")
+	}
+}
+
+func TestGetByPNumber_NotFound_EmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return empty response (CVR=0)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetByPNumber(ctx(), "1234567890")
+	if err == nil {
+		t.Error("Expected error for not found")
+	}
+}
+
+func TestSearchByPhone_NotFound_EmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return empty response (CVR=0)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.SearchByPhone(ctx(), "12345678")
+	if err == nil {
+		t.Error("Expected error for not found")
 	}
 }
 

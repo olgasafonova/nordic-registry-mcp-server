@@ -53,7 +53,7 @@ func TestRequestDeduplicator_Do_ConcurrentRequests(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Start 10 concurrent requests with the same key
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -86,7 +86,7 @@ func TestRequestDeduplicator_Do_DifferentKeys(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Start requests with different keys
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		wg.Add(1)
 		key := "key-" + string(rune('a'+i))
 		go func(k string) {
@@ -228,7 +228,7 @@ func TestCircuitBreaker_Allow_ClosedState(t *testing.T) {
 	cb := NewCircuitBreaker()
 
 	// Closed circuit should allow all requests
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if !cb.Allow() {
 			t.Error("closed circuit should allow requests")
 		}
@@ -444,7 +444,7 @@ func TestCircuitBreaker_ConcurrencySafety(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Hammer the circuit breaker from multiple goroutines
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		wg.Add(3)
 
 		go func() {
@@ -478,7 +478,7 @@ func TestRequestDeduplicator_ConcurrencySafety(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Many concurrent requests with various keys
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		wg.Add(1)
 		key := "key-" + string(rune('a'+i%10))
 		go func(k string) {
@@ -495,6 +495,20 @@ func TestRequestDeduplicator_ConcurrencySafety(t *testing.T) {
 	// Verify all requests completed
 	if d.Stats() != 0 {
 		t.Errorf("expected 0 in-flight after all complete, got %d", d.Stats())
+	}
+}
+
+func TestCircuitBreaker_Allow_UnknownState(t *testing.T) {
+	cb := NewCircuitBreaker()
+
+	// Directly set an invalid state to test the default case
+	cb.mu.Lock()
+	cb.state = CircuitState(99) // Invalid state
+	cb.mu.Unlock()
+
+	// Should return false for unknown state
+	if cb.Allow() {
+		t.Error("unknown state should return false")
 	}
 }
 

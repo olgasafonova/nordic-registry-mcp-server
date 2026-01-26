@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1615,5 +1616,1627 @@ func TestGetStatus(t *testing.T) {
 				t.Errorf("getStatus(%v, %v) = %q, want %q", tt.bankrupt, tt.underLiquidation, status, tt.expected)
 			}
 		})
+	}
+}
+
+// =============================================================================
+// Validation Tests
+// =============================================================================
+
+func TestValidateAndNormalizeOrgNumber(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantResult string
+		wantErr    bool
+	}{
+		{"valid 9 digits", "923609016", "923609016", false},
+		{"valid with spaces", "923 609 016", "923609016", false},
+		{"valid with dashes", "923-609-016", "923609016", false},
+		{"empty string", "", "", true},
+		{"too short", "12345678", "", true},
+		{"too long", "1234567890", "", true},
+		{"with letters", "92360901A", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ValidateAndNormalizeOrgNumber(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAndNormalizeOrgNumber(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if result != tt.wantResult {
+				t.Errorf("ValidateAndNormalizeOrgNumber(%q) = %q, want %q", tt.input, result, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestValidateSearchQuery_MaxLength(t *testing.T) {
+	// Test query exceeding max length
+	longQuery := make([]byte, MaxQueryLength+1)
+	for i := range longQuery {
+		longQuery[i] = 'a'
+	}
+	err := ValidateSearchQuery(string(longQuery))
+	if err == nil {
+		t.Error("Expected error for query exceeding max length")
+	}
+}
+
+// =============================================================================
+// BatchGetCompanies Tests
+// =============================================================================
+
+func TestBatchGetCompanies_WithMockServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/enheter" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		// Verify org numbers are passed
+		orgNumbers := r.URL.Query().Get("organisasjonsnummer")
+		if !strings.Contains(orgNumbers, "923609016") {
+			t.Errorf("expected org number in query, got: %s", orgNumbers)
+		}
+
+		resp := SearchResponse{
+			Embedded: struct {
+				Companies []Company `json:"enheter"`
+			}{
+				Companies: []Company{
+					{
+						OrganizationNumber: "923609016",
+						Name:               "EQUINOR ASA",
+					},
+					{
+						OrganizationNumber: "914778271",
+						Name:               "TELENOR ASA",
+					},
+				},
+			},
+			Page: PageInfo{TotalElements: 2},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.BatchGetCompanies(context.Background(), []string{"923609016", "914778271"})
+	if err != nil {
+		t.Fatalf("BatchGetCompanies failed: %v", err)
+	}
+
+	if len(result.Embedded.Companies) != 2 {
+		t.Fatalf("Expected 2 companies, got %d", len(result.Embedded.Companies))
+	}
+}
+
+func TestBatchGetCompanies_EmptyInput(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	result, err := client.BatchGetCompanies(context.Background(), []string{})
+	if err != nil {
+		t.Fatalf("BatchGetCompanies failed: %v", err)
+	}
+	if len(result.Embedded.Companies) != 0 {
+		t.Errorf("Expected empty result, got %d companies", len(result.Embedded.Companies))
+	}
+}
+
+func TestBatchGetCompanies_TooMany(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	// Create slice with more than 2000 org numbers
+	orgNumbers := make([]string, 2001)
+	for i := range orgNumbers {
+		orgNumbers[i] = "923609016"
+	}
+
+	_, err := client.BatchGetCompanies(context.Background(), orgNumbers)
+	if err == nil {
+		t.Error("Expected error for too many org numbers")
+	}
+}
+
+func TestBatchGetCompanies_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.BatchGetCompanies(context.Background(), []string{"invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestBatchGetCompanies_Caching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		resp := SearchResponse{
+			Embedded: struct {
+				Companies []Company `json:"enheter"`
+			}{
+				Companies: []Company{{OrganizationNumber: "923609016", Name: "TEST"}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.BatchGetCompanies(context.Background(), []string{"923609016"})
+	// Second call should hit cache
+	_, _ = client.BatchGetCompanies(context.Background(), []string{"923609016"})
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+// =============================================================================
+// MCP Wrapper Tests
+// =============================================================================
+
+func TestSearchCompaniesMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := SearchResponse{
+			Embedded: struct {
+				Companies []Company `json:"enheter"`
+			}{
+				Companies: []Company{
+					{
+						OrganizationNumber: "923609016",
+						Name:               "EQUINOR ASA",
+						OrganizationForm:   &OrganizationForm{Code: "ASA", Description: "Allmennaksjeselskap"},
+						BusinessAddress: &Address{
+							AddressLines: []string{"Forusbeen 50"},
+							PostalCode:   "4035",
+							PostalPlace:  "STAVANGER",
+						},
+						PostalAddress: &Address{
+							AddressLines: []string{"Postboks 8500"},
+							PostalCode:   "4035",
+							PostalPlace:  "STAVANGER",
+						},
+					},
+				},
+			},
+			Page: PageInfo{TotalElements: 1, TotalPages: 1, Number: 0},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.SearchCompaniesMCP(context.Background(), SearchCompaniesArgs{
+		Query: "Equinor",
+	})
+	if err != nil {
+		t.Fatalf("SearchCompaniesMCP failed: %v", err)
+	}
+
+	if len(result.Companies) != 1 {
+		t.Fatalf("Expected 1 company, got %d", len(result.Companies))
+	}
+	if result.Companies[0].Name != "EQUINOR ASA" {
+		t.Errorf("Name = %q, want %q", result.Companies[0].Name, "EQUINOR ASA")
+	}
+	if result.Companies[0].OrganizationForm != "ASA" {
+		t.Errorf("OrganizationForm = %q, want %q", result.Companies[0].OrganizationForm, "ASA")
+	}
+	if result.TotalResults != 1 {
+		t.Errorf("TotalResults = %d, want 1", result.TotalResults)
+	}
+}
+
+func TestSearchCompaniesMCP_EmptyQuery(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.SearchCompaniesMCP(context.Background(), SearchCompaniesArgs{Query: ""})
+	if err == nil {
+		t.Error("Expected error for empty query")
+	}
+}
+
+func TestSearchCompaniesMCP_ShortQuery(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.SearchCompaniesMCP(context.Background(), SearchCompaniesArgs{Query: "a"})
+	if err == nil {
+		t.Error("Expected error for query too short")
+	}
+}
+
+func TestSearchCompaniesMCP_InvalidSize(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.SearchCompaniesMCP(context.Background(), SearchCompaniesArgs{
+		Query: "Equinor",
+		Size:  150, // exceeds max 100
+	})
+	if err == nil {
+		t.Error("Expected error for size exceeding 100")
+	}
+}
+
+func TestSearchCompaniesMCP_WithAllOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("page") != "1" {
+			t.Errorf("page = %q, want %q", query.Get("page"), "1")
+		}
+		if query.Get("size") != "50" {
+			t.Errorf("size = %q, want %q", query.Get("size"), "50")
+		}
+		if query.Get("organisasjonsform") != "AS" {
+			t.Errorf("organisasjonsform = %q, want %q", query.Get("organisasjonsform"), "AS")
+		}
+		if query.Get("kommunenummer") != "0301" {
+			t.Errorf("kommunenummer = %q, want %q", query.Get("kommunenummer"), "0301")
+		}
+
+		resp := SearchResponse{
+			Embedded: struct {
+				Companies []Company `json:"enheter"`
+			}{Companies: []Company{}},
+			Page: PageInfo{},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	vatTrue := true
+	bankruptFalse := false
+	voluntaryTrue := true
+	_, err := client.SearchCompaniesMCP(context.Background(), SearchCompaniesArgs{
+		Query:                 "Test",
+		Page:                  1,
+		Size:                  50,
+		OrgForm:               "AS",
+		Municipality:          "0301",
+		RegisteredInVAT:       &vatTrue,
+		Bankrupt:              &bankruptFalse,
+		RegisteredInVoluntary: &voluntaryTrue,
+	})
+	if err != nil {
+		t.Fatalf("SearchCompaniesMCP failed: %v", err)
+	}
+}
+
+func TestGetCompanyMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		company := Company{
+			OrganizationNumber:    "923609016",
+			Name:                  "EQUINOR ASA",
+			OrganizationForm:      &OrganizationForm{Code: "ASA", Description: "Allmennaksjeselskap"},
+			RegistrationDate:      "1972-06-16",
+			EmployeeCount:         21000,
+			Website:               "www.equinor.com",
+			RegisteredInVAT:       true,
+			RegisteredInVoluntary: false,
+			IndustryCode1:         &IndustryCode{Code: "06.100", Description: "Utvinning av råolje"},
+			BusinessAddress: &Address{
+				AddressLines: []string{"Forusbeen 50"},
+				PostalCode:   "4035",
+				PostalPlace:  "STAVANGER",
+			},
+			PostalAddress: &Address{
+				AddressLines: []string{"Postboks 8500"},
+				PostalCode:   "4035",
+				PostalPlace:  "STAVANGER",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(company)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "923609016"})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if result.Summary == nil {
+		t.Fatal("Expected summary, got nil")
+	}
+	if result.Summary.Name != "EQUINOR ASA" {
+		t.Errorf("Name = %q, want %q", result.Summary.Name, "EQUINOR ASA")
+	}
+	if result.Summary.EmployeeCount != 21000 {
+		t.Errorf("EmployeeCount = %d, want 21000", result.Summary.EmployeeCount)
+	}
+	if result.Summary.Status != "ACTIVE" {
+		t.Errorf("Status = %q, want ACTIVE", result.Summary.Status)
+	}
+}
+
+func TestGetCompanyMCP_FullDetails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		company := Company{
+			OrganizationNumber: "923609016",
+			Name:               "EQUINOR ASA",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(company)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{
+		OrgNumber: "923609016",
+		Full:      true,
+	})
+	if err != nil {
+		t.Fatalf("GetCompanyMCP failed: %v", err)
+	}
+
+	if result.Company == nil {
+		t.Fatal("Expected full company, got nil")
+	}
+	if result.Summary != nil {
+		t.Error("Expected nil summary when full=true")
+	}
+}
+
+func TestGetCompanyMCP_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestGetRolesMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := RolesResponse{
+			RoleGroups: []RoleGroup{
+				{
+					Type:         RoleType{Code: "STYR", Description: "Styre"},
+					LastModified: "2024-01-15",
+					Roles: []Role{
+						{
+							Type:   RoleType{Code: "LEDE", Description: "Styreleder"},
+							Person: &Person{Name: PersonName{FirstName: "Ola", LastName: "Nordmann"}, BirthDate: "1970-01-01"},
+						},
+						{
+							Type:   RoleType{Code: "MEDL", Description: "Styremedlem"},
+							Entity: &RoleEntity{OrganizationNumber: "912345678", Name: []string{"HOLDING", "AS"}},
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetRolesMCP(context.Background(), GetRolesArgs{OrgNumber: "923609016"})
+	if err != nil {
+		t.Fatalf("GetRolesMCP failed: %v", err)
+	}
+
+	if len(result.RoleGroups) != 1 {
+		t.Fatalf("Expected 1 role group, got %d", len(result.RoleGroups))
+	}
+	if len(result.RoleGroups[0].Roles) != 2 {
+		t.Fatalf("Expected 2 roles, got %d", len(result.RoleGroups[0].Roles))
+	}
+	// Check person role
+	if result.RoleGroups[0].Roles[0].Name != "Ola Nordmann" {
+		t.Errorf("Role name = %q, want %q", result.RoleGroups[0].Roles[0].Name, "Ola Nordmann")
+	}
+	// Check entity role
+	if result.RoleGroups[0].Roles[1].EntityOrgNr != "912345678" {
+		t.Errorf("EntityOrgNr = %q, want %q", result.RoleGroups[0].Roles[1].EntityOrgNr, "912345678")
+	}
+	if result.RoleGroups[0].Roles[1].Name != "HOLDING AS" {
+		t.Errorf("Entity name = %q, want %q", result.RoleGroups[0].Roles[1].Name, "HOLDING AS")
+	}
+}
+
+func TestGetRolesMCP_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetRolesMCP(context.Background(), GetRolesArgs{OrgNumber: "invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestGetSubUnitsMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := SubUnitSearchResponse{
+			Embedded: struct {
+				SubUnits []SubUnit `json:"underenheter"`
+			}{
+				SubUnits: []SubUnit{
+					{
+						OrganizationNumber:       "912345678",
+						Name:                     "EQUINOR AVD OSLO",
+						ParentOrganizationNumber: "923609016",
+						EmployeeCount:            500,
+						BusinessAddress: &Address{
+							AddressLines: []string{"Drammensveien 264"},
+							PostalCode:   "0283",
+							PostalPlace:  "OSLO",
+						},
+					},
+				},
+			},
+			Page: PageInfo{TotalElements: 1},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetSubUnitsMCP(context.Background(), GetSubUnitsArgs{ParentOrgNumber: "923609016"})
+	if err != nil {
+		t.Fatalf("GetSubUnitsMCP failed: %v", err)
+	}
+
+	if len(result.SubUnits) != 1 {
+		t.Fatalf("Expected 1 subunit, got %d", len(result.SubUnits))
+	}
+	if result.SubUnits[0].Name != "EQUINOR AVD OSLO" {
+		t.Errorf("Name = %q, want %q", result.SubUnits[0].Name, "EQUINOR AVD OSLO")
+	}
+	if result.TotalResults != 1 {
+		t.Errorf("TotalResults = %d, want 1", result.TotalResults)
+	}
+}
+
+func TestGetSubUnitsMCP_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetSubUnitsMCP(context.Background(), GetSubUnitsArgs{ParentOrgNumber: "invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestGetSubUnitMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		su := SubUnit{
+			OrganizationNumber:       "912345678",
+			Name:                     "EQUINOR AVD OSLO",
+			ParentOrganizationNumber: "923609016",
+			EmployeeCount:            500,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(su)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetSubUnitMCP(context.Background(), GetSubUnitArgs{OrgNumber: "912345678"})
+	if err != nil {
+		t.Fatalf("GetSubUnitMCP failed: %v", err)
+	}
+
+	if result.SubUnit == nil {
+		t.Fatal("SubUnit is nil")
+	}
+	if result.SubUnit.Name != "EQUINOR AVD OSLO" {
+		t.Errorf("Name = %q, want %q", result.SubUnit.Name, "EQUINOR AVD OSLO")
+	}
+}
+
+func TestGetSubUnitMCP_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetSubUnitMCP(context.Background(), GetSubUnitArgs{OrgNumber: "invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestGetUpdatesMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := UpdatesResponse{
+			Embedded: struct {
+				Updates []UpdateEntry `json:"oppdaterteEnheter"`
+			}{
+				Updates: []UpdateEntry{
+					{
+						UpdateID:           123,
+						OrganizationNumber: "923609016",
+						UpdatedAt:          time.Now(),
+						ChangeType:         "Endring",
+					},
+					{
+						UpdateID:           124,
+						OrganizationNumber: "914778271",
+						UpdatedAt:          time.Now(),
+						ChangeType:         "Ny",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetUpdatesMCP(context.Background(), GetUpdatesArgs{
+		Since: time.Now().Add(-24 * time.Hour),
+		Size:  100,
+	})
+	if err != nil {
+		t.Fatalf("GetUpdatesMCP failed: %v", err)
+	}
+
+	if len(result.Updates) != 2 {
+		t.Fatalf("Expected 2 updates, got %d", len(result.Updates))
+	}
+	if result.Updates[0].ChangeType != "Endring" {
+		t.Errorf("ChangeType = %q, want %q", result.Updates[0].ChangeType, "Endring")
+	}
+}
+
+func TestSearchSubUnitsMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := SubUnitSearchResponse{
+			Embedded: struct {
+				SubUnits []SubUnit `json:"underenheter"`
+			}{
+				SubUnits: []SubUnit{
+					{
+						OrganizationNumber:       "912345678",
+						Name:                     "COMPANY AVD OSLO",
+						ParentOrganizationNumber: "923609016",
+						EmployeeCount:            100,
+						BusinessAddress: &Address{
+							AddressLines: []string{"Test 1"},
+							PostalCode:   "0001",
+							PostalPlace:  "OSLO",
+						},
+					},
+				},
+			},
+			Page: PageInfo{TotalElements: 1, TotalPages: 1, Number: 0},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.SearchSubUnitsMCP(context.Background(), SearchSubUnitsArgs{
+		Query:        "Oslo",
+		Page:         0,
+		Size:         20,
+		Municipality: "0301",
+	})
+	if err != nil {
+		t.Fatalf("SearchSubUnitsMCP failed: %v", err)
+	}
+
+	if len(result.SubUnits) != 1 {
+		t.Fatalf("Expected 1 subunit, got %d", len(result.SubUnits))
+	}
+	if result.TotalResults != 1 {
+		t.Errorf("TotalResults = %d, want 1", result.TotalResults)
+	}
+}
+
+func TestSearchSubUnitsMCP_EmptyQuery(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.SearchSubUnitsMCP(context.Background(), SearchSubUnitsArgs{Query: ""})
+	if err == nil {
+		t.Error("Expected error for empty query")
+	}
+}
+
+func TestSearchSubUnitsMCP_InvalidSize(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.SearchSubUnitsMCP(context.Background(), SearchSubUnitsArgs{
+		Query: "Oslo",
+		Size:  150,
+	})
+	if err == nil {
+		t.Error("Expected error for invalid size")
+	}
+}
+
+func TestListMunicipalitiesMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := MunicipalitiesResponse{
+			Embedded: struct {
+				Municipalities []Municipality `json:"kommuner"`
+			}{
+				Municipalities: []Municipality{
+					{Number: "0301", Name: "Oslo"},
+					{Number: "4601", Name: "Bergen"},
+					{Number: "5001", Name: "Trondheim"},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.ListMunicipalitiesMCP(context.Background(), ListMunicipalitiesArgs{})
+	if err != nil {
+		t.Fatalf("ListMunicipalitiesMCP failed: %v", err)
+	}
+
+	if result.Count != 3 {
+		t.Errorf("Count = %d, want 3", result.Count)
+	}
+	if len(result.Municipalities) != 3 {
+		t.Fatalf("Expected 3 municipalities, got %d", len(result.Municipalities))
+	}
+	if result.Municipalities[0].Number != "0301" {
+		t.Errorf("Number = %q, want %q", result.Municipalities[0].Number, "0301")
+	}
+}
+
+func TestListOrgFormsMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := OrgFormsResponse{
+			Embedded: struct {
+				OrgForms []OrgForm `json:"organisasjonsformer"`
+			}{
+				OrgForms: []OrgForm{
+					{Code: "AS", Description: "Aksjeselskap"},
+					{Code: "ENK", Description: "Enkeltpersonforetak"},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.ListOrgFormsMCP(context.Background(), ListOrgFormsArgs{})
+	if err != nil {
+		t.Fatalf("ListOrgFormsMCP failed: %v", err)
+	}
+
+	if result.Count != 2 {
+		t.Errorf("Count = %d, want 2", result.Count)
+	}
+	if len(result.OrgForms) != 2 {
+		t.Fatalf("Expected 2 org forms, got %d", len(result.OrgForms))
+	}
+	if result.OrgForms[0].Code != "AS" {
+		t.Errorf("Code = %q, want %q", result.OrgForms[0].Code, "AS")
+	}
+}
+
+func TestGetSubUnitUpdatesMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := SubUnitUpdatesResponse{
+			Embedded: struct {
+				Updates []SubUnitUpdateEntry `json:"oppdaterteUnderenheter"`
+			}{
+				Updates: []SubUnitUpdateEntry{
+					{
+						UpdateID:           456,
+						OrganizationNumber: "912345678",
+						UpdatedAt:          time.Now(),
+						ChangeType:         "Ny",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetSubUnitUpdatesMCP(context.Background(), GetSubUnitUpdatesArgs{
+		Since: time.Now().Add(-24 * time.Hour),
+		Size:  50,
+	})
+	if err != nil {
+		t.Fatalf("GetSubUnitUpdatesMCP failed: %v", err)
+	}
+
+	if len(result.Updates) != 1 {
+		t.Fatalf("Expected 1 update, got %d", len(result.Updates))
+	}
+	if result.Updates[0].ChangeType != "Ny" {
+		t.Errorf("ChangeType = %q, want %q", result.Updates[0].ChangeType, "Ny")
+	}
+}
+
+func TestGetSignatureRightsMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := RolesResponse{
+			RoleGroups: []RoleGroup{
+				{
+					Type: RoleType{Code: "SIGN", Description: "Signatur"},
+					Roles: []Role{
+						{
+							Type:   RoleType{Code: "SIGN", Description: "Signaturrett"},
+							Person: &Person{Name: PersonName{FirstName: "Ola", LastName: "Nordmann"}, BirthDate: "1970-01-01"},
+						},
+					},
+				},
+				{
+					Type: RoleType{Code: "PROK", Description: "Prokura"},
+					Roles: []Role{
+						{
+							Type:   RoleType{Code: "PROK", Description: "Prokura"},
+							Person: &Person{Name: PersonName{FirstName: "Kari", LastName: "Hansen"}, BirthDate: "1980-05-15"},
+						},
+					},
+				},
+				{
+					Type: RoleType{Code: "STYR", Description: "Styre"},
+					Roles: []Role{
+						{
+							Type:     RoleType{Code: "LEDE", Description: "Styreleder"},
+							Person:   &Person{Name: PersonName{FirstName: "Per", LastName: "Olsen"}},
+							Resigned: true, // Should be excluded
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetSignatureRightsMCP(context.Background(), GetSignatureRightsArgs{OrgNumber: "923609016"})
+	if err != nil {
+		t.Fatalf("GetSignatureRightsMCP failed: %v", err)
+	}
+
+	if result.OrganizationNumber != "923609016" {
+		t.Errorf("OrganizationNumber = %q, want %q", result.OrganizationNumber, "923609016")
+	}
+	if len(result.SignatureRights) != 1 {
+		t.Fatalf("Expected 1 signature right, got %d", len(result.SignatureRights))
+	}
+	if result.SignatureRights[0].Name != "Ola Nordmann" {
+		t.Errorf("SignatureRight name = %q, want %q", result.SignatureRights[0].Name, "Ola Nordmann")
+	}
+	if len(result.Prokura) != 1 {
+		t.Fatalf("Expected 1 prokura, got %d", len(result.Prokura))
+	}
+	if result.Prokura[0].Name != "Kari Hansen" {
+		t.Errorf("Prokura name = %q, want %q", result.Prokura[0].Name, "Kari Hansen")
+	}
+	if !strings.Contains(result.Summary, "Signature rights") {
+		t.Errorf("Summary should contain 'Signature rights', got: %s", result.Summary)
+	}
+	if !strings.Contains(result.Summary, "Prokura") {
+		t.Errorf("Summary should contain 'Prokura', got: %s", result.Summary)
+	}
+}
+
+func TestGetSignatureRightsMCP_NoRights(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := RolesResponse{
+			RoleGroups: []RoleGroup{
+				{
+					Type: RoleType{Code: "STYR", Description: "Styre"},
+					Roles: []Role{
+						{
+							Type:   RoleType{Code: "LEDE", Description: "Styreleder"},
+							Person: &Person{Name: PersonName{FirstName: "Per", LastName: "Olsen"}},
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetSignatureRightsMCP(context.Background(), GetSignatureRightsArgs{OrgNumber: "923609016"})
+	if err != nil {
+		t.Fatalf("GetSignatureRightsMCP failed: %v", err)
+	}
+
+	if len(result.SignatureRights) != 0 {
+		t.Errorf("Expected 0 signature rights, got %d", len(result.SignatureRights))
+	}
+	if len(result.Prokura) != 0 {
+		t.Errorf("Expected 0 prokura, got %d", len(result.Prokura))
+	}
+	if result.Summary != "No signature rights or prokura found" {
+		t.Errorf("Summary = %q, want %q", result.Summary, "No signature rights or prokura found")
+	}
+}
+
+func TestGetSignatureRightsMCP_WithEntity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := RolesResponse{
+			RoleGroups: []RoleGroup{
+				{
+					Type: RoleType{Code: "SIGN", Description: "Signatur"},
+					Roles: []Role{
+						{
+							Type:   RoleType{Code: "SIGN", Description: "Signaturrett"},
+							Entity: &RoleEntity{OrganizationNumber: "912345678", Name: []string{"HOLDING AS"}},
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.GetSignatureRightsMCP(context.Background(), GetSignatureRightsArgs{OrgNumber: "923609016"})
+	if err != nil {
+		t.Fatalf("GetSignatureRightsMCP failed: %v", err)
+	}
+
+	if len(result.SignatureRights) != 1 {
+		t.Fatalf("Expected 1 signature right, got %d", len(result.SignatureRights))
+	}
+	if result.SignatureRights[0].EntityOrgNr != "912345678" {
+		t.Errorf("EntityOrgNr = %q, want %q", result.SignatureRights[0].EntityOrgNr, "912345678")
+	}
+	if result.SignatureRights[0].Name != "HOLDING AS" {
+		t.Errorf("Name = %q, want %q", result.SignatureRights[0].Name, "HOLDING AS")
+	}
+}
+
+func TestGetSignatureRightsMCP_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.GetSignatureRightsMCP(context.Background(), GetSignatureRightsArgs{OrgNumber: "invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+func TestBatchGetCompaniesMCP_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := SearchResponse{
+			Embedded: struct {
+				Companies []Company `json:"enheter"`
+			}{
+				Companies: []Company{
+					{
+						OrganizationNumber: "923609016",
+						Name:               "EQUINOR ASA",
+						OrganizationForm:   &OrganizationForm{Code: "ASA"},
+						BusinessAddress:    &Address{AddressLines: []string{"Forusbeen 50"}, PostalCode: "4035", PostalPlace: "STAVANGER"},
+						PostalAddress:      &Address{AddressLines: []string{"Postboks 8500"}, PostalCode: "4035", PostalPlace: "STAVANGER"},
+					},
+					{
+						OrganizationNumber: "914778271",
+						Name:               "TELENOR ASA",
+						Bankrupt:           true,
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	result, err := client.BatchGetCompaniesMCP(context.Background(), BatchGetCompaniesArgs{
+		OrgNumbers: []string{"923609016", "914778271", "000000000"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetCompaniesMCP failed: %v", err)
+	}
+
+	if len(result.Companies) != 2 {
+		t.Fatalf("Expected 2 companies, got %d", len(result.Companies))
+	}
+	if result.TotalResults != 2 {
+		t.Errorf("TotalResults = %d, want 2", result.TotalResults)
+	}
+	if len(result.NotFound) != 1 {
+		t.Errorf("Expected 1 not found, got %d", len(result.NotFound))
+	}
+	// Check that bankrupt company has correct status
+	for _, c := range result.Companies {
+		if c.OrganizationNumber == "914778271" && c.Status != "BANKRUPT" {
+			t.Errorf("Expected BANKRUPT status for 914778271, got %q", c.Status)
+		}
+	}
+}
+
+func TestBatchGetCompaniesMCP_EmptyInput(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	result, err := client.BatchGetCompaniesMCP(context.Background(), BatchGetCompaniesArgs{OrgNumbers: []string{}})
+	if err != nil {
+		t.Fatalf("BatchGetCompaniesMCP failed: %v", err)
+	}
+	if len(result.Companies) != 0 {
+		t.Errorf("Expected empty result, got %d companies", len(result.Companies))
+	}
+}
+
+func TestBatchGetCompaniesMCP_InvalidOrgNumber(t *testing.T) {
+	client := NewClient()
+	defer client.Close()
+
+	_, err := client.BatchGetCompaniesMCP(context.Background(), BatchGetCompaniesArgs{
+		OrgNumbers: []string{"923609016", "invalid"},
+	})
+	if err == nil {
+		t.Error("Expected error for invalid org number")
+	}
+}
+
+// =============================================================================
+// doRequest Error Handling Tests
+// =============================================================================
+
+func TestDoRequest_APIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		apiErr := APIError{Message: "Invalid request parameter"}
+		_ = json.NewEncoder(w).Encode(apiErr)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompany(context.Background(), "923609016")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	if !strings.Contains(err.Error(), "Invalid request parameter") {
+		t.Errorf("Expected API error message in error, got: %v", err)
+	}
+}
+
+func TestDoRequest_NonJSONError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("Bad Gateway"))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompany(context.Background(), "923609016")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestDoRequest_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{invalid json"))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompany(context.Background(), "923609016")
+	if err == nil {
+		t.Fatal("Expected error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse response") {
+		t.Errorf("Expected parse error, got: %v", err)
+	}
+}
+
+// =============================================================================
+// Additional Edge Cases
+// =============================================================================
+
+func TestGetRoles_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"feilmelding": "Ingen enhet funnet"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetRoles(context.Background(), "000000000")
+	if err == nil {
+		t.Fatal("Expected error for not found")
+	}
+}
+
+func TestGetSubUnit_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSubUnit(context.Background(), "000000000")
+	if err == nil {
+		t.Fatal("Expected error for not found")
+	}
+}
+
+func TestGetUpdates_WithSize(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("size") != "50" {
+			t.Errorf("size = %q, want %q", r.URL.Query().Get("size"), "50")
+		}
+		resp := UpdatesResponse{
+			Embedded: struct {
+				Updates []UpdateEntry `json:"oppdaterteEnheter"`
+			}{Updates: []UpdateEntry{}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetUpdates(context.Background(), time.Now().Add(-24*time.Hour), &UpdatesOptions{Size: 50})
+	if err != nil {
+		t.Fatalf("GetUpdates failed: %v", err)
+	}
+}
+
+func TestSearchSubUnits_WithAllOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("page") != "2" {
+			t.Errorf("page = %q, want %q", query.Get("page"), "2")
+		}
+		if query.Get("size") != "25" {
+			t.Errorf("size = %q, want %q", query.Get("size"), "25")
+		}
+		if query.Get("kommunenummer") != "0301" {
+			t.Errorf("kommunenummer = %q, want %q", query.Get("kommunenummer"), "0301")
+		}
+
+		resp := SubUnitSearchResponse{
+			Embedded: struct {
+				SubUnits []SubUnit `json:"underenheter"`
+			}{SubUnits: []SubUnit{}},
+			Page: PageInfo{},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.SearchSubUnits(context.Background(), "Test", &SearchSubUnitsOptions{
+		Page:         2,
+		Size:         25,
+		Municipality: "0301",
+	})
+	if err != nil {
+		t.Fatalf("SearchSubUnits failed: %v", err)
+	}
+}
+
+func TestGetSubUnitUpdates_WithSize(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("size") != "100" {
+			t.Errorf("size = %q, want %q", r.URL.Query().Get("size"), "100")
+		}
+		resp := SubUnitUpdatesResponse{
+			Embedded: struct {
+				Updates []SubUnitUpdateEntry `json:"oppdaterteUnderenheter"`
+			}{Updates: []SubUnitUpdateEntry{}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSubUnitUpdates(context.Background(), time.Now().Add(-24*time.Hour), &UpdatesOptions{Size: 100})
+	if err != nil {
+		t.Fatalf("GetSubUnitUpdates failed: %v", err)
+	}
+}
+
+func TestClient_RolesCaching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		resp := RolesResponse{RoleGroups: []RoleGroup{}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.GetRoles(context.Background(), "923609016")
+	// Second call should hit cache
+	_, _ = client.GetRoles(context.Background(), "923609016")
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestClient_SubUnitsCaching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		resp := SubUnitSearchResponse{
+			Embedded: struct {
+				SubUnits []SubUnit `json:"underenheter"`
+			}{SubUnits: []SubUnit{}},
+			Page: PageInfo{},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.GetSubUnits(context.Background(), "923609016")
+	// Second call should hit cache
+	_, _ = client.GetSubUnits(context.Background(), "923609016")
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestClient_SubUnitCaching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		su := SubUnit{OrganizationNumber: "912345678", Name: "TEST"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(su)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.GetSubUnit(context.Background(), "912345678")
+	// Second call should hit cache
+	_, _ = client.GetSubUnit(context.Background(), "912345678")
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestClient_SearchSubUnitsCaching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		resp := SubUnitSearchResponse{
+			Embedded: struct {
+				SubUnits []SubUnit `json:"underenheter"`
+			}{SubUnits: []SubUnit{}},
+			Page: PageInfo{},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.SearchSubUnits(context.Background(), "Oslo", nil)
+	// Second call should hit cache
+	_, _ = client.SearchSubUnits(context.Background(), "Oslo", nil)
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+// =============================================================================
+// Additional Coverage Tests
+// =============================================================================
+
+func TestClient_MunicipalitiesCaching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		resp := MunicipalitiesResponse{
+			Embedded: struct {
+				Municipalities []Municipality `json:"kommuner"`
+			}{Municipalities: []Municipality{{Number: "0301", Name: "Oslo"}}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.GetMunicipalities(context.Background())
+	// Second call should hit cache
+	_, _ = client.GetMunicipalities(context.Background())
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestClient_OrgFormsCaching(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		resp := OrgFormsResponse{
+			Embedded: struct {
+				OrgForms []OrgForm `json:"organisasjonsformer"`
+			}{OrgForms: []OrgForm{{Code: "AS", Description: "Aksjeselskap"}}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	// First call
+	_, _ = client.GetOrgForms(context.Background())
+	// Second call should hit cache
+	_, _ = client.GetOrgForms(context.Background())
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call (cached), got %d", callCount)
+	}
+}
+
+func TestGetMunicipalities_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetMunicipalities(context.Background())
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetOrgForms_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetOrgForms(context.Background())
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestListMunicipalitiesMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.ListMunicipalitiesMCP(context.Background(), ListMunicipalitiesArgs{})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestListOrgFormsMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.ListOrgFormsMCP(context.Background(), ListOrgFormsArgs{})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetSubUnitMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSubUnitMCP(context.Background(), GetSubUnitArgs{OrgNumber: "923609016"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetUpdatesMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetUpdatesMCP(context.Background(), GetUpdatesArgs{Since: time.Now()})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetSubUnitUpdatesMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSubUnitUpdatesMCP(context.Background(), GetSubUnitUpdatesArgs{Since: time.Now()})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestSearchCompaniesMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.SearchCompaniesMCP(context.Background(), SearchCompaniesArgs{Query: "Test"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestSearchSubUnitsMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.SearchSubUnitsMCP(context.Background(), SearchSubUnitsArgs{Query: "Oslo"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetCompanyMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetCompanyMCP(context.Background(), GetCompanyArgs{OrgNumber: "923609016"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetRolesMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetRolesMCP(context.Background(), GetRolesArgs{OrgNumber: "923609016"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetSubUnitsMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSubUnitsMCP(context.Background(), GetSubUnitsArgs{ParentOrgNumber: "923609016"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestGetSignatureRightsMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSignatureRightsMCP(context.Background(), GetSignatureRightsArgs{OrgNumber: "923609016"})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestBatchGetCompaniesMCP_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.BatchGetCompaniesMCP(context.Background(), BatchGetCompaniesArgs{OrgNumbers: []string{"923609016"}})
+	if err == nil {
+		t.Error("Expected error for server error")
+	}
+}
+
+func TestClient_SubUnits_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	_, err := client.GetSubUnits(context.Background(), "923609016")
+	if err == nil {
+		t.Error("Expected error for not found")
+	}
+}
+
+func TestSearchCompanies_WithVATAndBankruptFilters(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("registrertIMvaregisteret") != "true" {
+			t.Errorf("registrertIMvaregisteret = %q, want %q", query.Get("registrertIMvaregisteret"), "true")
+		}
+		if query.Get("konkurs") != "false" {
+			t.Errorf("konkurs = %q, want %q", query.Get("konkurs"), "false")
+		}
+		if query.Get("registrertIFrivillighetsregisteret") != "true" {
+			t.Errorf("registrertIFrivillighetsregisteret = %q, want %q", query.Get("registrertIFrivillighetsregisteret"), "true")
+		}
+
+		resp := SearchResponse{
+			Embedded: struct {
+				Companies []Company `json:"enheter"`
+			}{Companies: []Company{}},
+			Page: PageInfo{},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	defer client.Close()
+
+	vatTrue := true
+	bankruptFalse := false
+	voluntaryTrue := true
+	_, err := client.SearchCompanies(context.Background(), "Test", &SearchOptions{
+		RegisteredInVAT:       &vatTrue,
+		Bankrupt:              &bankruptFalse,
+		RegisteredInVoluntary: &voluntaryTrue,
+	})
+	if err != nil {
+		t.Fatalf("SearchCompanies failed: %v", err)
 	}
 }
