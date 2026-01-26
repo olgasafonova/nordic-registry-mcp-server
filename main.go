@@ -652,9 +652,9 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 
 		registeredTools := registry.RegisteredTools()
-		toolsByCountry := make(map[string][]map[string]interface{})
+		toolsByCountry := make(map[string][]map[string]any)
 		for _, tool := range registeredTools {
-			toolInfo := map[string]interface{}{
+			toolInfo := map[string]any{
 				"name":        tool.Name,
 				"title":       tool.Title,
 				"category":    tool.Category,
@@ -664,7 +664,7 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 			toolsByCountry[tool.Country] = append(toolsByCountry[tool.Country], toolInfo)
 		}
 
-		response := map[string]interface{}{
+		response := map[string]any{
 			"server":     ServerName,
 			"version":    ServerVersion,
 			"tool_count": len(registeredTools),
@@ -687,31 +687,31 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		dkDedupStats := denmarkClient.DedupStats()
 		fiCBStats := finlandClient.CircuitBreakerStats()
 
-		response := map[string]interface{}{
+		response := map[string]any{
 			"server":  ServerName,
 			"version": ServerVersion,
-			"norway": map[string]interface{}{
-				"circuit_breaker": map[string]interface{}{
+			"norway": map[string]any{
+				"circuit_breaker": map[string]any{
 					"state":                noCBStats.State,
 					"consecutive_failures": noCBStats.ConsecutiveFails,
 					"last_failure":         noCBStats.LastFailure,
 				},
-				"dedup": map[string]interface{}{
+				"dedup": map[string]any{
 					"inflight_requests": noDedupStats,
 				},
 			},
-			"denmark": map[string]interface{}{
-				"circuit_breaker": map[string]interface{}{
+			"denmark": map[string]any{
+				"circuit_breaker": map[string]any{
 					"state":                dkCBStats.State,
 					"consecutive_failures": dkCBStats.ConsecutiveFails,
 					"last_failure":         dkCBStats.LastFailure,
 				},
-				"dedup": map[string]interface{}{
+				"dedup": map[string]any{
 					"inflight_requests": dkDedupStats,
 				},
 			},
-			"finland": map[string]interface{}{
-				"circuit_breaker": map[string]interface{}{
+			"finland": map[string]any{
+				"circuit_breaker": map[string]any{
 					"state":                fiCBStats.State,
 					"consecutive_failures": fiCBStats.ConsecutiveFails,
 					"last_failure":         fiCBStats.LastFailure,

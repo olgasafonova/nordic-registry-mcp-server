@@ -423,19 +423,24 @@ For remote access or integration with other tools:
 
 ```
 nordic-registry-mcp-server/
-├── main.go                 # Entry point, HTTP/stdio transport
+├── main.go                 # Entry point, HTTP/stdio transport, security middleware
 ├── internal/
-│   ├── infra/             # Shared infrastructure
+│   ├── base/              # Shared HTTP client with resilience
+│   │   └── client.go      # Connection pooling, retries, rate limiting
+│   ├── errors/            # Shared error types
+│   │   └── errors.go      # NotFoundError, ValidationError
+│   ├── infra/             # Resilience infrastructure
 │   │   ├── cache.go       # LRU cache with TTL
 │   │   └── resilience.go  # Circuit breaker, request deduplication
-│   ├── norway/            # Norwegian registry client
-│   ├── denmark/           # Danish registry client
-│   ├── finland/           # Finnish registry client
-│   └── sweden/            # Swedish registry client (OAuth2)
+│   ├── norway/            # Norwegian registry (Brønnøysundregistrene)
+│   ├── denmark/           # Danish registry (CVR)
+│   ├── finland/           # Finnish registry (PRH)
+│   └── sweden/            # Swedish registry (Bolagsverket, OAuth2)
 ├── tools/
-│   ├── definitions.go     # Tool specifications
-│   └── handlers.go        # MCP tool registration
-├── metrics/               # Prometheus metrics
+│   ├── definitions.go     # Tool specifications (23 tools)
+│   ├── handlers.go        # MCP tool registration
+│   └── registry.go        # Tool metadata types
+├── metrics/               # Prometheus metrics (namespace: nordic_registry_mcp)
 └── tracing/               # OpenTelemetry tracing
 ```
 

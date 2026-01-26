@@ -40,6 +40,8 @@ type GetCompanyArgs struct {
 
 // GetCompanyResult is the result of getting a company
 type GetCompanyResult struct {
+	Found   bool                  `json:"found"`             // Whether the company was found
+	Message string                `json:"message,omitempty"` // Message when not found
 	Company *Company              `json:"company,omitempty"` // Full company (when full=true)
 	Summary *CompanyDetailSummary `json:"summary,omitempty"` // Summary (default)
 }

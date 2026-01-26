@@ -2,7 +2,10 @@ package norway
 
 import (
 	"context"
+	"fmt"
 	"strings"
+
+	apierrors "github.com/olgasafonova/nordic-registry-mcp-server/internal/errors"
 )
 
 // MCP Tool wrapper methods
@@ -72,12 +75,18 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 
 	company, err := c.GetCompany(ctx, args.OrgNumber)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return GetCompanyResult{
+				Found:   false,
+				Message: fmt.Sprintf("No company found with organization number: %s", args.OrgNumber),
+			}, nil
+		}
 		return GetCompanyResult{}, err
 	}
 
 	// Return full data if requested
 	if args.Full {
-		return GetCompanyResult{Company: company}, nil
+		return GetCompanyResult{Found: true, Company: company}, nil
 	}
 
 	// Default: return summary
@@ -106,7 +115,7 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		summary.Industry = company.IndustryCode1.Code + " - " + company.IndustryCode1.Description
 	}
 
-	return GetCompanyResult{Summary: summary}, nil
+	return GetCompanyResult{Found: true, Summary: summary}, nil
 }
 
 // GetRolesMCP is the MCP wrapper for GetRoles
