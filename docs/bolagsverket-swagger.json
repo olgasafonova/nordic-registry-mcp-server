@@ -1,0 +1,2187 @@
+{
+  "openapi" : "3.0.3",
+  "info" : {
+    "title" : "VärdefullaDatamängder",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "https://gw.api.bolagsverket.se/vardefulla-datamangder/v1"
+  } ],
+  "security" : [ {
+    "default" : [ ]
+  } ],
+  "paths" : {
+    "/isalive" : {
+      "get" : {
+        "tags" : [ "Ping" ],
+        "summary" : "Check API availability",
+        "description" : "With this operation you can check to see that the API Värdefulla datamängder is up and running. Please note that an 'OK' response does not guarantee that all backend services are up and running.",
+        "operationId" : "isalive",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                },
+                "example" : "OK"
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                },
+                "example" : "Unauthorized"
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                },
+                "example" : "Forbidden"
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                },
+                "example" : "Internal server error"
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "OAuth2" : [ "vardefulla-datamangder:ping" ]
+        }, {
+          "default" : [ "vardefulla-datamangder:ping" ]
+        } ],
+        "x-auth-type" : "Application & Application User",
+        "x-throttling-tier" : "Unlimited"
+      }
+    },
+    "/organisationer" : {
+      "post" : {
+        "tags" : [ "Organisationer" ],
+        "summary" : "Retrieve data about a company",
+        "description" : "With this operation you can retrieve data about a company.",
+        "operationId" : "organisationer",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "description" : "Client generated ID to call the API. In case of error this will be sent in the attribute `requestId` or as a header attribute.",
+          "required" : false,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string",
+            "example" : "f628a504-4631-4c04-8358-f17fc370ac79"
+          }
+        }, {
+          "name" : "Authorization",
+          "in" : "header",
+          "description" : "Authorization token",
+          "required" : false,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OrganisationerBegaran"
+              },
+              "examples" : {
+                "aktiebolag" : {
+                  "$ref" : "#/components/examples/organisationer-aktiebolag-begaran"
+                },
+                "enskild näringsidkare" : {
+                  "$ref" : "#/components/examples/organisationer-enskild-begaran"
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrganisationerSvar"
+                },
+                "examples" : {
+                  "aktiebolag" : {
+                    "$ref" : "#/components/examples/organisationer-aktiebolag-svar"
+                  },
+                  "enskild näringsidkare" : {
+                    "$ref" : "#/components/examples/organisationer-enskild-svar"
+                  },
+                  "fel-från-en-uppgiftskälla" : {
+                    "$ref" : "#/components/examples/organisationer-fel-fran-en-uppgiftskalla-svar"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-felbegaran"
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-ejbehorig"
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-forbjuden"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-servicefel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated" : false,
+        "security" : [ {
+          "OAuth2" : [ "vardefulla-datamangder:read" ]
+        }, {
+          "default" : [ "vardefulla-datamangder:read" ]
+        } ],
+        "x-auth-type" : "Application & Application User",
+        "x-throttling-tier" : "Unlimited"
+      },
+      "parameters" : [ {
+        "name" : "X-Request-Id",
+        "in" : "header",
+        "description" : "Client generated ID to call the API. In case of error this will be sent in the attribute `requestId` or as a header attribute.",
+        "required" : false,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string",
+          "example" : "f628a504-4631-4c04-8358-f17fc370ac79"
+        }
+      }, {
+        "name" : "Authorization",
+        "in" : "header",
+        "description" : "Authorization token",
+        "required" : false,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/dokumentlista" : {
+      "post" : {
+        "tags" : [ "Dokumentlista" ],
+        "summary" : "Retrieve a list of available annual reports",
+        "description" : "Retrieve a list of available annual reports related to the supplied `identitetsbeteckning` (company registration number).",
+        "operationId" : "dokumentlista",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "description" : "Client generated ID to call the API. In case of error this will be sent in the attribute `requestId` or as a header attribute.",
+          "required" : false,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string",
+            "example" : "f628a504-4631-4c04-8358-f17fc370ac79"
+          }
+        }, {
+          "name" : "Authorization",
+          "in" : "header",
+          "description" : "Authorization token",
+          "required" : false,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DokumentlistaBegaran"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DokumentlistaSvar"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-felbegaran"
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-ejbehorig"
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-forbjuden"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-servicefel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "OAuth2" : [ "vardefulla-datamangder:read" ]
+        }, {
+          "default" : [ "vardefulla-datamangder:read" ]
+        } ],
+        "x-auth-type" : "Application & Application User",
+        "x-throttling-tier" : "Unlimited"
+      },
+      "parameters" : [ {
+        "name" : "X-Request-Id",
+        "in" : "header",
+        "description" : "Client generated ID to call the API. In case of error this will be sent in the attribute `requestId` or as a header attribute.",
+        "required" : false,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string",
+          "example" : "f628a504-4631-4c04-8358-f17fc370ac79"
+        }
+      }, {
+        "name" : "Authorization",
+        "in" : "header",
+        "description" : "Authorization token",
+        "required" : false,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/dokument/{dokumentId}" : {
+      "get" : {
+        "tags" : [ "Dokument" ],
+        "summary" : "Retrieve annual report",
+        "description" : "Retrieve an annual report specified by the query parameter `dokumentId`",
+        "operationId" : "dokument",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "description" : "Client generated ID to call the API. In case of error this will be sent in the attribute `requestId` or as a header attribute.",
+          "required" : false,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string",
+            "example" : "f628a504-4631-4c04-8358-f17fc370ac79"
+          }
+        }, {
+          "name" : "Authorization",
+          "in" : "header",
+          "description" : "Authorization token",
+          "required" : false,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "dokumentId",
+          "in" : "path",
+          "description" : "The unique identity for an annual report",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/zip" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "binary"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-felbegaran"
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-ejbehorig"
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-forbjuden"
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-ejhittad"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                },
+                "examples" : {
+                  "fel" : {
+                    "$ref" : "#/components/examples/ApiError-servicefel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "OAuth2" : [ "vardefulla-datamangder:read" ]
+        }, {
+          "default" : [ "vardefulla-datamangder:read" ]
+        } ],
+        "x-auth-type" : "Application & Application User",
+        "x-throttling-tier" : "Unlimited"
+      },
+      "parameters" : [ {
+        "name" : "X-Request-Id",
+        "in" : "header",
+        "description" : "Client generated ID to call the API. In case of error this will be sent in the attribute `requestId` or as a header attribute.",
+        "required" : false,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string",
+          "example" : "f628a504-4631-4c04-8358-f17fc370ac79"
+        }
+      }, {
+        "name" : "Authorization",
+        "in" : "header",
+        "description" : "Authorization token",
+        "required" : false,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "dokumentId",
+        "in" : "path",
+        "description" : "The unique identity for an annual report",
+        "required" : true,
+        "style" : "simple",
+        "explode" : false,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "OrganisationerBegaran" : {
+        "title" : "OrganisationerBegaran",
+        "required" : [ "identitetsbeteckning" ],
+        "type" : "object",
+        "properties" : {
+          "identitetsbeteckning" : {
+            "type" : "string"
+          }
+        },
+        "description" : "An object to specify `identitetsbeteckning` (company registration number).",
+        "example" : {
+          "identitetsbeteckning" : "identitetsbeteckning"
+        }
+      },
+      "OrganisationerSvar" : {
+        "title" : "OrganisationerSvar",
+        "type" : "object",
+        "properties" : {
+          "organisationer" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Organisation"
+            }
+          }
+        },
+        "description" : "The response with requested organisation data as a list.",
+        "example" : {
+          "organisationer" : [ {
+            "avregistreringsorsak" : {
+              "kod" : "LIAV",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Likvidation"
+            },
+            "juridiskForm" : {
+              "kod" : "49",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Övriga aktiebolag"
+            },
+            "organisationsidentitet" : {
+              "identitetsbeteckning" : "5299999994",
+              "typ" : {
+                "kod" : "kod",
+                "klartext" : "klartext"
+              }
+            },
+            "namnskyddslopnummer" : 1,
+            "verksamOrganisation" : {
+              "kod" : "JA",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "registreringsland" : {
+              "kod" : "kod",
+              "klartext" : "klartext"
+            },
+            "postadressOrganisation" : {
+              "postadress" : {
+                "utdelningsadress" : "Jobbstigen 2",
+                "postnummer" : "12345",
+                "land" : "Sverige",
+                "coAdress" : "C/o Annat företag",
+                "postort" : "Grönköping"
+              },
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "organisationsform" : {
+              "kod" : "AB",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Aktiebolag"
+            },
+            "reklamsparr" : {
+              "kod" : "JA",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "organisationsnamn" : {
+              "organisationsnamnLista" : [ {
+                "registreringsdatum" : "2024-03-15",
+                "namn" : "Cykelbolaget AB",
+                "organisationsnamntyp" : {
+                  "kod" : "kod",
+                  "klartext" : "klartext"
+                },
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+              }, {
+                "registreringsdatum" : "2024-03-15",
+                "namn" : "Cykelbolaget AB",
+                "organisationsnamntyp" : {
+                  "kod" : "kod",
+                  "klartext" : "klartext"
+                },
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+              } ],
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "verksamhetsbeskrivning" : {
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "beskrivning" : "Handel med skor"
+            },
+            "avregistreradOrganisation" : {
+              "avregistreringsdatum" : "2023-05-05T00:00:00.000+00:00",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : {
+              "pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista" : [ {
+                "kod" : "KK",
+                "klartext" : "Konkurs",
+                "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+              }, {
+                "kod" : "KK",
+                "klartext" : "Konkurs",
+                "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+              } ],
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "organisationsdatum" : {
+              "registreringsdatum" : "2000-01-23",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "infortHosScb" : "2000-02-03"
+            },
+            "naringsgrenOrganisation" : {
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "sni" : "kod = 01120, klartext = Odling av ris"
+            }
+          }, {
+            "avregistreringsorsak" : {
+              "kod" : "LIAV",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Likvidation"
+            },
+            "juridiskForm" : {
+              "kod" : "49",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Övriga aktiebolag"
+            },
+            "organisationsidentitet" : {
+              "identitetsbeteckning" : "5299999994",
+              "typ" : {
+                "kod" : "kod",
+                "klartext" : "klartext"
+              }
+            },
+            "namnskyddslopnummer" : 1,
+            "verksamOrganisation" : {
+              "kod" : "JA",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "registreringsland" : {
+              "kod" : "kod",
+              "klartext" : "klartext"
+            },
+            "postadressOrganisation" : {
+              "postadress" : {
+                "utdelningsadress" : "Jobbstigen 2",
+                "postnummer" : "12345",
+                "land" : "Sverige",
+                "coAdress" : "C/o Annat företag",
+                "postort" : "Grönköping"
+              },
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "organisationsform" : {
+              "kod" : "AB",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Aktiebolag"
+            },
+            "reklamsparr" : {
+              "kod" : "JA",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "organisationsnamn" : {
+              "organisationsnamnLista" : [ {
+                "registreringsdatum" : "2024-03-15",
+                "namn" : "Cykelbolaget AB",
+                "organisationsnamntyp" : {
+                  "kod" : "kod",
+                  "klartext" : "klartext"
+                },
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+              }, {
+                "registreringsdatum" : "2024-03-15",
+                "namn" : "Cykelbolaget AB",
+                "organisationsnamntyp" : {
+                  "kod" : "kod",
+                  "klartext" : "klartext"
+                },
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+              } ],
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "verksamhetsbeskrivning" : {
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "beskrivning" : "Handel med skor"
+            },
+            "avregistreradOrganisation" : {
+              "avregistreringsdatum" : "2023-05-05T00:00:00.000+00:00",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : {
+              "pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista" : [ {
+                "kod" : "KK",
+                "klartext" : "Konkurs",
+                "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+              }, {
+                "kod" : "KK",
+                "klartext" : "Konkurs",
+                "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+              } ],
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket"
+            },
+            "organisationsdatum" : {
+              "registreringsdatum" : "2000-01-23",
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "infortHosScb" : "2000-02-03"
+            },
+            "naringsgrenOrganisation" : {
+              "fel" : {
+                "felBeskrivning" : "felBeskrivning",
+                "typ" : "OGILTIG_BEGARAN"
+              },
+              "dataproducent" : "Bolagsverket",
+              "sni" : "kod = 01120, klartext = Odling av ris"
+            }
+          } ]
+        }
+      },
+      "Organisation" : {
+        "title" : "Organisation",
+        "type" : "object",
+        "properties" : {
+          "organisationsidentitet" : {
+            "$ref" : "#/components/schemas/Identitetsbeteckning"
+          },
+          "namnskyddslopnummer" : {
+            "title" : "Namnskyddslopnummer",
+            "maximum" : 999,
+            "minimum" : 1,
+            "type" : "integer",
+            "description" : "'Namnskyddslopnummer' is used to separate companies for organisation types that can have more than one company on the same 'identitetsbeteckning' (company registration number). For example the legal form 'enskild näringsverksamhet' can have more than one company with different names on the same company registration number.",
+            "format" : "int32",
+            "example" : 1
+          },
+          "organisationsnamn" : {
+            "$ref" : "#/components/schemas/Organisationsnamn"
+          },
+          "registreringsland" : {
+            "$ref" : "#/components/schemas/KodKlartext"
+          },
+          "reklamsparr" : {
+            "$ref" : "#/components/schemas/Reklamsparr"
+          },
+          "organisationsform" : {
+            "$ref" : "#/components/schemas/Organisationsform"
+          },
+          "avregistreradOrganisation" : {
+            "$ref" : "#/components/schemas/AvregistreradOrganisation"
+          },
+          "avregistreringsorsak" : {
+            "$ref" : "#/components/schemas/Avregistreringsorsak"
+          },
+          "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : {
+            "$ref" : "#/components/schemas/PagaendeAvvecklingsEllerOmstruktureringsforfarande"
+          },
+          "juridiskForm" : {
+            "$ref" : "#/components/schemas/JuridiskForm"
+          },
+          "verksamOrganisation" : {
+            "$ref" : "#/components/schemas/VerksamOrganisation"
+          },
+          "organisationsdatum" : {
+            "$ref" : "#/components/schemas/Organisationsdatum"
+          },
+          "verksamhetsbeskrivning" : {
+            "$ref" : "#/components/schemas/Verksamhetsbeskrivning"
+          },
+          "naringsgrenOrganisation" : {
+            "$ref" : "#/components/schemas/NaringsgrenOrganisation"
+          },
+          "postadressOrganisation" : {
+            "$ref" : "#/components/schemas/PostadressOrganisation"
+          }
+        },
+        "description" : "Organisation information including the `identitetsbeteckning` (company registration number) specified in the request, and a series or elements holding the high-value datasets.",
+        "example" : {
+          "avregistreringsorsak" : {
+            "kod" : "LIAV",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket",
+            "klartext" : "Likvidation"
+          },
+          "juridiskForm" : {
+            "kod" : "49",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket",
+            "klartext" : "Övriga aktiebolag"
+          },
+          "organisationsidentitet" : {
+            "identitetsbeteckning" : "5299999994",
+            "typ" : {
+              "kod" : "kod",
+              "klartext" : "klartext"
+            }
+          },
+          "namnskyddslopnummer" : 1,
+          "verksamOrganisation" : {
+            "kod" : "JA",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket"
+          },
+          "registreringsland" : {
+            "kod" : "kod",
+            "klartext" : "klartext"
+          },
+          "postadressOrganisation" : {
+            "postadress" : {
+              "utdelningsadress" : "Jobbstigen 2",
+              "postnummer" : "12345",
+              "land" : "Sverige",
+              "coAdress" : "C/o Annat företag",
+              "postort" : "Grönköping"
+            },
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket"
+          },
+          "organisationsform" : {
+            "kod" : "AB",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket",
+            "klartext" : "Aktiebolag"
+          },
+          "reklamsparr" : {
+            "kod" : "JA",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket"
+          },
+          "organisationsnamn" : {
+            "organisationsnamnLista" : [ {
+              "registreringsdatum" : "2024-03-15",
+              "namn" : "Cykelbolaget AB",
+              "organisationsnamntyp" : {
+                "kod" : "kod",
+                "klartext" : "klartext"
+              },
+              "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+            }, {
+              "registreringsdatum" : "2024-03-15",
+              "namn" : "Cykelbolaget AB",
+              "organisationsnamntyp" : {
+                "kod" : "kod",
+                "klartext" : "klartext"
+              },
+              "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+            } ],
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket"
+          },
+          "verksamhetsbeskrivning" : {
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket",
+            "beskrivning" : "Handel med skor"
+          },
+          "avregistreradOrganisation" : {
+            "avregistreringsdatum" : "2023-05-05T00:00:00.000+00:00",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket"
+          },
+          "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : {
+            "pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista" : [ {
+              "kod" : "KK",
+              "klartext" : "Konkurs",
+              "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+            }, {
+              "kod" : "KK",
+              "klartext" : "Konkurs",
+              "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+            } ],
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket"
+          },
+          "organisationsdatum" : {
+            "registreringsdatum" : "2000-01-23",
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket",
+            "infortHosScb" : "2000-02-03"
+          },
+          "naringsgrenOrganisation" : {
+            "fel" : {
+              "felBeskrivning" : "felBeskrivning",
+              "typ" : "OGILTIG_BEGARAN"
+            },
+            "dataproducent" : "Bolagsverket",
+            "sni" : "kod = 01120, klartext = Odling av ris"
+          }
+        }
+      },
+      "ApiError" : {
+        "title" : "ApiError",
+        "required" : [ "instance", "status", "title", "type" ],
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "description" : "One of below:\n* `about:blank`\n* `urn:bolagsverket:error:auth`\n* `urn:bolagsverket:error:network`\n* `urn:bolagsverket:error:validation`\n",
+            "example" : "urn:bolagsverket:error:validation"
+          },
+          "instance" : {
+            "type" : "string",
+            "description" : "A certain value on `instance` is a unique type of error but also associated with a `type`, that is one value on `instance` shall only occur with a value on `type`.\n\n**General**: `about:blank`\n- `not.found` information not found\n- `server.error` internal server error\n\n**Access control**: `urn:bolagsverket:error:auth`\n- `auth.error` authentication error\n\n**Validation**: `urn:bolagsverket:error:validation`\n- `validation.client` validation error of client request\n\n**Network**: `urn:bolagsverket:error:network`\n- `network.timeout` network timeout\n- `network.error` internal network error\n",
+            "example" : "validation.client"
+          },
+          "status" : {
+            "type" : "integer",
+            "description" : "HTTP status.",
+            "example" : 400
+          },
+          "timestamp" : {
+            "type" : "string",
+            "description" : "Date and time in ISO 8601 format.",
+            "format" : "date-time",
+            "example" : "2024-09-18T09:32:24Z"
+          },
+          "requestId" : {
+            "type" : "string",
+            "description" : "Identity associated with the API call, sent in header X-Request-Id.",
+            "example" : "d120654c-0d09-481a-8956-940a76474e6b"
+          },
+          "title" : {
+            "type" : "string",
+            "description" : "Short description of the error.",
+            "example" : "Bad Request"
+          },
+          "detail" : {
+            "type" : "string",
+            "description" : "Detailed description of the error.",
+            "example" : "JSON parse error"
+          }
+        },
+        "description" : "Error information. Based on [RFC 7807](https://tools.ietf.org/html/rfc7807)."
+      },
+      "DokumentlistaBegaran" : {
+        "title" : "DokumentlistaBegaran",
+        "required" : [ "identitetsbeteckning" ],
+        "type" : "object",
+        "properties" : {
+          "identitetsbeteckning" : {
+            "type" : "string"
+          }
+        },
+        "description" : "An object to specify `identitetsbeteckning` (company registration number) used to retrieve a list of annual reports.",
+        "example" : {
+          "identitetsbeteckning" : "identitetsbeteckning"
+        }
+      },
+      "DokumentlistaSvar" : {
+        "title" : "DokumentlistaSvar",
+        "type" : "object",
+        "properties" : {
+          "dokument" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DokumentlistaSvar_dokument_inner"
+            }
+          }
+        },
+        "description" : "A list of available annual reports.",
+        "example" : {
+          "dokument" : [ {
+            "filformat" : "filformat",
+            "registreringstidpunkt" : "2000-01-23",
+            "rapporteringsperiodTom" : "2000-01-23",
+            "dokumentId" : "dokumentId"
+          }, {
+            "filformat" : "filformat",
+            "registreringstidpunkt" : "2000-01-23",
+            "rapporteringsperiodTom" : "2000-01-23",
+            "dokumentId" : "dokumentId"
+          } ]
+        }
+      },
+      "Identitetsbeteckning" : {
+        "title" : "Identitetsbeteckning",
+        "required" : [ "identitetsbeteckning", "typ" ],
+        "type" : "object",
+        "properties" : {
+          "identitetsbeteckning" : {
+            "pattern" : "^(19|20)?\\d{2}(0[1-9]|1[0-2])((0|6)[1-9]|(1|2|7|8)[0-9]|(3|9)[0|1])\\d{4}$|^\\d{6}\\d{4}$|^302\\d{8}$",
+            "type" : "string",
+            "description" : "A unique set of characters used to identify the registered organisation. In Sweden this is one of 'organisationsnummer', 'personnummer', 'samordningsnummer' or 'gdNummer'.",
+            "example" : "5299999994"
+          },
+          "typ" : {
+            "$ref" : "#/components/schemas/KodKlartext"
+          }
+        },
+        "description" : "Unique identification of an organisation. `Identitetsbeteckning` can be 'organisationsnummer' (company registration number), 'personnummer' (personal identity number), 'samordningsnummer' or 'GD-nummer'. 'Organisationsnummer' is represented by 10 digits, 'personnummer' is represented by 12 digits (YYYYMMDDXXXX), 'samordningsnummer' is represented by 12 digits (YYYYMMDDXXXX, where 'DD' is the persons birthday + 60) and 'GD-nummer' is represented by 10 digits (302XXXXXXX).",
+        "example" : {
+          "identitetsbeteckning" : "5299999994",
+          "typ" : {
+            "kod" : "kod",
+            "klartext" : "klartext"
+          }
+        }
+      },
+      "Namnskyddslopnummer" : {
+        "title" : "Namnskyddslopnummer",
+        "maximum" : 999,
+        "minimum" : 1,
+        "type" : "integer",
+        "description" : "'Namnskyddslopnummer' is used to separate companies for organisation types that can have more than one company on the same 'identitetsbeteckning' (company registration number). For example the legal form 'enskild näringsverksamhet' can have more than one company with different names on the same company registration number.",
+        "format" : "int32",
+        "example" : 1
+      },
+      "Organisationsnamn" : {
+        "title" : "Organisationsnamn",
+        "required" : [ "namn" ],
+        "type" : "object",
+        "properties" : {
+          "organisationsnamnLista" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrganisationsnamnObjekt"
+            }
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "The business names associated with the organisation.",
+        "example" : {
+          "organisationsnamnLista" : [ {
+            "registreringsdatum" : "2024-03-15",
+            "namn" : "Cykelbolaget AB",
+            "organisationsnamntyp" : {
+              "kod" : "kod",
+              "klartext" : "klartext"
+            },
+            "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+          }, {
+            "registreringsdatum" : "2024-03-15",
+            "namn" : "Cykelbolaget AB",
+            "organisationsnamntyp" : {
+              "kod" : "kod",
+              "klartext" : "klartext"
+            },
+            "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+          } ],
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket"
+        }
+      },
+      "OrganisationsnamnObjekt" : {
+        "title" : "Namn",
+        "type" : "object",
+        "properties" : {
+          "namn" : {
+            "type" : "string",
+            "example" : "Cykelbolaget AB"
+          },
+          "organisationsnamntyp" : {
+            "$ref" : "#/components/schemas/KodKlartext"
+          },
+          "registreringsdatum" : {
+            "type" : "string",
+            "description" : "The date the business name was registered.",
+            "example" : "2024-03-15"
+          },
+          "verksamhetsbeskrivningSarskiltForetagsnamn" : {
+            "type" : "string",
+            "description" : "Description of the business activities for the particular business name.",
+            "example" : "Att bedriva handel med mopeder."
+          }
+        },
+        "example" : {
+          "registreringsdatum" : "2024-03-15",
+          "namn" : "Cykelbolaget AB",
+          "organisationsnamntyp" : {
+            "kod" : "kod",
+            "klartext" : "klartext"
+          },
+          "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+        }
+      },
+      "Organisationsnamntyp" : {
+        "$ref" : "#/components/schemas/KodKlartext"
+      },
+      "KodKlartext" : {
+        "title" : "KodKlartext",
+        "required" : [ "klartext", "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "type" : "string"
+          },
+          "klartext" : {
+            "type" : "string"
+          }
+        },
+        "example" : {
+          "kod" : "kod",
+          "klartext" : "klartext"
+        }
+      },
+      "Reklamsparr" : {
+        "title" : "Reklamsparr",
+        "required" : [ "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "$ref" : "#/components/schemas/JaNej"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Indicates if the organisation is blocked from receiving advertisement. If the object is null, Bolagsverket have replied with information about postadressOrganisation and no reklamsparr is registered.",
+        "example" : {
+          "kod" : "JA",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket"
+        }
+      },
+      "Organisationsform" : {
+        "title" : "Organisationsform",
+        "required" : [ "klartext", "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "maxLength" : 4,
+            "minLength" : 1,
+            "type" : "string",
+            "example" : "AB"
+          },
+          "klartext" : {
+            "type" : "string",
+            "example" : "Aktiebolag"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Indicates the administrative form in which an organisation conducts its activities.",
+        "example" : {
+          "kod" : "AB",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket",
+          "klartext" : "Aktiebolag"
+        }
+      },
+      "AvregistreradOrganisation" : {
+        "title" : "AvregistreradOrganisation",
+        "type" : "object",
+        "properties" : {
+          "avregistreringsdatum" : {
+            "type" : "string",
+            "example" : "2023-05-05T00:00:00.000+00:00"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "The date an organisation was removed from the register.",
+        "example" : {
+          "avregistreringsdatum" : "2023-05-05T00:00:00.000+00:00",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket"
+        }
+      },
+      "Avregistreringsorsak" : {
+        "title" : "Avregistreringsorsak",
+        "required" : [ "klartext", "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "type" : "string",
+            "example" : "LIAV"
+          },
+          "klartext" : {
+            "type" : "string",
+            "example" : "Likvidation"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "The reason an organisation was removed from the register.",
+        "example" : {
+          "kod" : "LIAV",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket",
+          "klartext" : "Likvidation"
+        }
+      },
+      "PagaendeAvvecklingsEllerOmstruktureringsforfarande" : {
+        "title" : "PagaendeAvvecklingsEllerOmstruktureringsforfarande",
+        "required" : [ "status" ],
+        "type" : "object",
+        "properties" : {
+          "pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PagaendeAvvecklingsEllerOmstruktureringsforfarandeObjekt"
+            }
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Indicates a removal from the register or restructuring procedure that is ongoing or has not been formally finished and that the organisation is in a process of status change.",
+        "example" : {
+          "pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista" : [ {
+            "kod" : "KK",
+            "klartext" : "Konkurs",
+            "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+          }, {
+            "kod" : "KK",
+            "klartext" : "Konkurs",
+            "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+          } ],
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket"
+        }
+      },
+      "PagaendeAvvecklingsEllerOmstruktureringsforfarandeObjekt" : {
+        "title" : "PagaendeAvvecklingsEllerOmstruktureringsforfarandeObjekt",
+        "required" : [ "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "type" : "string",
+            "example" : "KK"
+          },
+          "klartext" : {
+            "type" : "string",
+            "example" : "Konkurs"
+          },
+          "fromDatum" : {
+            "type" : "string",
+            "format" : "date",
+            "example" : "2024-01-26"
+          }
+        },
+        "example" : {
+          "kod" : "KK",
+          "klartext" : "Konkurs",
+          "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+        }
+      },
+      "JuridiskForm" : {
+        "title" : "JuridiskForm",
+        "required" : [ "klartext", "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "maxLength" : 4,
+            "minLength" : 1,
+            "type" : "string",
+            "example" : "49"
+          },
+          "klartext" : {
+            "type" : "string",
+            "example" : "Övriga aktiebolag"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Legal form registered at the Swedish Tax Agency.",
+        "example" : {
+          "kod" : "49",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket",
+          "klartext" : "Övriga aktiebolag"
+        }
+      },
+      "VerksamOrganisation" : {
+        "title" : "VerksamOrganisation",
+        "required" : [ "kod" ],
+        "type" : "object",
+        "properties" : {
+          "kod" : {
+            "$ref" : "#/components/schemas/JaNej"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Indicates if the organisation is active.",
+        "example" : {
+          "kod" : "JA",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket"
+        }
+      },
+      "Organisationsdatum" : {
+        "title" : "Organisationsdatum",
+        "required" : [ "registreringsdatum" ],
+        "type" : "object",
+        "properties" : {
+          "registreringsdatum" : {
+            "type" : "string",
+            "example" : "2000-01-23"
+          },
+          "infortHosScb" : {
+            "type" : "string",
+            "example" : "2000-02-03"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Specifies the date an organisation was registered.",
+        "example" : {
+          "registreringsdatum" : "2000-01-23",
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket",
+          "infortHosScb" : "2000-02-03"
+        }
+      },
+      "Verksamhetsbeskrivning" : {
+        "title" : "Verksamhetsbeskrivning",
+        "required" : [ "beskrivning" ],
+        "type" : "object",
+        "properties" : {
+          "beskrivning" : {
+            "type" : "string",
+            "example" : "Handel med skor"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Description of the business activities. Can be a lot of text in some cases.",
+        "example" : {
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket",
+          "beskrivning" : "Handel med skor"
+        }
+      },
+      "NaringsgrenOrganisation" : {
+        "title" : "NaringsgrenOrganisation",
+        "required" : [ "sni" ],
+        "type" : "object",
+        "properties" : {
+          "sni" : {
+            "type" : "array",
+            "example" : "kod = 01120, klartext = Odling av ris",
+            "items" : {
+              "$ref" : "#/components/schemas/Sni"
+            }
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "A code that indicates an organisations main business activities.",
+        "example" : {
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket",
+          "sni" : "kod = 01120, klartext = Odling av ris"
+        }
+      },
+      "Sni" : {
+        "$ref" : "#/components/schemas/KodKlartext"
+      },
+      "PostadressOrganisation" : {
+        "title" : "PostadressOrganisation",
+        "required" : [ "postadress" ],
+        "type" : "object",
+        "properties" : {
+          "postadress" : {
+            "$ref" : "#/components/schemas/Postadress"
+          },
+          "dataproducent" : {
+            "$ref" : "#/components/schemas/Dataproducent"
+          },
+          "fel" : {
+            "$ref" : "#/components/schemas/Fel"
+          }
+        },
+        "description" : "Registered postal address.",
+        "example" : {
+          "postadress" : {
+            "utdelningsadress" : "Jobbstigen 2",
+            "postnummer" : "12345",
+            "land" : "Sverige",
+            "coAdress" : "C/o Annat företag",
+            "postort" : "Grönköping"
+          },
+          "fel" : {
+            "felBeskrivning" : "felBeskrivning",
+            "typ" : "OGILTIG_BEGARAN"
+          },
+          "dataproducent" : "Bolagsverket"
+        }
+      },
+      "Postadress" : {
+        "title" : "Postadress",
+        "required" : [ "postnummer" ],
+        "type" : "object",
+        "properties" : {
+          "postnummer" : {
+            "type" : "string",
+            "example" : "12345"
+          },
+          "utdelningsadress" : {
+            "type" : "string",
+            "example" : "Jobbstigen 2"
+          },
+          "land" : {
+            "type" : "string",
+            "example" : "Sverige"
+          },
+          "coAdress" : {
+            "type" : "string",
+            "example" : "C/o Annat företag"
+          },
+          "postort" : {
+            "type" : "string",
+            "example" : "Grönköping"
+          }
+        },
+        "example" : {
+          "utdelningsadress" : "Jobbstigen 2",
+          "postnummer" : "12345",
+          "land" : "Sverige",
+          "coAdress" : "C/o Annat företag",
+          "postort" : "Grönköping"
+        }
+      },
+      "Dataproducent" : {
+        "title" : "Dataproducent",
+        "type" : "string",
+        "description" : "The source of information.",
+        "example" : "Bolagsverket",
+        "enum" : [ "Bolagsverket", "SCB" ]
+      },
+      "Fel" : {
+        "title" : "Fel",
+        "required" : [ "typ" ],
+        "type" : "object",
+        "properties" : {
+          "typ" : {
+            "$ref" : "#/components/schemas/FelTyp"
+          },
+          "felBeskrivning" : {
+            "type" : "string"
+          }
+        },
+        "description" : "An error (`fel`) is primarily defined by its type (`feltyp`). To describe the nature of the fault and error, description (`felbeskrivning`) is used.",
+        "example" : {
+          "felBeskrivning" : "felBeskrivning",
+          "typ" : "OGILTIG_BEGARAN"
+        }
+      },
+      "FelTyp" : {
+        "title" : "FelTyp",
+        "type" : "string",
+        "description" : "A specific error type (`feltyp`) is assigned every error to categorise it.",
+        "example" : "OGILTIG_BEGARAN",
+        "enum" : [ "ORGANISATION_FINNS_EJ", "OGILTIG_BEGARAN", "OTILLGANGLIG_UPPGIFTSKALLA", "TIMEOUT" ]
+      },
+      "JaNej" : {
+        "title" : "JaNej",
+        "type" : "string",
+        "description" : "The parameter can have the value `JA` (yes) or `NEJ` (no).",
+        "example" : "JA",
+        "enum" : [ "JA", "NEJ" ]
+      },
+      "DokumentlistaSvar_dokument_inner" : {
+        "type" : "object",
+        "properties" : {
+          "dokumentId" : {
+            "type" : "string"
+          },
+          "filformat" : {
+            "type" : "string"
+          },
+          "rapporteringsperiodTom" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "registreringstidpunkt" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "example" : {
+          "filformat" : "filformat",
+          "registreringstidpunkt" : "2000-01-23",
+          "rapporteringsperiodTom" : "2000-01-23",
+          "dokumentId" : "dokumentId"
+        }
+      }
+    },
+    "examples" : {
+      "organisationer-aktiebolag-begaran" : {
+        "summary" : "Organisation information for a limited company",
+        "value" : {
+          "identitetsbeteckning" : "5299999994"
+        }
+      },
+      "organisationer-enskild-begaran" : {
+        "summary" : "Organisation information for a sole trader",
+        "value" : {
+          "identitetsbeteckning" : "194009272719"
+        }
+      },
+      "organisationer-aktiebolag-svar" : {
+        "summary" : "Organisation information for a limited company",
+        "value" : {
+          "organisationer" : [ {
+            "organisationsidentitet" : {
+              "identitetsbeteckning" : "5299999994"
+            },
+            "namnskyddslopnummer" : null,
+            "organisationsnamn" : {
+              "organisationsnamnLista" : [ {
+                "registreringsdatum" : "2020-03-15",
+                "namn" : "Cykelbolaget AB",
+                "organisationsnamntyp" : {
+                  "kod" : "FORETAGSNAMN",
+                  "klartext" : "Företagsnamn"
+                },
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : null
+              }, {
+                "registreringsdatum" : "2024-03-15",
+                "namn" : "Mopedbolaget AB",
+                "organisationsnamntyp" : {
+                  "kod" : "SARSKILT_FORETAGSNAMN",
+                  "klartext" : "Särskilt företagsnam"
+                },
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : "Att bedriva handel med mopeder."
+              }, {
+                "organisationsnamntyp" : {
+                  "kod" : "FORETAGSNAMN_PA_FRAMMANDE_SPRAK",
+                  "klartext" : "Företagsnamn på främmande språk"
+                },
+                "namn" : "Bicycle expert",
+                "registreringsdatum" : "2020-04-01",
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : null
+              } ],
+              "fel" : null,
+              "dataproducent" : "Bolagsverket"
+            },
+            "registreringsland" : {
+              "kod" : "SE-LAND",
+              "klartext" : "Sverige"
+            },
+            "organisationsform" : {
+              "kod" : "AB",
+              "klartext" : "Aktiebolag",
+              "fel" : null,
+              "dataproducent" : "Bolagsverket"
+            },
+            "reklamsparr" : {
+              "kod" : "JA",
+              "fel" : null,
+              "dataproducent" : "SCB"
+            },
+            "juridiskForm" : {
+              "kod" : "49",
+              "klartext" : "Övriga aktiebolag",
+              "fel" : null,
+              "dataproducent" : "SCB"
+            },
+            "verksamOrganisation" : {
+              "kod" : "NEJ",
+              "fel" : null,
+              "dataproducent" : "SCB"
+            },
+            "postadressOrganisation" : {
+              "postadress" : {
+                "postnummer" : "12345",
+                "utdelningsadress" : "Jobbstigen 2",
+                "land" : "Sverige",
+                "coAdress" : "C/o Annat företag",
+                "postort" : "Grönköping"
+              },
+              "fel" : null,
+              "dataproducent" : "SCB"
+            },
+            "verksamhetsbeskrivning" : {
+              "fel" : null,
+              "dataproducent" : "Bolagsverket",
+              "beskrivning" : "Bedriva handel med cyklar och tillbehör till cyklar"
+            },
+            "organisationsdatum" : {
+              "registreringsdatum" : "2000-01-23",
+              "fel" : null,
+              "dataproducent" : "Bolagsverket",
+              "infortHosScb" : "2000-02-03"
+            },
+            "avregistreradOrganisation" : {
+              "avregistreringsdatum" : "2023-05-05T00:00:00.000+00:00",
+              "fel" : null,
+              "dataproducent" : "Bolagsverket"
+            },
+            "avregistreringsorsak" : {
+              "kod" : "LIAV",
+              "fel" : null,
+              "dataproducent" : "Bolagsverket",
+              "klartext" : "Likvidation"
+            },
+            "pagandeAvvecklingsEllerOmstruktureringsforfarande" : {
+              "pagandeAvvecklingsEllerOmstruktureringsforfarandeLista" : [ {
+                "kod" : "KK",
+                "klartext" : "Konkurs",
+                "fromDatum" : "2024-01-26T00:00:00.000+00:00"
+              }, {
+                "kod" : "LI",
+                "klartext" : "Likvidation",
+                "fromDatum" : "2024-05-26T00:00:00.000+00:00"
+              } ],
+              "fel" : null,
+              "dataproducent" : "Bolagsverket"
+            },
+            "naringsgrenOrganisation" : {
+              "fel" : null,
+              "dataproducent" : "Bolagsverket",
+              "sni" : [ {
+                "kod" : "47642",
+                "klartext" : "Specialiserad butikshandel med cyklar"
+              }, {
+                "kod" : "45400",
+                "klartext" : "EU-mopeder, reservdelar och tillbehör, handel med"
+              } ]
+            }
+          } ]
+        }
+      },
+      "organisationer-enskild-svar" : {
+        "summary" : "Organisation information for a sole trader",
+        "value" : {
+          "organisationer" : [ {
+            "avregistreradOrganisation" : {
+              "avregistreringsdatum" : "2001-03-15",
+              "dataproducent" : "Bolagsverket",
+              "fel" : null
+            },
+            "avregistreringsorsak" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "klartext" : "n/a",
+              "kod" : "VERKUPP"
+            },
+            "juridiskForm" : null,
+            "namnskyddslopnummer" : 1,
+            "naringsgrenOrganisation" : null,
+            "organisationsdatum" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "infortHosScb" : null,
+              "registreringsdatum" : "1990-02-09"
+            },
+            "organisationsform" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "klartext" : "Enskild näringsidkare",
+              "kod" : "E"
+            },
+            "organisationsidentitet" : {
+              "identitetsbeteckning" : "194009272719",
+              "typ" : {
+                "klartext" : "n/a",
+                "kod" : "PERSONNUMMER"
+              }
+            },
+            "organisationsnamn" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "organisationsnamnLista" : [ {
+                "namn" : "CITY SKOR THOMAS CARLSON",
+                "organisationsnamntyp" : {
+                  "klartext" : "n/a",
+                  "kod" : "FORETAGSNAMN"
+                },
+                "registreringsdatum" : "1990-02-09",
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : null
+              } ]
+            },
+            "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : null,
+            "postadressOrganisation" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "postadress" : {
+                "coAdress" : "C/o annan adress",
+                "land" : "Sverige",
+                "postnummer" : "24131",
+                "postort" : "ESLÖV",
+                "utdelningsadress" : "VÄSTERG 5"
+              }
+            },
+            "registreringsland" : {
+              "klartext" : "Sverige",
+              "kod" : "SE-LAND"
+            },
+            "reklamsparr" : null,
+            "verksamOrganisation" : null,
+            "verksamhetsbeskrivning" : {
+              "beskrivning" : "\\n       HANDEL MED SKOR.",
+              "dataproducent" : "Bolagsverket",
+              "fel" : null
+            }
+          }, {
+            "avregistreradOrganisation" : {
+              "avregistreringsdatum" : "2020-05-05",
+              "dataproducent" : "Bolagsverket",
+              "fel" : null
+            },
+            "avregistreringsorsak" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "klartext" : "n/a",
+              "kod" : "OVERK"
+            },
+            "juridiskForm" : null,
+            "namnskyddslopnummer" : 2,
+            "naringsgrenOrganisation" : null,
+            "organisationsdatum" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "infortHosScb" : null,
+              "registreringsdatum" : "1984-12-13"
+            },
+            "organisationsform" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "klartext" : "Enskild näringsidkare",
+              "kod" : "E"
+            },
+            "organisationsidentitet" : {
+              "identitetsbeteckning" : "194009272719",
+              "typ" : {
+                "klartext" : "n/a",
+                "kod" : "PERSONNUMMER"
+              }
+            },
+            "organisationsnamn" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "organisationsnamnLista" : [ {
+                "namn" : "SKO-STALLET, THOMAS CARLSSON",
+                "organisationsnamntyp" : {
+                  "klartext" : "n/a",
+                  "kod" : "FORETAGSNAMN"
+                },
+                "registreringsdatum" : "1984-12-13",
+                "verksamhetsbeskrivningSarskiltForetagsnamn" : null
+              } ]
+            },
+            "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : null,
+            "postadressOrganisation" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : null,
+              "postadress" : {
+                "coAdress" : "c/o Skåneplantor",
+                "land" : "Sverige",
+                "postnummer" : "24592",
+                "postort" : "STAFFANSTORP",
+                "utdelningsadress" : "Vesumsvägen 9-30"
+              }
+            },
+            "registreringsland" : {
+              "klartext" : "Sverige",
+              "kod" : "SE-LAND"
+            },
+            "reklamsparr" : null,
+            "verksamOrganisation" : null,
+            "verksamhetsbeskrivning" : {
+              "beskrivning" : "\\n       HANDEL MED SKOR",
+              "dataproducent" : "Bolagsverket",
+              "fel" : null
+            }
+          } ]
+        }
+      },
+      "organisationer-fel-fran-en-uppgiftskalla-svar" : {
+        "summary" : "Organisation information for a sole trader but producer Bolagsverket could not deliver any information.",
+        "description" : "An example that illustrates the response when one producer, in this case Bolagsverket, was unable to deliver a response at the moment.",
+        "value" : {
+          "organisationer" : [ {
+            "avregistreradOrganisation" : {
+              "avregistreringsdatum" : null,
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              }
+            },
+            "avregistreringsorsak" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              },
+              "klartext" : null,
+              "kod" : null
+            },
+            "juridiskForm" : null,
+            "namnskyddslopnummer" : null,
+            "naringsgrenOrganisation" : null,
+            "organisationsdatum" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              },
+              "infortHosScb" : null,
+              "registreringsdatum" : null
+            },
+            "organisationsform" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              },
+              "klartext" : null,
+              "kod" : null
+            },
+            "organisationsidentitet" : null,
+            "organisationsnamn" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              },
+              "organisationsnamnLista" : null
+            },
+            "pagaendeAvvecklingsEllerOmstruktureringsforfarande" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              },
+              "pagaendeAvvecklingsEllerOmstruktureringsforfarandeLista" : null
+            },
+            "postadressOrganisation" : {
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              },
+              "postadress" : null
+            },
+            "registreringsland" : null,
+            "reklamsparr" : null,
+            "verksamOrganisation" : null,
+            "verksamhetsbeskrivning" : {
+              "beskrivning" : null,
+              "dataproducent" : "Bolagsverket",
+              "fel" : {
+                "felBeskrivning" : "Uppkoppling mot Bolagsverket misslyckades. Efterfrågade uppgifter kunde inte hämtas.",
+                "typ" : "OTILLGANGLIG_UPPGIFTSKALLA"
+              }
+            }
+          } ]
+        }
+      },
+      "ApiError-felbegaran" : {
+        "value" : {
+          "type" : "about:blank",
+          "instance" : "client.error",
+          "timestamp" : "2024-09-18T09:32:24Z",
+          "requestId" : "f628a504-4631-4c04-8358-f17fc370ac79",
+          "status" : 400,
+          "title" : "Bad Request",
+          "detail" : "Identitetsbeteckning har ogiltig kontrollsiffra."
+        }
+      },
+      "ApiError-ejbehorig" : {
+        "value" : {
+          "type" : "about:blank",
+          "instance" : "client.error",
+          "status" : 401,
+          "timestamp" : null,
+          "requestId" : null,
+          "title" : "Unauthorized",
+          "detail" : "Anroparen saknar giltiga autentiseringsuppgifter."
+        }
+      },
+      "ApiError-forbjuden" : {
+        "value" : {
+          "type" : "about:blank",
+          "instance" : "client.error",
+          "timestamp" : "2024-09-18T09:32:24Z",
+          "requestId" : "f628a504-4631-4c04-8358-f17fc370ac79",
+          "status" : 403,
+          "title" : "Forbidden",
+          "detail" : "Anroparen saknar behörighet till resursen."
+        }
+      },
+      "ApiError-servicefel" : {
+        "value" : {
+          "type" : "about:blank",
+          "instance" : "server.error",
+          "timestamp" : "2024-09-18T09:32:24Z",
+          "requestId" : "f628a504-4631-4c04-8358-f17fc370ac79",
+          "status" : 500,
+          "title" : "Internal Server Error",
+          "detail" : "Ett ohanterat fel har uppstått."
+        }
+      },
+      "ApiError-ejhittad" : {
+        "value" : {
+          "type" : "about:blank",
+          "instance" : "client.error",
+          "timestamp" : "2024-09-18T09:32:24Z",
+          "requestId" : "f628a504-4631-4c04-8358-f17fc370ac79",
+          "status" : 404,
+          "title" : "Not Found",
+          "detail" : "Dokument kunde inte hittas."
+        }
+      }
+    },
+    "securitySchemes" : {
+      "OAuth2" : {
+        "type" : "oauth2",
+        "flows" : {
+          "clientCredentials" : {
+            "tokenUrl" : "/oauth2/token",
+            "scopes" : {
+              "vardefulla-datamangder:read" : "Läsbehörighet för Värdefulla datamängder",
+              "vardefulla-datamangder:ping" : "Behörighet för monitorering (/isalive)"
+            },
+            "x-scopes-bindings" : {
+              "vardefulla-datamangder:read" : "api-vardefulla-datamangder-usr",
+              "vardefulla-datamangder:ping" : "api-vardefulla-datamangder-usr"
+            }
+          }
+        }
+      },
+      "default" : {
+        "type" : "oauth2",
+        "flows" : {
+          "implicit" : {
+            "authorizationUrl" : "https://gw.api.bolagsverket.se/authorize",
+            "scopes" : {
+              "vardefulla-datamangder:ping" : "Behörighet för monitorering (/isalive)",
+              "vardefulla-datamangder:read" : "Läsbehörighet för Värdefulla datamängder"
+            },
+            "x-scopes-bindings" : {
+              "vardefulla-datamangder:ping" : "api-vardefulla-datamangder-usr",
+              "vardefulla-datamangder:read" : "api-vardefulla-datamangder-usr"
+            }
+          }
+        }
+      }
+    }
+  }
+}

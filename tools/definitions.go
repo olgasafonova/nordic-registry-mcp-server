@@ -261,6 +261,17 @@ var AllTools = []ToolSpec{
 		Idempotent:  true,
 		OpenWorld:   true,
 	},
+	{
+		Name:        "sweden_download_document",
+		Method:      "SEDownloadDocument",
+		Title:       "Download Swedish Annual Report",
+		Category:    "documents",
+		Country:     "sweden",
+		Description: `Download an annual report (årsredovisning) by document ID. Get IDs from sweden_get_document_list. Returns ZIP containing XBRL/iXBRL files, base64-encoded.`,
+		ReadOnly:    true,
+		Idempotent:  true,
+		OpenWorld:   true,
+	},
 }
 
 // ToolsByCountry returns tools filtered by country.

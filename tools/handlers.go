@@ -79,6 +79,7 @@ func (h *HandlerRegistry) initHandlers() {
 		h.handlers["SEGetCompany"] = makeHandler(h, h.swedenClient.GetCompanyMCP)
 		h.handlers["SEGetDocumentList"] = makeHandler(h, h.swedenClient.GetDocumentListMCP)
 		h.handlers["SECheckStatus"] = makeHandler(h, h.swedenClient.CheckStatusMCP)
+		h.handlers["SEDownloadDocument"] = makeHandler(h, h.swedenClient.DownloadDocumentMCP)
 	}
 }
 
@@ -255,6 +256,8 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "org_number", a.OrgNumber)
 	case sweden.CheckStatusArgs:
 		// No args to log
+	case sweden.DownloadDocumentArgs:
+		attrs = append(attrs, "document_id", a.DocumentID)
 	}
 
 	// Add extractable fields from result
@@ -303,6 +306,8 @@ func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 		attrs = append(attrs, "documents", r.Count)
 	case sweden.CheckStatusResult:
 		attrs = append(attrs, "available", r.Available)
+	case sweden.DownloadDocumentResult:
+		attrs = append(attrs, "document_id", r.DocumentID, "size_bytes", r.SizeBytes)
 	}
 
 	h.logger.Info("Tool executed", attrs...)

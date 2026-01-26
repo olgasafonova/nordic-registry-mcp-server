@@ -2,6 +2,7 @@ package sweden
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"regexp"
@@ -166,4 +167,24 @@ func (c *Client) CheckStatusMCP(ctx context.Context, args CheckStatusArgs) (Chec
 
 	result.Available = available
 	return result, nil
+}
+
+// DownloadDocumentMCP is the MCP wrapper for downloading an annual report.
+func (c *Client) DownloadDocumentMCP(ctx context.Context, args DownloadDocumentArgs) (DownloadDocumentResult, error) {
+	if args.DocumentID == "" {
+		return DownloadDocumentResult{}, errors.New("document_id is required")
+	}
+
+	data, err := c.DownloadDocument(ctx, args.DocumentID)
+	if err != nil {
+		return DownloadDocumentResult{}, err
+	}
+
+	return DownloadDocumentResult{
+		DocumentID:  args.DocumentID,
+		FileFormat:  "application/zip",
+		SizeBytes:   len(data),
+		ContentB64:  base64.StdEncoding.EncodeToString(data),
+		Description: "Annual report (årsredovisning) as ZIP archive containing XBRL/iXBRL files",
+	}, nil
 }

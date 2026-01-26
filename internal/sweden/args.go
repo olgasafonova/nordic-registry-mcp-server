@@ -59,3 +59,17 @@ type CheckStatusResult struct {
 	CircuitBreakerStatus string `json:"circuit_breaker_status"`
 	CacheEntries         int64  `json:"cache_entries"`
 }
+
+// DownloadDocumentArgs contains parameters for downloading an annual report.
+type DownloadDocumentArgs struct {
+	DocumentID string `json:"document_id" jsonschema:"required" jsonschema_description:"Document ID from sweden_get_document_list"`
+}
+
+// DownloadDocumentResult is the MCP response for downloading a document.
+type DownloadDocumentResult struct {
+	DocumentID  string `json:"document_id"`
+	FileFormat  string `json:"file_format"`
+	SizeBytes   int    `json:"size_bytes"`
+	ContentB64  string `json:"content_base64"` // Base64-encoded ZIP file
+	Description string `json:"description"`
+}
