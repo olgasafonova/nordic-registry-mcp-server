@@ -67,6 +67,32 @@ func TestNewClient_WithOptions(t *testing.T) {
 	}
 }
 
+func TestClient_Close(t *testing.T) {
+	client, err := NewClient(WithCredentials("test-id", "test-secret"))
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+
+	// Simulate having a token
+	client.tokenMu.Lock()
+	client.accessToken = "test-token"
+	client.tokenExpiry = time.Now().Add(time.Hour)
+	client.tokenMu.Unlock()
+
+	// Close should clear the token
+	client.Close()
+
+	client.tokenMu.RLock()
+	defer client.tokenMu.RUnlock()
+
+	if client.accessToken != "" {
+		t.Error("Close() should clear accessToken")
+	}
+	if !client.tokenExpiry.IsZero() {
+		t.Error("Close() should clear tokenExpiry")
+	}
+}
+
 // =============================================================================
 // Validation Tests
 // =============================================================================

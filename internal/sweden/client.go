@@ -120,6 +120,21 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 	return c, nil
 }
 
+// Close releases resources and clears sensitive data from memory.
+func (c *Client) Close() {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	// Clear token from memory
+	c.accessToken = ""
+	c.tokenExpiry = time.Time{}
+
+	// Close cache
+	if c.cache != nil {
+		c.cache.Close()
+	}
+}
+
 // IsConfigured returns true if OAuth2 credentials are available.
 func IsConfigured() bool {
 	return os.Getenv(envClientID) != "" && os.Getenv(envClientSecret) != ""

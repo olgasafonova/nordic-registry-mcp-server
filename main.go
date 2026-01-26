@@ -384,6 +384,7 @@ func main() {
 		if err != nil {
 			logger.Warn("Failed to create Sweden client", "error", err)
 		} else {
+			defer swedenClient.Close()
 			logger.Info("Sweden client initialized (OAuth2 credentials configured)")
 		}
 	} else {

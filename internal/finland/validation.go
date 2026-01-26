@@ -29,12 +29,18 @@ func ValidateBusinessID(businessID string) error {
 	}
 
 	digits := parts[0]
-	checkDigit, _ := strconv.Atoi(parts[1])
+	checkDigit, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return apierrors.NewValidationError("business_id", businessID, "check digit must be numeric")
+	}
 
 	weights := []int{7, 9, 10, 5, 8, 4, 2}
 	sum := 0
 	for i, w := range weights {
-		d, _ := strconv.Atoi(string(digits[i]))
+		d, err := strconv.Atoi(string(digits[i]))
+		if err != nil {
+			return apierrors.NewValidationError("business_id", businessID, "digits must be numeric")
+		}
 		sum += d * w
 	}
 

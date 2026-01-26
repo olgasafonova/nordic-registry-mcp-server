@@ -22,7 +22,7 @@ const (
 	DefaultCacheTTL = 5 * time.Minute
 
 	// MaxConcurrentRequests limits parallel API calls
-	MaxConcurrentRequests = 5
+	MaxConcurrentRequests = 15
 
 	// MaxResponseSize limits response body size to prevent memory exhaustion (10 MB)
 	MaxResponseSize = 10 * 1024 * 1024
