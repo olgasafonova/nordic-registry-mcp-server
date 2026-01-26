@@ -245,7 +245,8 @@ func (s *SecurityMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token := strings.TrimPrefix(auth, "Bearer ")
-		if subtle.ConstantTimeCompare([]byte(token), []byte(s.bearerToken)) != 1 {
+		// Length check uses constant-time comparison to prevent timing attacks on token length
+		if len(token) != len(s.bearerToken) || subtle.ConstantTimeCompare([]byte(token), []byte(s.bearerToken)) != 1 {
 			s.logger.Warn("Invalid Bearer token", "client_ip", clientIP, "path", r.URL.Path)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return

@@ -38,6 +38,9 @@ const (
 	// Cache TTLs
 	companyCacheTTL  = 15 * time.Minute
 	documentCacheTTL = 30 * time.Minute
+
+	// Size limits
+	maxDocumentSize = 100 * 1024 * 1024 // 100 MB - prevents memory exhaustion from malicious responses
 )
 
 // Client provides access to the Swedish business registry (Bolagsverket).
@@ -388,10 +391,16 @@ func (c *Client) DownloadDocument(ctx context.Context, documentID string) ([]byt
 		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	// Limit response size to prevent memory exhaustion
+	limitedReader := io.LimitReader(resp.Body, maxDocumentSize+1)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
 		c.circuitBreaker.RecordFailure()
 		return nil, fmt.Errorf("sweden: reading document: %w", err)
+	}
+	if len(data) > maxDocumentSize {
+		c.circuitBreaker.RecordFailure()
+		return nil, fmt.Errorf("sweden: document exceeds maximum size of %d bytes", maxDocumentSize)
 	}
 
 	c.circuitBreaker.RecordSuccess()
