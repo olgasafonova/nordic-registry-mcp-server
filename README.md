@@ -14,10 +14,10 @@ Query Nordic business registries with AI. Search companies, get details, find bo
 
 | Country | Registry | Tools | ID Format |
 |---------|----------|-------|-----------|
-| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 12 | 9 digits (e.g., `923609016`) |
-| Denmark | [CVR](https://datacvr.virk.dk) | 5 | 8 digits (e.g., `10150817`) |
+| Norway | [Brønnøysundregistrene](https://data.brreg.no) | 12 | 9 digits (e.g., `923609016` or `923 609 016`) |
+| Denmark | [CVR](https://datacvr.virk.dk) | 5 | 8 digits (e.g., `10150817` or `DK-10150817`) |
 | Finland | [PRH](https://avoindata.prh.fi) | 2 | 7+1 digits (e.g., `0112038-9`) |
-| Sweden | [Bolagsverket](https://bolagsverket.se) | 3 | 10 digits (e.g., `5560125790`) |
+| Sweden | [Bolagsverket](https://bolagsverket.se) | 4 | 10 digits (e.g., `5560125790` or `556012-5790`) |
 
 All APIs are free. Norway, Denmark, and Finland require no authentication. Sweden uses the [värdefulla datamängder](https://bolagsverket.se/apierochoppnadata/hamtaforetagsinformation/vardefulladatamangder.5294.html) API which requires OAuth2 credentials ([free registration](https://bolagsverket.se/apierochoppnadata/vardefulladatamangder/kundanmalantillapiforvardefulladatamangder.5528.html)).
 
@@ -389,7 +389,22 @@ For remote access or integration with other tools:
 
 # With authentication
 ./nordic-registry-mcp-server -http :8080 -token "your-secret-token"
+
+# Full production setup
+./nordic-registry-mcp-server -http :8080 \
+  -token "your-secret-token" \
+  -origins "https://app.example.com" \
+  -rate-limit 60 \
+  -trusted-proxies "10.0.0.0/8"
 ```
+
+### Security Features
+
+- **Bearer Token Auth**: Optional authentication via `-token` flag or `MCP_AUTH_TOKEN` env var
+- **CORS Protection**: Restrict origins via `-origins` flag (comma-separated)
+- **Rate Limiting**: Per-IP rate limiting via `-rate-limit` (requests per minute)
+- **Trusted Proxies**: Honor `X-Forwarded-For` from trusted networks via `-trusted-proxies`
+- **Request Size Limits**: 2MB default, 10MB max request body
 
 ### Endpoints
 
@@ -428,11 +443,12 @@ nordic-registry-mcp-server/
 
 ## Resilience Features
 
-- **LRU Cache**: 5-15 minute TTL depending on endpoint
-- **Circuit Breaker**: Automatic failover after consecutive failures
-- **Request Deduplication**: Prevents duplicate concurrent requests
-- **Rate Limiting**: Semaphore-based concurrency control
-- **Retry with Backoff**: Exponential backoff on transient failures
+- **LRU Cache**: TTL varies by endpoint type (searches: 2min, details: 5-15min, documents: 30min, reference data: 24h)
+- **Circuit Breaker**: Opens after 5 consecutive failures, 30s recovery timeout
+- **Request Deduplication**: Identical concurrent requests share a single API call
+- **Rate Limiting**: Semaphore-based concurrency control (15 concurrent requests)
+- **Retry with Backoff**: Exponential backoff with jitter on transient failures
+- **Response Size Limits**: 10MB for API responses, 100MB for document downloads
 - **Token Efficiency**: Paginated responses (default 20 results) to minimize LLM context usage
 
 ---
