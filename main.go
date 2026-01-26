@@ -517,7 +517,7 @@ Common codes:
 	ctx := context.Background()
 
 	if *httpAddr != "" {
-		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient, denmarkClient, finlandClient)
+		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient, denmarkClient, finlandClient, registry)
 	} else {
 		logger.Info("Starting Nordic Registry MCP Server (stdio mode)",
 			"name", ServerName,
@@ -544,7 +544,7 @@ Common codes:
 	}
 }
 
-func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client) {
+func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client, registry *tools.HandlerRegistry) {
 	var allowedOriginsList []string
 	if origins != "" {
 		for _, o := range strings.Split(origins, ",") {
@@ -610,13 +610,14 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 	// Prometheus metrics endpoint
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// Tools discovery endpoint
+	// Tools discovery endpoint - only shows tools with registered handlers
 	mux.HandleFunc("/tools", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 
+		registeredTools := registry.RegisteredTools()
 		toolsByCountry := make(map[string][]map[string]interface{})
-		for _, tool := range tools.AllTools {
+		for _, tool := range registeredTools {
 			toolInfo := map[string]interface{}{
 				"name":        tool.Name,
 				"title":       tool.Title,
@@ -630,7 +631,7 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		response := map[string]interface{}{
 			"server":     ServerName,
 			"version":    ServerVersion,
-			"tool_count": len(tools.AllTools),
+			"tool_count": len(registeredTools),
 			"countries":  toolsByCountry,
 		}
 

@@ -391,9 +391,9 @@ func TestNormalizeOrgNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := normalizeOrgNumber(tt.input)
+			result := NormalizeOrgNumber(tt.input)
 			if result != tt.expected {
-				t.Errorf("normalizeOrgNumber(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("NormalizeOrgNumber(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -1360,6 +1360,11 @@ func TestGetMunicipalities_WithMockServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/kommuner" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+
+		// Verify size parameter is sent to fetch all municipalities
+		if size := r.URL.Query().Get("size"); size != "500" {
+			t.Errorf("expected size=500, got size=%s", size)
 		}
 
 		resp := MunicipalitiesResponse{

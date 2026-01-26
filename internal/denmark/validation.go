@@ -8,15 +8,30 @@ import (
 var cvrRegex = regexp.MustCompile(`^\d{8}$`)
 
 // ValidateCVR validates a Danish CVR number.
-// Danish CVR numbers are exactly 8 digits.
+// Danish CVR numbers are exactly 8 digits. Input is normalized first
+// (spaces, dashes, and DK prefix removed) before validation.
 func ValidateCVR(cvr string) error {
 	if cvr == "" {
 		return fmt.Errorf("CVR number is required")
 	}
-	if !cvrRegex.MatchString(cvr) {
+	normalized := NormalizeCVR(cvr)
+	if !cvrRegex.MatchString(normalized) {
 		return fmt.Errorf("invalid Danish CVR number %q: must be exactly 8 digits", cvr)
 	}
 	return nil
+}
+
+// ValidateAndNormalizeCVR validates and returns the normalized CVR number.
+// Use this when you need the cleaned value after validation.
+func ValidateAndNormalizeCVR(cvr string) (string, error) {
+	if cvr == "" {
+		return "", fmt.Errorf("CVR number is required")
+	}
+	normalized := NormalizeCVR(cvr)
+	if !cvrRegex.MatchString(normalized) {
+		return "", fmt.Errorf("invalid Danish CVR number %q: must be exactly 8 digits", cvr)
+	}
+	return normalized, nil
 }
 
 // MaxQueryLength is the maximum allowed search query length

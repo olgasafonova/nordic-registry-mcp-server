@@ -176,7 +176,7 @@ func (c *Client) SearchByPhone(ctx context.Context, phone string) (*Company, err
 
 // GetCompany retrieves a company by CVR number
 func (c *Client) GetCompany(ctx context.Context, cvr string) (*Company, error) {
-	cvr = normalizeCVR(cvr)
+	cvr = NormalizeCVR(cvr)
 	if err := validateCVR(cvr); err != nil {
 		return nil, err
 	}
@@ -275,12 +275,14 @@ func notFoundIdentifier(params url.Values) string {
 	return params.Get("search")
 }
 
-// normalizeCVR removes spaces and dashes from CVR number
-func normalizeCVR(cvr string) string {
+// NormalizeCVR removes spaces, dashes, and DK prefix from a Danish CVR number.
+// This allows users to input "DK-24256790", "DK24256790", or "24 25 67 90" which get normalized to "24256790".
+func NormalizeCVR(cvr string) string {
+	cvr = strings.TrimSpace(cvr)
 	cvr = strings.ReplaceAll(cvr, " ", "")
 	cvr = strings.ReplaceAll(cvr, "-", "")
-	cvr = strings.ReplaceAll(cvr, "DK", "")
-	cvr = strings.ReplaceAll(cvr, "dk", "")
+	cvr = strings.TrimPrefix(cvr, "DK")
+	cvr = strings.TrimPrefix(cvr, "dk")
 	return cvr
 }
 

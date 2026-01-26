@@ -14,8 +14,14 @@ func TestValidateCVR(t *testing.T) {
 		{"too short", "1234567", true},
 		{"too long", "123456789", true},
 		{"contains letters", "1015081A", true},
-		{"contains spaces", "10 150 817", true},
-		{"contains dash", "10-150-817", true},
+		// Spaces, dashes, and DK prefix are now normalized (removed) before validation
+		{"contains spaces", "10 150 817", false},
+		{"contains dash", "10-150-817", false},
+		{"with DK prefix", "DK10150817", false},
+		{"with DK prefix and dash", "DK-10150817", false},
+		{"lowercase dk prefix", "dk10150817", false},
+		{"mixed format", "DK 10-15-08-17", false},
+		{"with leading/trailing spaces", "  10150817  ", false},
 	}
 
 	for _, tt := range tests {

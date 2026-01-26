@@ -440,7 +440,7 @@ func (c *Client) BatchGetCompaniesMCP(ctx context.Context, args BatchGetCompanie
 	// Identify not found org numbers
 	var notFound []string
 	for _, on := range args.OrgNumbers {
-		normalized := normalizeOrgNumber(on)
+		normalized := NormalizeOrgNumber(on)
 		if !found[normalized] {
 			notFound = append(notFound, on)
 		}

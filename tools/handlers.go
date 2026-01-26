@@ -115,6 +115,18 @@ func (h *HandlerRegistry) registerTool(server *mcp.Server, spec ToolSpec) bool {
 	return true
 }
 
+// RegisteredTools returns only the tools that have registered handlers.
+// Use this for discovery endpoints to avoid showing unavailable tools.
+func (h *HandlerRegistry) RegisteredTools() []ToolSpec {
+	registered := make([]ToolSpec, 0, len(AllTools))
+	for _, spec := range AllTools {
+		if _, ok := h.handlers[spec.Method]; ok {
+			registered = append(registered, spec)
+		}
+	}
+	return registered
+}
+
 // buildTool creates an mcp.Tool from a ToolSpec.
 func (h *HandlerRegistry) buildTool(spec ToolSpec) *mcp.Tool {
 	annotations := &mcp.ToolAnnotations{

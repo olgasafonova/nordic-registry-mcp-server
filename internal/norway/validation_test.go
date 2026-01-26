@@ -14,8 +14,11 @@ func TestValidateOrgNumber(t *testing.T) {
 		{"too short", "12345678", true},
 		{"too long", "1234567890", true},
 		{"contains letters", "92360901A", true},
-		{"contains spaces", "923 609 016", true},
-		{"contains dash", "923-609-016", true},
+		// Spaces and dashes are now normalized (removed) before validation
+		{"contains spaces", "923 609 016", false},
+		{"contains dash", "923-609-016", false},
+		{"mixed format", "923-609 016", false},
+		{"with leading/trailing spaces", "  923609016  ", false},
 	}
 
 	for _, tt := range tests {

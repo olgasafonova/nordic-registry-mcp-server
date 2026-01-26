@@ -225,9 +225,10 @@ func TestToolSpecMethods(t *testing.T) {
 		"FISearchCompanies": true,
 		"FIGetCompany":      true,
 		// Sweden tools
-		"SEGetCompany":      true,
-		"SEGetDocumentList": true,
-		"SECheckStatus":     true,
+		"SEGetCompany":       true,
+		"SEGetDocumentList":  true,
+		"SEDownloadDocument": true,
+		"SECheckStatus":      true,
 	}
 
 	for _, spec := range AllTools {
@@ -285,4 +286,51 @@ func TestToolsByCategory(t *testing.T) {
 			t.Errorf("Tool %s has category %s, expected search", tool.Name, tool.Category)
 		}
 	}
+}
+
+func TestRegisteredTools(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	noClient := norway.NewClient(norway.WithLogger(logger))
+	defer noClient.Close()
+	dkClient := denmark.NewClient(denmark.WithLogger(logger))
+	defer dkClient.Close()
+	fiClient := finland.NewClient(finland.WithLogger(logger))
+	defer fiClient.Close()
+
+	t.Run("without Sweden client", func(t *testing.T) {
+		// Create registry without Sweden client
+		registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+
+		registeredTools := registry.RegisteredTools()
+
+		// Should have Norway (12) + Denmark (5) + Finland (2) = 19 tools
+		expectedCount := 19
+		if len(registeredTools) != expectedCount {
+			t.Errorf("Expected %d registered tools without Sweden, got %d", expectedCount, len(registeredTools))
+		}
+
+		// Verify no Sweden tools are included
+		for _, tool := range registeredTools {
+			if tool.Country == "sweden" {
+				t.Errorf("Sweden tool %s should not be registered when Sweden client is nil", tool.Name)
+			}
+		}
+	})
+
+	t.Run("registered tools subset of AllTools", func(t *testing.T) {
+		registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+		registeredTools := registry.RegisteredTools()
+
+		// All registered tools should be in AllTools
+		allToolsMap := make(map[string]bool)
+		for _, tool := range AllTools {
+			allToolsMap[tool.Name] = true
+		}
+
+		for _, tool := range registeredTools {
+			if !allToolsMap[tool.Name] {
+				t.Errorf("Registered tool %s not found in AllTools", tool.Name)
+			}
+		}
+	})
 }

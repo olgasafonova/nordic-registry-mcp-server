@@ -132,7 +132,7 @@ type SearchOptions struct {
 
 // GetCompany retrieves a company by organization number
 func (c *Client) GetCompany(ctx context.Context, orgNumber string) (*Company, error) {
-	orgNumber = normalizeOrgNumber(orgNumber)
+	orgNumber = NormalizeOrgNumber(orgNumber)
 	if err := validateOrgNumber(orgNumber); err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func (c *Client) GetCompany(ctx context.Context, orgNumber string) (*Company, er
 
 // GetRoles retrieves board members and other roles for a company
 func (c *Client) GetRoles(ctx context.Context, orgNumber string) (*RolesResponse, error) {
-	orgNumber = normalizeOrgNumber(orgNumber)
+	orgNumber = NormalizeOrgNumber(orgNumber)
 	if err := validateOrgNumber(orgNumber); err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func (c *Client) GetRoles(ctx context.Context, orgNumber string) (*RolesResponse
 
 // GetSubUnits retrieves sub-units (branches) for a parent company
 func (c *Client) GetSubUnits(ctx context.Context, parentOrgNumber string) (*SubUnitSearchResponse, error) {
-	parentOrgNumber = normalizeOrgNumber(parentOrgNumber)
+	parentOrgNumber = NormalizeOrgNumber(parentOrgNumber)
 	if err := validateOrgNumber(parentOrgNumber); err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (c *Client) GetSubUnits(ctx context.Context, parentOrgNumber string) (*SubU
 
 // GetSubUnit retrieves a specific sub-unit by organization number
 func (c *Client) GetSubUnit(ctx context.Context, orgNumber string) (*SubUnit, error) {
-	orgNumber = normalizeOrgNumber(orgNumber)
+	orgNumber = NormalizeOrgNumber(orgNumber)
 	if err := validateOrgNumber(orgNumber); err != nil {
 		return nil, err
 	}
@@ -289,15 +289,19 @@ func (c *Client) SearchSubUnits(ctx context.Context, query string, opts *SearchS
 	return &result, nil
 }
 
-// GetMunicipalities retrieves the list of Norwegian municipalities
+// GetMunicipalities retrieves the list of Norwegian municipalities.
+// Uses size=500 to fetch all municipalities in one request (Norway has ~365).
 func (c *Client) GetMunicipalities(ctx context.Context) (*MunicipalitiesResponse, error) {
 	cacheKey := "municipalities"
 	if cached, ok := c.Cache.Get(cacheKey); ok {
 		return cached.(*MunicipalitiesResponse), nil
 	}
 
+	// Request all municipalities at once (default page size is 20)
+	params := url.Values{"size": {"500"}}
+
 	var result MunicipalitiesResponse
-	if err := c.doRequest(ctx, "/kommuner", nil, &result); err != nil {
+	if err := c.doRequest(ctx, "/kommuner", params, &result); err != nil {
 		return nil, err
 	}
 
@@ -336,7 +340,7 @@ func (c *Client) BatchGetCompanies(ctx context.Context, orgNumbers []string) (*S
 	// Normalize and validate all org numbers
 	normalized := make([]string, 0, len(orgNumbers))
 	for _, on := range orgNumbers {
-		on = normalizeOrgNumber(on)
+		on = NormalizeOrgNumber(on)
 		if err := validateOrgNumber(on); err != nil {
 			return nil, fmt.Errorf("invalid org number %q: %w", on, err)
 		}
@@ -419,8 +423,10 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 	return nil
 }
 
-// normalizeOrgNumber removes spaces and dashes from organization number
-func normalizeOrgNumber(orgNumber string) string {
+// NormalizeOrgNumber removes spaces and dashes from a Norwegian organization number.
+// This allows users to input "923 609 016" or "923-609-016" which get normalized to "923609016".
+func NormalizeOrgNumber(orgNumber string) string {
+	orgNumber = strings.TrimSpace(orgNumber)
 	orgNumber = strings.ReplaceAll(orgNumber, " ", "")
 	orgNumber = strings.ReplaceAll(orgNumber, "-", "")
 	return orgNumber

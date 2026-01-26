@@ -8,15 +8,30 @@ import (
 var orgNumberRegex = regexp.MustCompile(`^\d{9}$`)
 
 // ValidateOrgNumber validates a Norwegian organization number.
-// Norwegian org numbers are exactly 9 digits.
+// Norwegian org numbers are exactly 9 digits. Input is normalized first
+// (spaces and dashes removed) before validation.
 func ValidateOrgNumber(orgNumber string) error {
 	if orgNumber == "" {
 		return fmt.Errorf("organization number is required")
 	}
-	if !orgNumberRegex.MatchString(orgNumber) {
+	normalized := NormalizeOrgNumber(orgNumber)
+	if !orgNumberRegex.MatchString(normalized) {
 		return fmt.Errorf("invalid Norwegian organization number %q: must be exactly 9 digits", orgNumber)
 	}
 	return nil
+}
+
+// ValidateAndNormalizeOrgNumber validates and returns the normalized organization number.
+// Use this when you need the cleaned value after validation.
+func ValidateAndNormalizeOrgNumber(orgNumber string) (string, error) {
+	if orgNumber == "" {
+		return "", fmt.Errorf("organization number is required")
+	}
+	normalized := NormalizeOrgNumber(orgNumber)
+	if !orgNumberRegex.MatchString(normalized) {
+		return "", fmt.Errorf("invalid Norwegian organization number %q: must be exactly 9 digits", orgNumber)
+	}
+	return normalized, nil
 }
 
 // MaxQueryLength is the maximum allowed search query length

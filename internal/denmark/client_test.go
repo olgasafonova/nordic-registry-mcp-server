@@ -312,9 +312,9 @@ func TestNormalizeCVR(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := normalizeCVR(tt.input)
+			result := NormalizeCVR(tt.input)
 			if result != tt.expected {
-				t.Errorf("normalizeCVR(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("NormalizeCVR(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
