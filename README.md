@@ -288,6 +288,8 @@ Restart Claude Desktop after changes.
 | `finland_search_companies` | Search companies by name (paginated, use filters for broad queries) |
 | `finland_get_company` | Get company details by business ID |
 
+> **Note:** Common names like "Nokia" return 900+ results. Use exact legal name ("Nokia Oyj"), filter by `company_form` (OY/OYJ), or filter by `location` to narrow results.
+
 ### Sweden (Bolagsverket)
 
 Requires OAuth2 credentials. Set `BOLAGSVERKET_CLIENT_ID` and `BOLAGSVERKET_CLIENT_SECRET` environment variables.
@@ -298,6 +300,8 @@ Requires OAuth2 credentials. Set `BOLAGSVERKET_CLIENT_ID` and `BOLAGSVERKET_CLIE
 | `sweden_get_document_list` | List annual reports (årsredovisningar) |
 | `sweden_download_document` | Download annual report by document ID |
 | `sweden_check_status` | Check API availability and OAuth2 status |
+
+> **Note:** Sweden has no name search in this API - you must have the org number.
 
 ---
 

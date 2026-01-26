@@ -594,7 +594,14 @@ Search for Finnish companies by name.
 | `page` | int | No | Page number (0-indexed) |
 | `size` | int | No | Results per page (default: 20, max: 100) |
 
-**Note:** Common company names like "Nokia" return 900+ results due to city name collisions and housing corporations. Use `company_form` filter to narrow results (e.g., `company_form=OYJ` for public companies only).
+**⚠️ Important:** Common company names return 900+ results (e.g., "Nokia" matches the city, housing corporations, and many small businesses). To find the company you want:
+
+1. **Use exact legal name**: "Nokia Oyj" instead of "Nokia"
+2. **Filter by company_form**: `OY` for private companies, `OYJ` for public companies
+3. **Filter by location**: City name to narrow geographically
+4. **Combine filters**: e.g., `company_form=OYJ` + `location=Espoo`
+
+If you have the Y-tunnus (business ID), use `finland_get_company` directly instead.
 
 **Returns:**
 
@@ -679,6 +686,8 @@ Set environment variables:
 ### sweden_get_company
 
 Get detailed information about a Swedish company by organization number.
+
+**⚠️ Important:** Sweden has NO name search in this API - you must have the organization number. Ask the user for the org number if not provided.
 
 **Parameters:**
 

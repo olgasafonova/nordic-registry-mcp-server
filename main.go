@@ -476,6 +476,25 @@ Always ask the user to clarify if the first result seems wrong (wrong size, wron
 "Get details for business ID 0112038-9"
 -> USE: finland_get_company
 
+### IMPORTANT: Finnish Search Can Return 900+ Results
+
+Common company names return too many results. To narrow down:
+
+1. Use exact legal name: "Nokia Oyj" instead of "Nokia"
+2. Filter by company_form: OY (private) or OYJ (public) for main operating companies
+3. Filter by location: city name to narrow geographically
+4. Combine filters: company_form=OY AND location=Helsinki
+
+Example: Searching "Nokia" returns 900+ results. Searching "Nokia Oyj" with company_form=OYJ returns just the main company.
+
+## Swedish Company Lookups
+
+Sweden has NO name search in this API - you must have the 10-digit organization number. Ask the user for the org number if not provided.
+
+### Get Swedish company details:
+"Get Swedish company 5560125790"
+-> USE: sweden_get_company
+
 ## Norwegian Organization Numbers
 
 Norwegian org numbers are 9 digits. Spaces and dashes are automatically removed.
