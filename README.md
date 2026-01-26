@@ -273,9 +273,9 @@ Restart Claude Desktop after changes.
 
 | Tool | Description |
 |------|-------------|
-| `denmark_search_companies` | Search companies by name |
+| `denmark_search_companies` | Search companies by name (returns single best match) |
 | `denmark_get_company` | Get company details by CVR number |
-| `denmark_get_production_units` | List production units (P-numbers) |
+| `denmark_get_production_units` | List production units (P-numbers), paginated |
 | `denmark_search_by_phone` | Find company by phone number |
 | `denmark_get_by_pnumber` | Get company by P-number |
 
@@ -283,7 +283,7 @@ Restart Claude Desktop after changes.
 
 | Tool | Description |
 |------|-------------|
-| `finland_search_companies` | Search companies by name |
+| `finland_search_companies` | Search companies by name (paginated, use filters for broad queries) |
 | `finland_get_company` | Get company details by business ID |
 
 ### Sweden (Bolagsverket)
@@ -427,6 +427,7 @@ nordic-registry-mcp-server/
 - **Request Deduplication**: Prevents duplicate concurrent requests
 - **Rate Limiting**: Semaphore-based concurrency control
 - **Retry with Backoff**: Exponential backoff on transient failures
+- **Token Efficiency**: Paginated responses (default 20 results) to minimize LLM context usage
 
 ---
 
@@ -434,7 +435,7 @@ nordic-registry-mcp-server/
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/API.md) | Complete reference for all 22 tools with parameters, return values, and examples |
+| [API Reference](docs/API.md) | Complete reference for all 23 tools with parameters, return values, and examples |
 | [Architecture](docs/ARCHITECTURE.md) | System design, request flow, resilience patterns |
 | [Production Readiness](docs/PRODUCTION.md) | Deployment checklist, monitoring, known limitations |
 

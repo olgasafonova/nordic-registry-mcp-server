@@ -452,7 +452,7 @@ Search for Danish companies by name.
 |------|------|----------|-------------|
 | `query` | string | Yes | Company name to search for |
 
-**Note:** The CVR API returns a single best match, not a paginated list.
+**⚠️ Important:** The CVR API returns only ONE result (single best match). This is an upstream API limitation, not a bug. For multiple matches, try variations of the company name or use the CVR number directly with `denmark_get_company`.
 
 **Returns:**
 
@@ -508,6 +508,8 @@ Get production units (P-numbers) for a Danish company.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `cvr` | string | Yes | 8-digit CVR number |
+| `page` | int | No | Page number (0-indexed, default: 0) |
+| `size` | int | No | Results per page (default: 20, max: 100) |
 
 **Returns:**
 
@@ -523,7 +525,11 @@ Get production units (P-numbers) for a Danish company.
       "industry": "Fremstilling af farmaceutiske præparater"
     }
   ],
-  "total": 1
+  "total_results": 216,
+  "page": 0,
+  "size": 20,
+  "total_pages": 11,
+  "has_more": true
 }
 ```
 
@@ -576,7 +582,10 @@ Search for Finnish companies by name.
 | `query` | string | Yes | Company name to search for |
 | `location` | string | No | Filter by city/town |
 | `company_form` | string | No | Filter by form (OY, OYJ, Ky, etc.) |
-| `page` | int | No | Page number for pagination |
+| `page` | int | No | Page number (0-indexed) |
+| `size` | int | No | Results per page (default: 20, max: 100) |
+
+**Note:** Common company names like "Nokia" return 900+ results due to city name collisions and housing corporations. Use `company_form` filter to narrow results (e.g., `company_form=OYJ` for public companies only).
 
 **Returns:**
 
@@ -593,9 +602,10 @@ Search for Finnish companies by name.
       "status": "ACTIVE"
     }
   ],
-  "total_results": 1,
-  "page": 1,
-  "total_pages": 1
+  "total_results": 978,
+  "page": 0,
+  "size": 20,
+  "has_more": true
 }
 ```
 
