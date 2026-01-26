@@ -15,6 +15,7 @@ import (
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
+	"github.com/olgasafonova/nordic-registry-mcp-server/internal/sweden"
 )
 
 func TestNewHandlerRegistry(t *testing.T) {
@@ -340,6 +341,49 @@ func TestRegisteredTools(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("with Sweden client", func(t *testing.T) {
+		// Create mock Sweden OAuth2 and API servers
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "token") {
+				_, _ = w.Write([]byte(`{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"organisationer":[]}`))
+		}))
+		defer mockServer.Close()
+
+		seClient, err := sweden.NewClient(
+			sweden.WithCredentials("test-id", "test-secret"),
+			sweden.WithBaseURL(mockServer.URL),
+			sweden.WithTokenURL(mockServer.URL+"/token"),
+		)
+		if err != nil {
+			t.Fatalf("Failed to create Sweden client: %v", err)
+		}
+
+		// Create registry with Sweden client
+		registry := NewHandlerRegistry(noClient, dkClient, fiClient, seClient, logger)
+		registeredTools := registry.RegisteredTools()
+
+		// Should have Norway (12) + Denmark (5) + Finland (2) + Sweden (4) = 23 tools
+		expectedCount := 23
+		if len(registeredTools) != expectedCount {
+			t.Errorf("Expected %d registered tools with Sweden, got %d", expectedCount, len(registeredTools))
+		}
+
+		// Verify Sweden tools are included
+		swedenTools := 0
+		for _, tool := range registeredTools {
+			if tool.Country == "sweden" {
+				swedenTools++
+			}
+		}
+		if swedenTools != 4 {
+			t.Errorf("Expected 4 Sweden tools, got %d", swedenTools)
+		}
+	})
 }
 
 func TestBuildTool_DestructiveHint(t *testing.T) {
@@ -458,6 +502,28 @@ func TestLogExecution_AllArgTypes(t *testing.T) {
 	registry.logExecution(fiSpec,
 		finland.GetCompanyArgs{BusinessID: "1234567-8"},
 		finland.GetCompanyResult{})
+
+	// Sweden tests
+	seSpec := ToolSpec{Name: "test_tool", Country: "sweden"}
+	registry.logExecution(seSpec,
+		sweden.GetCompanyArgs{OrgNumber: "5560125790"},
+		sweden.GetCompanyResult{Company: &sweden.CompanySummary{Name: "VOLVO AB"}})
+
+	registry.logExecution(seSpec,
+		sweden.GetCompanyArgs{OrgNumber: "0000000000"},
+		sweden.GetCompanyResult{Company: nil}) // Not found case
+
+	registry.logExecution(seSpec,
+		sweden.GetDocumentListArgs{OrgNumber: "5560125790"},
+		sweden.GetDocumentListResult{Count: 5})
+
+	registry.logExecution(seSpec,
+		sweden.CheckStatusArgs{},
+		sweden.CheckStatusResult{Available: true})
+
+	registry.logExecution(seSpec,
+		sweden.DownloadDocumentArgs{DocumentID: "doc-123"},
+		sweden.DownloadDocumentResult{DocumentID: "doc-123", SizeBytes: 1024})
 
 	// Unknown arg type (should not panic)
 	registry.logExecution(spec, struct{ Unknown string }{Unknown: "value"}, struct{}{})
