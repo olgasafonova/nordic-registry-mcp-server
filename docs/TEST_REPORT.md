@@ -1,7 +1,7 @@
 # Nordic Registry MCP Server - Comprehensive Test Report
 
 **Test Date:** 2026-01-26
-**Server Version:** main branch (commit 27025b0)
+**Server Version:** main branch (commit ecfa4ac)
 **Test Environment:** macOS Darwin 24.5.0
 **Tested by:** Claude Code (Automated MCP testing)
 
@@ -11,13 +11,13 @@
 
 | Country | Tools | Tested | Pass | Bugs | Status |
 |---------|-------|--------|------|------|--------|
-| Norway | 12 | 12 | 11 | 1 | **PARTIAL** |
+| Norway | 12 | 12 | 12 | 0 | **PASS** |
 | Denmark | 5 | 5 | 5 | 0 | **PASS** |
 | Finland | 2 | 2 | 2 | 0 | **PASS** |
 | Sweden | 4 | 4 | 4 | 0 | **PASS** |
-| **Total** | **23** | **23** | **22** | **1** | **PARTIAL** |
+| **Total** | **23** | **23** | **23** | **0** | **PASS** |
 
-**Bug Found:** `norway_get_company` fails for companies with deletion dates due to type mismatch (`slettedato` field). See Bugs section below.
+All tools tested and working.
 
 Sweden tools require OAuth2 credentials (`BOLAGSVERKET_CLIENT_ID`, `BOLAGSVERKET_CLIENT_SECRET`).
 
@@ -410,33 +410,17 @@ Tools available when configured:
 
 ## Bugs Found
 
-### BUG: `slettedato` field type mismatch (Norway)
+None. All issues resolved.
 
-**Location:** `internal/norway/types.go:33` and `internal/norway/types.go:203`
+### Previously Fixed: `slettedato` field type mismatch (Norway)
 
-**Issue:** The `slettedato` (deletion date) field is typed as `bool` but the API returns a date string for deleted companies.
+**Fixed in:** commit `087ab0c`
 
-```go
-// Current (incorrect):
-Deleted bool `json:"slettedato,omitempty"`
+**Issue:** The `slettedato` (deletion date) field was typed as `bool` but the API returns a date string for deleted companies.
 
-// Should be:
-Deleted string `json:"slettedato,omitempty"`
-```
+**Resolution:** Changed field type from `bool` to `string` in `internal/norway/types.go`.
 
-**Reproduction:**
-```
-norway_get_company org_number=971274808  (Norges Røde Kors)
-```
-
-**Error:**
-```
-json: cannot unmarshal string into Go struct field Company.slettedato of type bool
-```
-
-**Impact:** Companies with deletion dates cannot be retrieved. Affects `norway_get_company` and potentially `norway_get_roles` via `RoleEntity.Deleted`.
-
-**Fix:** Change field type from `bool` to `string` (or use custom unmarshaler).
+**Verified:** Tested with deleted company 998799406 (VASSNES ENGINEERING AS, deleted 2026-01-19). Returns correctly with `slettedato: "2026-01-19"`.
 
 ---
 
@@ -446,7 +430,6 @@ json: cannot unmarshal string into Go struct field Company.slettedato of type bo
 2. **Norway signature rights** - Complex rules for large companies may not be captured
 3. **Sweden requires OAuth** - Free but requires registration with Bolagsverket
 4. **Large response sizes** - Production units for major companies (Novo Nordisk: 216 units) generate large payloads
-5. **Norway deleted companies** - See bug above; companies with slettedato field fail to parse
 
 ---
 

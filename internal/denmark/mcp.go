@@ -87,7 +87,13 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	return GetCompanyResult{Summary: summary}, nil
 }
 
-// GetProductionUnitsMCP gets production units for a company
+// Default and max page sizes for Denmark production units
+const (
+	DefaultProductionUnitsPageSize = 20
+	MaxProductionUnitsPageSize     = 100
+)
+
+// GetProductionUnitsMCP gets production units for a company with pagination
 func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUnitsArgs) (GetProductionUnitsResult, error) {
 	if err := ValidateCVR(args.CVR); err != nil {
 		return GetProductionUnitsResult{}, err
@@ -98,8 +104,39 @@ func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUn
 		return GetProductionUnitsResult{}, err
 	}
 
-	units := make([]ProductionUnitSummary, 0, len(company.ProductionUnits))
-	for _, pu := range company.ProductionUnits {
+	// Apply pagination defaults and limits
+	page := args.Page
+	if page < 0 {
+		page = 0
+	}
+	size := args.Size
+	if size <= 0 {
+		size = DefaultProductionUnitsPageSize
+	}
+	if size > MaxProductionUnitsPageSize {
+		size = MaxProductionUnitsPageSize
+	}
+
+	// Calculate pagination
+	totalUnits := len(company.ProductionUnits)
+	totalPages := (totalUnits + size - 1) / size // ceiling division
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	// Calculate slice bounds
+	start := page * size
+	end := start + size
+	if start > totalUnits {
+		start = totalUnits
+	}
+	if end > totalUnits {
+		end = totalUnits
+	}
+
+	// Build paginated result
+	units := make([]ProductionUnitSummary, 0, end-start)
+	for _, pu := range company.ProductionUnits[start:end] {
 		employees := ""
 		switch v := pu.Employees.(type) {
 		case float64:
@@ -123,7 +160,11 @@ func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUn
 
 	return GetProductionUnitsResult{
 		ProductionUnits: units,
-		TotalResults:    len(units),
+		TotalResults:    totalUnits,
+		Page:            page,
+		Size:            size,
+		TotalPages:      totalPages,
+		HasMore:         page < totalPages-1,
 	}, nil
 }
 

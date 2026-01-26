@@ -59,13 +59,19 @@ type CompanyDetailSummary struct {
 
 // GetProductionUnitsArgs contains parameters for getting production units
 type GetProductionUnitsArgs struct {
-	CVR string `json:"cvr" jsonschema:"required" jsonschema_description:"8-digit Danish CVR number"`
+	CVR  string `json:"cvr" jsonschema:"required" jsonschema_description:"8-digit Danish CVR number"`
+	Page int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed, default: 0)"`
+	Size int    `json:"size,omitempty" jsonschema_description:"Results per page (default: 20, max: 100)"`
 }
 
 // GetProductionUnitsResult is the result of getting production units
 type GetProductionUnitsResult struct {
 	ProductionUnits []ProductionUnitSummary `json:"production_units"`
 	TotalResults    int                     `json:"total_results"`
+	Page            int                     `json:"page"`
+	Size            int                     `json:"size"`
+	TotalPages      int                     `json:"total_pages"`
+	HasMore         bool                    `json:"has_more"`
 }
 
 // ProductionUnitSummary is a simplified production unit for MCP responses

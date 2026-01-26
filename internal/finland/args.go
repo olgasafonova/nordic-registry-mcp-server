@@ -5,7 +5,8 @@ type SearchCompaniesArgs struct {
 	Query       string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
 	Location    string `json:"location,omitempty" jsonschema_description:"Town or city to filter by"`
 	CompanyForm string `json:"company_form,omitempty" jsonschema_description:"Company form code (OY, OYJ, Ky, etc.)"`
-	Page        int    `json:"page,omitempty" jsonschema_description:"Page number for pagination"`
+	Page        int    `json:"page,omitempty" jsonschema_description:"Page number for pagination (0-indexed)"`
+	Size        int    `json:"size,omitempty" jsonschema_description:"Results per page (default: 20, max: 100)"`
 }
 
 // SearchCompaniesResult is the result of a company search
@@ -13,6 +14,8 @@ type SearchCompaniesResult struct {
 	Companies    []CompanySummary `json:"companies"`
 	TotalResults int              `json:"total_results"`
 	Page         int              `json:"page"`
+	Size         int              `json:"size"`
+	HasMore      bool             `json:"has_more"`
 }
 
 // CompanySummary is a simplified company representation for search results

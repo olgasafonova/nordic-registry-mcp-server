@@ -5,6 +5,12 @@ import (
 	"strings"
 )
 
+// Default and max page sizes for Finland search
+const (
+	DefaultPageSize = 20
+	MaxPageSize     = 100
+)
+
 // SearchCompaniesMCP wraps SearchCompanies for MCP tool handlers
 func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
 	query := strings.TrimSpace(args.Query)
@@ -12,6 +18,15 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		return SearchCompaniesResult{}, err
 	}
 	args.Query = query
+
+	// Apply size defaults and limits
+	size := args.Size
+	if size <= 0 {
+		size = DefaultPageSize
+	}
+	if size > MaxPageSize {
+		size = MaxPageSize
+	}
 
 	resp, err := c.SearchCompanies(ctx, args)
 	if err != nil {
@@ -21,9 +36,20 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 	result := SearchCompaniesResult{
 		TotalResults: resp.TotalResults,
 		Page:         args.Page,
+		Size:         size,
 	}
 
-	for _, company := range resp.Companies {
+	// Limit results to requested size
+	companies := resp.Companies
+	if len(companies) > size {
+		companies = companies[:size]
+		result.HasMore = true
+	} else {
+		// Check if there are more pages
+		result.HasMore = (args.Page+1)*size < resp.TotalResults
+	}
+
+	for _, company := range companies {
 		result.Companies = append(result.Companies, toCompanySummary(company))
 	}
 
