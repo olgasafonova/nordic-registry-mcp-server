@@ -92,26 +92,29 @@ The server logs a warning if binding to an external interface without this setup
 | Package | Coverage |
 |---------|----------|
 | `internal/errors` | 100% |
-| `internal/infra` | 89.6% |
-| `tracing` | 90.6% |
 | `metrics` | 100% |
-| `internal/denmark` | 57.2% |
-| `internal/finland` | 64.4% |
-| `internal/norway` | 41.3% |
-| `tools` | 24.6% |
-| `main` | 24.2% |
+| `tracing` | 90.6% |
+| `internal/infra` | 89.6% |
+| `internal/sweden` | 83.5% |
+| `internal/finland` | 61.4% |
+| `internal/denmark` | 50.9% |
+| `tools` | 44.0% |
+| `internal/norway` | 40.8% |
+| `internal/base` | 24.1% |
+| `main` | 23.4% |
 
-Infrastructure and error handling are well-tested. Country clients have moderate coverage. Tool handlers have lower coverage (they're thin wrappers).
+Infrastructure, error handling, and Sweden client are well-tested. Country clients have moderate coverage. Tool handlers have lower coverage (they're thin wrappers over validated client calls).
 
 ### 3. External API Dependencies
 
-This server depends on three external APIs:
+This server depends on four external APIs:
 
 | Country | API | SLA | Rate Limits |
 |---------|-----|-----|-------------|
 | Norway | data.brreg.no | Public, no SLA | Unspecified |
 | Denmark | cvrapi.dk | Public, no SLA | Unspecified |
 | Finland | avoindata.prh.fi | Public, no SLA | Unspecified |
+| Sweden | api.bolagsverket.se | OAuth2, no SLA | Unspecified |
 
 If any upstream API is down, that country's tools will fail (circuit breaker will open).
 
