@@ -482,7 +482,7 @@ nordic-registry-mcp-server/
 | [Setup Guide](docs/SETUP.md) | Installation, configuration, and troubleshooting |
 | [API Reference](docs/API.md) | Complete reference for all 23 tools with parameters, return values, and examples |
 | [Architecture](docs/ARCHITECTURE.md) | System design, request flow, resilience patterns |
-| [Production Readiness](docs/PRODUCTION.md) | Deployment checklist, monitoring, known limitations |
+| [Production Readiness](docs/PRODUCTION.md) | Docker, Kubernetes, monitoring, deployment checklist |
 
 ---
 
