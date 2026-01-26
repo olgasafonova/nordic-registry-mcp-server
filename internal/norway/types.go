@@ -27,9 +27,9 @@ type Company struct {
 	Activity                  []string `json:"aktivitet,omitempty"` // Activity description for voluntary orgs
 
 	// Status flags
-	Bankrupt               bool `json:"konkurs"`
-	UnderLiquidation       bool `json:"underAvvikling"`
-	UnderForcedLiquidation bool `json:"underTvangsavviklingEllerTvangsopplosning"`
+	Bankrupt               bool   `json:"konkurs"`
+	UnderLiquidation       bool   `json:"underAvvikling"`
+	UnderForcedLiquidation bool   `json:"underTvangsavviklingEllerTvangsopplosning"`
 	Deleted                string `json:"slettedato,omitempty"`
 
 	// Industry codes
@@ -121,7 +121,7 @@ type SubUnit struct {
 	IndustryCode3 *IndustryCode `json:"naeringskode3,omitempty"`
 
 	// Other
-	EmployeeCount int  `json:"antallAnsatte"`
+	EmployeeCount int    `json:"antallAnsatte"`
 	Deleted       string `json:"nedleggelsesdato,omitempty"`
 
 	Links *Links `json:"_links,omitempty"`
