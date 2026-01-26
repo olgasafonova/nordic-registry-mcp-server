@@ -452,7 +452,16 @@ Search for Danish companies by name.
 |------|------|----------|-------------|
 | `query` | string | Yes | Company name to search for |
 
-**⚠️ Important:** The CVR API returns only ONE result (single best match). This is an upstream API limitation, not a bug. For multiple matches, try variations of the company name or use the CVR number directly with `denmark_get_company`.
+**⚠️ Important:** The CVR API returns only ONE result per search. Large companies often have multiple legal entities with similar names. If the first result seems wrong (wrong size, address, or industry), try these variations:
+
+- `"[Company] Denmark"` - Danish subsidiary (e.g., "Tietoevry Denmark")
+- `"[Company] A/S"` or `"[Company] ApS"` - with legal form
+- `"[Company] DK"` - common naming pattern
+- `"[Company] Holding"` - holding vs operating company
+- Pre-merger names - companies change names after M&A (e.g., "Tieto" or "EVRY" instead of "Tietoevry")
+- `"[Company] filial"` - branch of foreign company
+
+If you have the CVR number, use `denmark_get_company` directly instead.
 
 **Returns:**
 

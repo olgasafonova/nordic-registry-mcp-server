@@ -279,6 +279,8 @@ Restart Claude Desktop after changes.
 | `denmark_search_by_phone` | Find company by phone number |
 | `denmark_get_by_pnumber` | Get company by P-number |
 
+> **Note:** Danish search returns only one result. Large companies often have multiple entities. Try variations like "[Company] Denmark", "[Company] A/S", or pre-merger names if the first result seems wrong.
+
 ### Finland (PRH)
 
 | Tool | Description |
