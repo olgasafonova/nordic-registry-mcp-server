@@ -543,6 +543,42 @@ Result: Case 2024/12345 - Environmental permit application
 
 This turns two separate data sources into a connected workflow where the AI can verify external data and update internal systems in one conversation.
 
+### Enhanced Registry Data (Future)
+
+The current implementation uses free, open APIs. More comprehensive data is available through premium services:
+
+**Sweden (Bolagsverket)**
+
+| Current (Free) | Premium Potential |
+|----------------|-------------------|
+| Basic company info | Board members and roles |
+| Annual reports (årsredovisningar) | Authorized signatories (firmatecknare) |
+| Company status | Company mortgages (företagsinteckningar) |
+| | Real-time updates (not daily batch) |
+| | Historical board changes |
+
+The free [värdefulla datamängder API](https://bolagsverket.se/apierochoppnadata/hamtaforetagsinformation/vardefulladatamangder.5294.html) we use today provides company basics and annual reports. Bolagsverket offers additional e-services for authorized signatories and company mortgages. Third-party aggregators like [Roaring.io](https://www.roaring.io/services/bolagsverket-api) provide enriched datasets combining multiple sources.
+
+**Finland (PRH)**
+
+| Current (Free) | Virre Service |
+|----------------|---------------|
+| Basic company details | Board members and managing directors |
+| Digital financial statements (IXBRL) | Authorized signatories |
+| Registration notifications | Procuration holders |
+| | Non-digital financial statements |
+| | Translated Trade Register extracts |
+| | Articles of association |
+
+The free [PRH Open Data API](https://avoindata.prh.fi/en) provides basic company information updated daily. The [Virre Information Service](https://www.prh.fi/en/companiesandorganisations/tietopalvelut/virre.html) offers board member details, signatory information, and document purchases. Contract clients get reduced fees for high-volume access.
+
+**Why this matters:**
+
+Norway already provides board members, roles, and signature authority through the free Brønnøysundregistrene API. Adding premium Sweden and Finland data would give consistent coverage across all four countries for:
+- Verifying who can sign contracts
+- Checking board composition for due diligence
+- Accessing complete financial documentation
+
 ---
 
 ## License
