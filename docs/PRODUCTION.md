@@ -173,19 +173,219 @@ mcp.example.com {
 }
 ```
 
-### Docker
+### Docker (Linux Container)
+
+The server compiles to a static Linux binary with no external dependencies.
+
+**Dockerfile:**
 
 ```dockerfile
 FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
 COPY nordic-registry-mcp-server /usr/local/bin/
+EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/nordic-registry-mcp-server"]
 CMD ["-http", ":8080"]
 ```
 
+**Run with Docker:**
+
 ```bash
-docker run -p 8080:8080 \
-  -e MCP_AUTH_TOKEN=your-secret \
+# Build (if building locally)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o nordic-registry-mcp-server .
+docker build -t nordic-registry-mcp-server .
+
+# Run
+docker run -d \
+  --name nordic-registry \
+  -p 8080:8080 \
+  -e MCP_AUTH_TOKEN="$(openssl rand -hex 32)" \
+  -e BOLAGSVERKET_CLIENT_ID="${BOLAGSVERKET_CLIENT_ID}" \
+  -e BOLAGSVERKET_CLIENT_SECRET="${BOLAGSVERKET_CLIENT_SECRET}" \
+  --restart unless-stopped \
   nordic-registry-mcp-server
+
+# Verify
+curl http://localhost:8080/health
+```
+
+**Docker Compose:**
+
+```yaml
+version: '3.8'
+services:
+  nordic-registry:
+    image: ghcr.io/olgasafonova/nordic-registry-mcp-server:latest
+    container_name: nordic-registry
+    ports:
+      - "8080:8080"
+    environment:
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - BOLAGSVERKET_CLIENT_ID=${BOLAGSVERKET_CLIENT_ID:-}
+      - BOLAGSVERKET_CLIENT_SECRET=${BOLAGSVERKET_CLIENT_SECRET:-}
+    command: ["-http", ":8080", "-rate-limit", "100"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+```
+
+### Kubernetes
+
+**Deployment with ConfigMap and Secret:**
+
+```yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nordic-registry-secrets
+type: Opaque
+stringData:
+  MCP_AUTH_TOKEN: "your-secret-token-here"
+  # Optional: Sweden API credentials
+  # BOLAGSVERKET_CLIENT_ID: "your-client-id"
+  # BOLAGSVERKET_CLIENT_SECRET: "your-client-secret"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nordic-registry
+  labels:
+    app: nordic-registry
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nordic-registry
+  template:
+    metadata:
+      labels:
+        app: nordic-registry
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: nordic-registry
+        image: ghcr.io/olgasafonova/nordic-registry-mcp-server:latest
+        args:
+          - "-http"
+          - ":8080"
+          - "-rate-limit"
+          - "100"
+          - "-trusted-proxies"
+          - "10.0.0.0/8,172.16.0.0/12"
+        ports:
+        - containerPort: 8080
+          name: http
+        envFrom:
+        - secretRef:
+            name: nordic-registry-secrets
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nordic-registry
+spec:
+  selector:
+    app: nordic-registry
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nordic-registry
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - nordic-registry.example.com
+    secretName: nordic-registry-tls
+  rules:
+  - host: nordic-registry.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nordic-registry
+            port:
+              number: 80
+```
+
+**Deploy:**
+
+```bash
+# Create namespace (optional)
+kubectl create namespace mcp-services
+
+# Apply manifests
+kubectl apply -f nordic-registry-k8s.yaml -n mcp-services
+
+# Verify
+kubectl get pods -n mcp-services -l app=nordic-registry
+kubectl logs -n mcp-services -l app=nordic-registry
+
+# Test endpoint
+kubectl port-forward -n mcp-services svc/nordic-registry 8080:80
+curl http://localhost:8080/health
+```
+
+**Horizontal Pod Autoscaler (optional):**
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nordic-registry
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nordic-registry
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
 ```
 
 ---
