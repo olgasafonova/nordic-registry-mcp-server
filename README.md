@@ -1,10 +1,27 @@
 # Nordic Registry MCP Server
 
-Query Nordic business registries with AI. Search companies, get details, find board members, and access annual reports across Norway, Denmark, Finland, and Sweden.
-
 [![CI](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/olgasafonova/nordic-registry-mcp-server)](https://goreportcard.com/report/github.com/olgasafonova/nordic-registry-mcp-server)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+## What is this?
+
+An MCP server that gives AI assistants access to official Nordic business registries. It wraps the public APIs of Brønnøysundregistrene (Norway), CVR (Denmark), PRH (Finland), and Bolagsverket (Sweden) into 23 tools that Claude and other MCP clients can use.
+
+**The problem it solves:** Public sector caseworkers and procurement officers spend time manually looking up companies in multiple registries to verify legitimacy, check bankruptcy status, find board members, or confirm signing authority. This server lets an AI do those lookups directly during a conversation.
+
+**What it does:**
+- Search companies by name across four Nordic countries
+- Get company details: status, employees, industry, addresses
+- Look up board members, CEOs, auditors, and roles
+- Check who can legally sign on behalf of a company
+- Access Swedish annual reports (årsredovisningar)
+- Batch lookups for validating lists of company IDs
+
+**What it doesn't do:**
+- Modify registry data (read-only)
+- Store or cache personal data beyond the session
+- Require payment (all underlying APIs are free)
 
 **Works with:** Claude Desktop, Claude Code, Cursor, and any MCP-compatible tool.
 
@@ -462,6 +479,7 @@ nordic-registry-mcp-server/
 
 | Document | Description |
 |----------|-------------|
+| [Setup Guide](docs/SETUP.md) | Installation, configuration, and troubleshooting |
 | [API Reference](docs/API.md) | Complete reference for all 23 tools with parameters, return values, and examples |
 | [Architecture](docs/ARCHITECTURE.md) | System design, request flow, resilience patterns |
 | [Production Readiness](docs/PRODUCTION.md) | Deployment checklist, monitoring, known limitations |
@@ -480,6 +498,50 @@ go test ./...
 # Lint (requires golangci-lint)
 golangci-lint run
 ```
+
+---
+
+## Future Vision: Integration with Public 360°
+
+This server is designed to work alongside [public360-mcp-server](https://github.com/olgasafonova/public360-mcp-server), which provides AI access to Public 360° document and case management systems used by Nordic public sector organizations.
+
+**The integration scenario:**
+
+A caseworker receives a permit application from a company. Today's workflow:
+1. Open the case in Public 360°
+2. Manually look up the company in Brønnøysundregistrene
+3. Verify the company is active and not bankrupt
+4. Check if the signer has authority
+5. Copy relevant details back into the case
+
+**With both MCP servers connected:**
+
+```
+You: "I received permit application case 2024/12345.
+      The applicant is org 923609016. Verify the company
+      and check if the signature is valid."
+
+AI: [Calls public360: sif_get_cases to get case details]
+    [Calls nordic-registry: norway_get_company to verify company]
+    [Calls nordic-registry: norway_get_signature_rights to check authority]
+
+Result: Case 2024/12345 - Environmental permit application
+        Applicant: Equinor ASA (923609016) - ACTIVE
+        Signed by: [Name] - Authorized signatory ✓
+
+        Recommendation: Signature is valid. Company is in good standing.
+```
+
+**Planned integration points:**
+
+| Nordic Registry | Public 360° | Use Case |
+|-----------------|-------------|----------|
+| `norway_get_company` | `sif_get_enterprises` | Sync company data to contacts |
+| `norway_get_roles` | `sif_get_contacts` | Import board members as contacts |
+| `*_search_companies` | `sif_create_case` | Auto-populate case with verified company info |
+| `sweden_download_document` | `sif_upload_file` | Attach annual reports to cases |
+
+This turns two separate data sources into a connected workflow where the AI can verify external data and update internal systems in one conversation.
 
 ---
 
