@@ -146,7 +146,7 @@ type SecurityMiddleware struct {
 
 // SecurityConfig holds configuration for the security middleware
 type SecurityConfig struct {
-	BearerToken    string
+	BearerToken    string //nolint:gosec // G117: config struct field, not serialized to external output
 	AllowedOrigins []string
 	RateLimit      int
 	MaxBodySize    int64

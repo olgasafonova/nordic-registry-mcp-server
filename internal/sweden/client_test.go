@@ -19,9 +19,13 @@ import (
 
 func TestNewClient_MissingCredentials(t *testing.T) {
 	// Without credentials, NewClient should fail
+	// Clear env vars for this test (may be set locally)
+	t.Setenv(envClientID, "")
+	t.Setenv(envClientSecret, "")
+
 	_, err := NewClient()
 	if err == nil {
-		t.Error("Expected error when credentials are missing")
+		t.Fatal("Expected error when credentials are missing")
 	}
 	if !strings.Contains(err.Error(), "missing OAuth2 credentials") {
 		t.Errorf("Expected 'missing OAuth2 credentials' error, got: %v", err)
