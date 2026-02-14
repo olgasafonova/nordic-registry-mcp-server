@@ -42,3 +42,4 @@ notes/
 .mcp.json
 .mcpregistry_*
 .playwright-mcp/
+.claude/settings.local.json
