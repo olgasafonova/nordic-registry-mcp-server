@@ -4,6 +4,8 @@ go 1.24.0
 
 toolchain go1.24.11
 
+retract v0.1.0 // Superseded by v1.0.0; old release causes stale Go Report Card grading
+
 require (
 	github.com/modelcontextprotocol/go-sdk v1.3.0
 	github.com/prometheus/client_golang v1.23.2
