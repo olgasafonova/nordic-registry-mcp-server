@@ -6,11 +6,11 @@
     "url": "https://github.com/olgasafonova/nordic-registry-mcp-server",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "1.0.2",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/olgasafonova/nordic-registry-mcp-server:1.0.0",
+      "identifier": "ghcr.io/olgasafonova/nordic-registry-mcp-server:1.0.2",
       "transport": {
         "type": "stdio"
       },
