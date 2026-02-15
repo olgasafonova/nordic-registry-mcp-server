@@ -229,7 +229,7 @@ type APIError struct {
 
 // TokenResponse represents the OAuth2 token response.
 type TokenResponse struct {
-	AccessToken string `json:"access_token"`
+	AccessToken string `json:"access_token"` // #nosec G117 -- OAuth2 token response, internal use only
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
 	Scope       string `json:"scope,omitempty"`

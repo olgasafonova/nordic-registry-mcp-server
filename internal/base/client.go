@@ -180,7 +180,7 @@ func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int,
 			}
 		}
 
-		resp, err := c.HTTPClient.Do(req) //nolint:gosec // G704: URL constructed from hardcoded base + validated input
+		resp, err := c.HTTPClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
 		if err != nil {
 			lastErr = fmt.Errorf("request failed: %w", err)
 			c.Logger.Warn("API request failed, retrying",

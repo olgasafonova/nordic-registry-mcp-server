@@ -184,7 +184,7 @@ func (c *Client) refreshToken(ctx context.Context) (string, error) {
 	req.Header.Set("Authorization", "Basic "+auth)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec // G704: URL constructed from hardcoded tokenURL const
+	resp, err := c.httpClient.Do(req) // #nosec G704 -- URL constructed from hardcoded tokenURL const
 	if err != nil {
 		return "", fmt.Errorf("sweden: token request failed: %w", err)
 	}
@@ -240,7 +240,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body an
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec // G704: URL constructed from hardcoded base + validated input
+	resp, err := c.httpClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
 	if err != nil {
 		c.circuitBreaker.RecordFailure()
 		return nil, fmt.Errorf("sweden: request failed: %w", err)
@@ -389,7 +389,7 @@ func (c *Client) DownloadDocument(ctx context.Context, documentID string) ([]byt
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/zip")
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec // G704: URL constructed from hardcoded base + validated input
+	resp, err := c.httpClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
 	if err != nil {
 		c.circuitBreaker.RecordFailure()
 		return nil, fmt.Errorf("sweden: request failed: %w", err)
