@@ -19,6 +19,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o nordic-registry-mcp-se
 # Runtime stage
 FROM alpine:3.20
 
+LABEL io.modelcontextprotocol.server.name="io.github.olgasafonova/nordic-registry-mcp-server"
+
 # Install ca-certificates for HTTPS
 RUN apk add --no-cache ca-certificates
 

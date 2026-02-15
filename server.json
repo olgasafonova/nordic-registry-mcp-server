@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.olgasafonova/nordic-registry-mcp-server",
+  "description": "Access Nordic business registries (Norway, Denmark, Finland, Sweden). 23 tools.",
+  "repository": {
+    "url": "https://github.com/olgasafonova/nordic-registry-mcp-server",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/olgasafonova/nordic-registry-mcp-server:1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "Bolagsverket OAuth2 client ID (only needed for Sweden tools)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true,
+          "name": "BOLAGSVERKET_CLIENT_ID"
+        },
+        {
+          "description": "Bolagsverket OAuth2 client secret (only needed for Sweden tools)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true,
+          "name": "BOLAGSVERKET_CLIENT_SECRET"
+        }
+      ]
+    }
+  ]
+}
