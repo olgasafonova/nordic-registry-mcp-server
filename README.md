@@ -6,9 +6,9 @@
 
 ## What is this?
 
-An MCP server that gives AI assistants access to official Nordic business registries. It wraps the public APIs of Brønnøysundregistrene (Norway), CVR (Denmark), PRH (Finland), and Bolagsverket (Sweden) into 23 tools that Claude and other MCP clients can use.
+Verify company legitimacy across Norway, Denmark, Finland, and Sweden in seconds. Check bankruptcy status, board members, signing authority, and financial data from official registries, without switching between four government websites.
 
-**The problem it solves:** Public sector caseworkers and procurement officers spend time manually looking up companies in multiple registries to verify legitimacy, check bankruptcy status, find board members, or confirm signing authority. This server lets an AI do those lookups directly during a conversation.
+**23 tools** wrapping the public APIs of Brønnøysundregistrene, CVR, PRH, and Bolagsverket. Works with Claude Desktop, Claude Code, Cursor, and any MCP client.
 
 **What it does:**
 - Search companies by name across four Nordic countries
@@ -22,8 +22,6 @@ An MCP server that gives AI assistants access to official Nordic business regist
 - Modify registry data (read-only)
 - Store or cache personal data beyond the session
 - Require payment (all underlying APIs are free)
-
-**Works with:** Claude Desktop, Claude Code, Cursor, and any MCP-compatible tool.
 
 ---
 
@@ -264,6 +262,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```
 
 Restart Claude Desktop after changes.
+
+> **Not working?** [Tell us what made it hard](https://github.com/olgasafonova/nordic-registry-mcp-server/issues/new?template=bug_report.yml) — even one sentence helps.
 
 ---
 
