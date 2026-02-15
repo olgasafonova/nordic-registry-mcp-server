@@ -31,6 +31,9 @@ const (
 	envClientID     = "BOLAGSVERKET_CLIENT_ID"
 	envClientSecret = "BOLAGSVERKET_CLIENT_SECRET" // #nosec G101 -- env var name, not actual secret
 
+	// feedbackURL is the pre-filled issue link shown on setup/auth errors.
+	feedbackURL = "https://github.com/olgasafonova/nordic-registry-mcp-server/issues/new?template=bug_report.yml"
+
 	// Timeouts and retries
 	defaultTimeout     = 30 * time.Second
 	tokenRefreshMargin = 5 * time.Minute // Refresh token 5 minutes before expiry
@@ -114,7 +117,7 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 	}
 
 	if c.clientID == "" || c.clientSecret == "" {
-		return nil, fmt.Errorf("sweden: missing OAuth2 credentials; set %s and %s environment variables", envClientID, envClientSecret)
+		return nil, fmt.Errorf("sweden: missing OAuth2 credentials; set %s and %s environment variables. Register for free at https://bolagsverket.se/apierochoppnadata/vardefulladatamangder/kundanmalantillapiforvardefulladatamangder.5528.html — Still stuck? "+feedbackURL, envClientID, envClientSecret)
 	}
 
 	return c, nil
@@ -192,7 +195,7 @@ func (c *Client) refreshToken(ctx context.Context) (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("sweden: token request returned %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("sweden: token request returned %d: %s. Check your credentials in the Developer Portal at https://portal.api.bolagsverket.se/devportal/ — Still stuck? "+feedbackURL, resp.StatusCode, string(body))
 	}
 
 	var tokenResp TokenResponse
