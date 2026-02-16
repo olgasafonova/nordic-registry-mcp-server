@@ -1,7 +1,7 @@
 # Nordic Registry MCP Server
 
 [![CI](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/olgasafonova/nordic-registry-mcp-server)](https://goreportcard.com/report/github.com/olgasafonova/nordic-registry-mcp-server)
+[![Go Report Card](https://goreportcard.com/badge/github.com/olgasafonova/nordic-registry-mcp-server?v=2)](https://goreportcard.com/report/github.com/olgasafonova/nordic-registry-mcp-server)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## What is this?
