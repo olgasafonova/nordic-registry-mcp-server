@@ -39,7 +39,6 @@ Thumbs.db
 notes/
 
 # Claude Code
-.mcp.json
 .mcpregistry_*
 .playwright-mcp/
 .claude/settings.local.json

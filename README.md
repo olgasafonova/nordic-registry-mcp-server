@@ -241,6 +241,12 @@ Requires Go 1.24+
 
 ## Setup
 
+### Cursor Marketplace
+
+```bash
+/add-plugin nordic-registry
+```
+
 ### Claude Code CLI
 
 ```bash

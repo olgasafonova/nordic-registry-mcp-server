@@ -1,0 +1,17 @@
+---
+alwaysApply: true
+---
+
+# Nordic registry usage guardrails
+
+1. Identify the country before calling tools. Each country has separate tools prefixed with the country name.
+2. Organization number formats differ by country:
+   - Norway: 9 digits (spaces/dashes auto-stripped)
+   - Denmark: 8 digits (DK- prefix optional)
+   - Finland: 7+1 format with hyphen (e.g., 0112038-9)
+   - Sweden: 10 digits (hyphen optional)
+3. Danish search returns a single result. If it seems wrong, try the company's legal name, A/S suffix, or pre-merger name.
+4. Finnish search for common names (like "Nokia") returns hundreds of results. Filter by `company_form` (OY, OYJ) or `location`.
+5. Sweden has no name search; you must have the organization number.
+6. Use `norway_batch_get_companies` when validating 3+ Norwegian org numbers instead of individual lookups.
+7. All data is read-only from official government sources. No modifications are possible.

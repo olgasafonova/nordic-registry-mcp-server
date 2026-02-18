@@ -1,0 +1,30 @@
+{
+  "name": "nordic-registry",
+  "displayName": "Nordic Business Registry",
+  "version": "1.0.2",
+  "description": "Verify companies across Norway, Denmark, Finland, and Sweden. Check bankruptcy status, board members, signing authority, and financial data from official government registries.",
+  "author": {
+    "name": "Olga Safonova"
+  },
+  "homepage": "https://github.com/olgasafonova/nordic-registry-mcp-server",
+  "repository": "https://github.com/olgasafonova/nordic-registry-mcp-server",
+  "license": "Apache-2.0",
+  "logo": "assets/logo.png",
+  "keywords": [
+    "nordic",
+    "registry",
+    "company",
+    "verification",
+    "norway",
+    "denmark",
+    "finland",
+    "sweden"
+  ],
+  "category": "data-analytics",
+  "tags": [
+    "business",
+    "registry",
+    "verification",
+    "nordic"
+  ]
+}
