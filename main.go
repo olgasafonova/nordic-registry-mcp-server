@@ -403,6 +403,16 @@ func main() {
 		Version: ServerVersion,
 	}, &mcp.ServerOptions{
 		Logger: logger,
+		// Disable listChanged notifications to prevent a pre-initialize
+		// spec violation in go-sdk: when tools are registered before
+		// server.Run(), the SDK sends notifications/tools/list_changed
+		// before the client completes the initialize handshake. This
+		// causes intermittent connection failures in Claude Code CLI
+		// when many MCP servers start simultaneously. The client still
+		// discovers tools via the tools/list request during handshake.
+		Capabilities: &mcp.ServerCapabilities{
+			Tools: &mcp.ToolCapabilities{},
+		},
 		Instructions: `Nordic Registry MCP Server - Access Nordic Business Registries
 
 ## Available Countries
