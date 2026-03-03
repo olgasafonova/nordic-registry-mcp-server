@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "nordic-registry": {
-      "command": "nordic-registry-mcp-server"
-    }
-  }
-}
