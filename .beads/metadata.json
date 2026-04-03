@@ -1,4 +1,7 @@
 {
-  "database": "beads.db",
-  "jsonl_export": "issues.jsonl"
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "nordic_registry_mcp_server",
+  "project_id": "5dbb5555-31a7-4348-b8cd-c41f2574dba8"
 }
