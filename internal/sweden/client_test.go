@@ -472,7 +472,7 @@ func TestClient_TokenRefresh(t *testing.T) {
 			ExpiresIn:   3600,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp) //nolint:gosec // G117: test fixture with fake token
 	}))
 	defer tokenServer.Close()
 
@@ -542,7 +542,7 @@ func createTestClient(t *testing.T, tokenHandler, apiHandler http.HandlerFunc) *
 		}
 		resp := TokenResponse{AccessToken: "test-token", ExpiresIn: 3600}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp) //nolint:gosec // G117: test fixture with fake token
 	}))
 	t.Cleanup(tokenServer.Close)
 
