@@ -8,7 +8,7 @@ type SearchCompaniesArgs struct {
 	Page                  int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
 	Size                  int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
 	OrgForm               string `json:"org_form,omitempty" jsonschema_description:"Organization form code (AS, ENK, NUF, etc.)"`
-	Municipality          string `json:"municipality,omitempty" jsonschema_description:"Municipality number"`
+	Municipality          string `json:"municipality,omitempty" jsonschema_description:"4-digit municipality code (use norway_list_municipalities to look up codes)"`
 	RegisteredInVAT       *bool  `json:"registered_in_vat,omitempty" jsonschema_description:"Filter by VAT registration"`
 	Bankrupt              *bool  `json:"bankrupt,omitempty" jsonschema_description:"Filter by bankruptcy status"`
 	RegisteredInVoluntary *bool  `json:"registered_in_voluntary,omitempty" jsonschema_description:"Filter for voluntary/non-profit organizations (Frivillighetsregisteret)"`
@@ -124,7 +124,7 @@ type GetSubUnitResult struct {
 
 // GetUpdatesArgs contains parameters for getting registry updates
 type GetUpdatesArgs struct {
-	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601)"`
+	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601 datetime with timezone, e.g., '2024-01-08T00:00:00Z')"`
 	Size  int       `json:"size,omitempty" jsonschema_description:"Maximum number of updates to return"`
 }
 
@@ -193,7 +193,7 @@ type OrgFormSummary struct {
 
 // GetSubUnitUpdatesArgs contains parameters for getting sub-unit updates
 type GetSubUnitUpdatesArgs struct {
-	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601)"`
+	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601 datetime with timezone, e.g., '2024-01-08T00:00:00Z')"`
 	Size  int       `json:"size,omitempty" jsonschema_description:"Maximum number of updates to return"`
 }
 
