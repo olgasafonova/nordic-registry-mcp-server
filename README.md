@@ -597,6 +597,7 @@ Check out my other MCP servers:
 | [mediawiki-mcp-server](https://github.com/olgasafonova/mediawiki-mcp-server) | Connect AI to any MediaWiki wiki. Search, read, edit wiki content. | ![GitHub stars](https://img.shields.io/github/stars/olgasafonova/mediawiki-mcp-server?style=flat) |
 | [miro-mcp-server](https://github.com/olgasafonova/miro-mcp-server) | Control Miro whiteboards with AI. Boards, diagrams, mindmaps, and more. | ![GitHub stars](https://img.shields.io/github/stars/olgasafonova/miro-mcp-server?style=flat) |
 | [productplan-mcp-server](https://github.com/olgasafonova/productplan-mcp-server) | Talk to your ProductPlan roadmaps. Query OKRs, ideas, launches. | ![GitHub stars](https://img.shields.io/github/stars/olgasafonova/productplan-mcp-server?style=flat) |
+| [tilbudstrolden-mcp](https://github.com/olgasafonova/tilbudstrolden-mcp) | Nordic grocery deal hunting. Find offers, plan meals, track spending. | ![GitHub stars](https://img.shields.io/github/stars/olgasafonova/tilbudstrolden-mcp?style=flat) |
 
 ---
 
