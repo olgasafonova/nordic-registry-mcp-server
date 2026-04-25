@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-25T15:30:00Z",
+  "deslop_version": "2.1.2",
+  "scores": {
+    "file_health": 95.0,
+    "test_coverage": 69.6,
+    "secret_detection": 100.0,
+    "todo_debt": 100.0,
+    "dependency_health": 100.0,
+    "structural_quality": 100.0,
+    "overall": 94.1
+  },
+  "findings": [
+    {
+      "detector": "file_health",
+      "severity": "critical",
+      "key": "internal/finland/client_test.go",
+      "summary": "internal/finland/client_test.go (1,839 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "critical",
+      "key": "internal/norway/client_test.go",
+      "summary": "internal/norway/client_test.go (3,242 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "critical",
+      "key": "internal/sweden/client_test.go",
+      "summary": "internal/sweden/client_test.go (1,955 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "high",
+      "key": "internal/denmark/client_test.go",
+      "summary": "internal/denmark/client_test.go (1,034 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "high",
+      "key": "internal/denmark/mcp_test.go",
+      "summary": "internal/denmark/mcp_test.go (956 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "high",
+      "key": "tools/handlers_test.go",
+      "summary": "tools/handlers_test.go (972 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "warning",
+      "key": "internal/base/client_test.go",
+      "summary": "internal/base/client_test.go (617 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "warning",
+      "key": "internal/infra/cache_test.go",
+      "summary": "internal/infra/cache_test.go (612 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "warning",
+      "key": "internal/infra/resilience_test.go",
+      "summary": "internal/infra/resilience_test.go (527 LOC)"
+    },
+    {
+      "detector": "file_health",
+      "severity": "warning",
+      "key": "main.go",
+      "summary": "main.go (797 LOC)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "internal/denmark/types.go",
+      "summary": "internal/denmark/types.go has no test file (1 trivial unexported func)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "internal/finland/mcp.go",
+      "summary": "internal/finland/mcp.go has no test file (10 funcs incl. pure converters)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "internal/norway/mcp.go",
+      "summary": "internal/norway/mcp.go has no test file (14 funcs incl. getStatus, formatAddress helpers)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "internal/norway/types.go",
+      "summary": "internal/norway/types.go has no test file (PersonName.FullName, APIError.String)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "internal/sweden/mcp.go",
+      "summary": "internal/sweden/mcp.go has no test file (5 funcs incl. ValidateOrgNumber regex)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "internal/sweden/types.go",
+      "summary": "internal/sweden/types.go has no test file (9 Organisation getters incl. IsActive, GetAddress)"
+    },
+    {
+      "detector": "test_coverage",
+      "severity": "warning",
+      "key": "tools/registry.go",
+      "summary": "tools/registry.go has no test file (ToolSpec + trivial generic helper)"
+    }
+  ]
+}
