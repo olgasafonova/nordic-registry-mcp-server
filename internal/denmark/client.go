@@ -234,7 +234,9 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 	}
 
 	if statusCode >= 400 {
-		// Try to parse API error
+		// Try to parse API error envelope first (CVR returns a documented
+		// JSON error shape; preserve apiErr.String() because it's the
+		// user-facing diagnostic).
 		var apiErr APIError
 		if json.Unmarshal(body, &apiErr) == nil && apiErr.Error != "" {
 			// Check for "not found" type errors
@@ -246,7 +248,13 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 			return fmt.Errorf("API error %d: %s", statusCode, apiErr.String())
 		}
 		c.RecordSuccess()
-		return fmt.Errorf("API error %d: %s", statusCode, string(body))
+		// SECURITY (HG-2): unparsed body fallback — truncate to bound the
+		// blast radius. CVR's documented envelope is handled above; this
+		// path catches HTML 4xx pages, proxy errors, and any non-JSON
+		// upstream response. Body comes from a public registry so it
+		// isn't credentials, but unbounded HTML / stack traces still leak
+		// into the MCP caller's error otherwise.
+		return fmt.Errorf("API error %d: %s", statusCode, truncateBody(body))
 	}
 
 	// Check for API error in successful response (CVR API sometimes returns 200 with error)
@@ -297,4 +305,20 @@ func validateCVR(cvr string) error {
 		}
 	}
 	return nil
+}
+
+// maxBodyInError caps how many bytes of an unparsed upstream body land in
+// caller-facing error messages. See HG-2 in rules/review-patterns.md.
+const maxBodyInError = 256
+
+// truncateBody bounds the blast radius of a non-JSON-envelope upstream body
+// in error messages. CVR normally returns a documented JSON error envelope
+// handled above the fallback; this guard keeps errant HTML 4xx pages,
+// upstream stack traces, and proxy interstitials from flowing unbounded
+// into the MCP caller's error string.
+func truncateBody(body []byte) string {
+	if len(body) <= maxBodyInError {
+		return string(body)
+	}
+	return string(body[:maxBodyInError]) + "..."
 }
