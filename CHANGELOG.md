@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-05-03
+
+### Fixed (security)
+
+- **Sweden client refuses all redirects** — closes 307/308 cross-origin credential-leak vector. The client carries OAuth client credentials (POST to the Bolagsverket token endpoint) and Bearer tokens (Authorization header on authenticated data calls). Without `CheckRedirect`, Go's default policy follows redirects and preserves method+body for 307/308 across origins, so a wiki-or-proxy returning `307 Location: https://attacker/` would re-POST credentials to the attacker. (`27834ae`)
+- **Unparsed upstream body truncated in error fallbacks** — five sites (Sweden client.go:198 token endpoint, Sweden :269/:417 data API, Norway :414, Denmark :249) embedded the raw upstream response body verbatim into Go errors that propagate to MCP callers. Fixes restore HG-2 compliance: each site already followed a "parse country-specific JSON envelope first, fall back to raw body" pattern; the fallback path is now capped at 256 bytes with a `...` suffix. The parsed-envelope paths (Bolagsverket Problem Details, Brønnøysundregistrene `apiErr.Message`, CVR `apiErr.String()`) are deliberately preserved as the operator-facing diagnostic. The Sweden token-endpoint developer-portal prose is preserved verbatim (only the body interpolation is truncated). (`ad16428`)
+
+### Changed
+
+- Sweden client error UX on rare 3xx responses (which Bolagsverket does not normally return): now surfaces as a JSON-parse error rather than re-POSTing credentials to the redirect target. Fail-safer.
+
 ## [v1.1.0] - 2026-04-05
 
 ### Changed
