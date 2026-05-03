@@ -102,7 +102,24 @@ func WithCredentials(clientID, clientSecret string) ClientOption {
 // environment variables unless provided via WithCredentials option.
 func NewClient(opts ...ClientOption) (*Client, error) {
 	c := &Client{
-		httpClient:     &http.Client{Timeout: defaultTimeout},
+		httpClient: &http.Client{
+			Timeout: defaultTimeout,
+			// SECURITY: refuse all redirects on the Sweden client. The
+			// token endpoint POSTs OAuth client credentials; authenticated
+			// data calls carry a Bearer token in the Authorization header.
+			// Go's default redirect policy follows up to 10 redirects, and
+			// 307/308 preserves method+body across origins — so a wiki (or
+			// any proxy in front of it, or a MITM during DNS/TLS bootstrap)
+			// returning 307 Location: https://attacker/ would cause Go to
+			// re-POST the credentials to the attacker. Bolagsverket's
+			// configured endpoints are the only legitimate targets; the
+			// Bolagsverket API does not redirect under normal operation.
+			// Returning ErrUseLastResponse short-circuits the redirect and
+			// surfaces the 3xx response to the caller as an error.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		baseURL:        defaultBaseURL,
 		tokenURL:       defaultTokenURL,
 		clientID:       os.Getenv(envClientID),
