@@ -404,14 +404,21 @@ func (c *Client) doRequest(ctx context.Context, path string, params url.Values, 
 	}
 
 	if statusCode >= 400 {
-		// Try to parse API error
+		// Try to parse API error envelope first (Brønnøysundregistrene
+		// returns a documented JSON error shape; preserve apiErr.Message
+		// because it's the user-facing diagnostic).
 		var apiErr APIError
 		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
 			c.RecordSuccess() // Client errors don't indicate service issues
 			return fmt.Errorf("API error %d: %s", statusCode, apiErr.Message)
 		}
 		c.RecordSuccess()
-		return fmt.Errorf("API error %d: %s", statusCode, string(body))
+		// SECURITY (HG-2): unparsed body fallback — truncate to bound the
+		// blast radius. The body comes from a public registry API so it
+		// isn't credentials, but a 4xx HTML page from a Cloudflare/proxy
+		// or an upstream stack trace can still push unbounded content
+		// (10 MB MaxResponseSize) into the MCP error.
+		return fmt.Errorf("API error %d: %s", statusCode, truncateBody(body))
 	}
 
 	// Parse success response
@@ -443,4 +450,20 @@ func validateOrgNumber(orgNumber string) error {
 		}
 	}
 	return nil
+}
+
+// maxBodyInError caps how many bytes of an unparsed upstream body land in
+// caller-facing error messages. See HG-2 in rules/review-patterns.md.
+const maxBodyInError = 256
+
+// truncateBody bounds the blast radius of a non-JSON-envelope upstream body
+// in error messages. Brønnøysundregistrene normally returns a documented
+// JSON error envelope handled above the fallback; this guard keeps errant
+// HTML 4xx pages, Cloudflare interstitials, and upstream stack traces from
+// flowing unbounded into the MCP caller's error string.
+func truncateBody(body []byte) string {
+	if len(body) <= maxBodyInError {
+		return string(body)
+	}
+	return string(body[:maxBodyInError]) + "..."
 }

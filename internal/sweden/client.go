@@ -195,7 +195,11 @@ func (c *Client) refreshToken(ctx context.Context) (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("sweden: token request returned %d: %s. Check your credentials in the Developer Portal at https://portal.api.bolagsverket.se/devportal/ — Still stuck? "+feedbackURL, resp.StatusCode, string(body))
+		// SECURITY (HG-2): truncate the upstream body to bound blast radius
+		// while preserving the operator-helpful Bolagsverket developer-portal
+		// prose (this is the only diagnostic an operator gets for OAuth
+		// credential issues — see commit fcf5324b).
+		return "", fmt.Errorf("sweden: token request returned %d: %s. Check your credentials in the Developer Portal at https://portal.api.bolagsverket.se/devportal/ — Still stuck? "+feedbackURL, resp.StatusCode, truncateBody(body))
 	}
 
 	var tokenResp TokenResponse
@@ -258,11 +262,15 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body an
 
 	if resp.StatusCode >= 400 {
 		c.circuitBreaker.RecordFailure()
+		// Try to parse Bolagsverket Problem Details envelope first; the
+		// parsed Title/Detail are the operator-facing diagnostic and stay
+		// untruncated.
 		var apiErr APIError
 		if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.Detail != "" {
 			return nil, fmt.Errorf("sweden: API error %d: %s - %s", apiErr.Status, apiErr.Title, apiErr.Detail)
 		}
-		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, string(respBody))
+		// SECURITY (HG-2): unparsed body fallback — truncate.
+		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, truncateBody(respBody))
 	}
 
 	c.circuitBreaker.RecordSuccess()
@@ -402,11 +410,14 @@ func (c *Client) DownloadDocument(ctx context.Context, documentID string) ([]byt
 	if resp.StatusCode >= 400 {
 		c.circuitBreaker.RecordFailure()
 		body, _ := io.ReadAll(resp.Body)
+		// Same pattern as doRequest: parse Bolagsverket Problem Details
+		// envelope first, fall back to truncated body.
 		var apiErr APIError
 		if err := json.Unmarshal(body, &apiErr); err == nil && apiErr.Detail != "" {
 			return nil, fmt.Errorf("sweden: API error %d: %s - %s", apiErr.Status, apiErr.Title, apiErr.Detail)
 		}
-		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, string(body))
+		// SECURITY (HG-2): unparsed body fallback — truncate.
+		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, truncateBody(body))
 	}
 
 	// Limit response size to prevent memory exhaustion
@@ -447,4 +458,26 @@ func (c *Client) CircuitBreakerStats() infra.CircuitBreakerStats {
 // CacheSize returns the current number of cached entries.
 func (c *Client) CacheSize() int64 {
 	return c.cache.Size()
+}
+
+// maxBodyInError caps how many bytes of an unparsed upstream body land in
+// caller-facing error messages. See HG-2 in rules/review-patterns.md.
+//
+// Sweden has its own helper (rather than importing one from internal/base)
+// because the Sweden client is intentionally separated from the shared
+// base client (different OAuth lifecycle, Bearer auth, retry semantics).
+const maxBodyInError = 256
+
+// truncateBody bounds the blast radius of a non-Problem-Details upstream
+// body in error messages. Bolagsverket normally returns RFC 7807 envelopes
+// handled above the fallback; this guard keeps errant HTML 4xx pages,
+// upstream stack traces, and proxy interstitials from flowing unbounded
+// into the MCP caller's error string. The token endpoint reuses this so
+// the operator-helpful developer-portal prose stays intact while the
+// upstream body itself is bounded.
+func truncateBody(body []byte) string {
+	if len(body) <= maxBodyInError {
+		return string(body)
+	}
+	return string(body[:maxBodyInError]) + "..."
 }
