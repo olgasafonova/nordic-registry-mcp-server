@@ -231,7 +231,7 @@ func toCompanyDetails(c *Company) *CompanyDetails {
 
 // applyDetailNames classifies PRH name entries into the current name, previous
 // names (ended type=1 entries), and auxiliary names (type=3). Other types are
-// silently dropped, matching the original behaviour.
+// silently dropped, matching the original behavior.
 func applyDetailNames(details *CompanyDetails, names []CompanyName) {
 	for _, name := range names {
 		switch name.Type {
