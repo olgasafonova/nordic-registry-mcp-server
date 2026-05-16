@@ -39,24 +39,9 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		return SearchCompaniesResult{}, err
 	}
 
-	// Convert to summary format - pre-allocate exact size
 	companies := make([]CompanySummary, len(resp.Embedded.Companies))
 	for i, co := range resp.Embedded.Companies {
-		summary := CompanySummary{
-			OrganizationNumber: co.OrganizationNumber,
-			Name:               co.Name,
-			Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
-		}
-		if co.OrganizationForm != nil {
-			summary.OrganizationForm = co.OrganizationForm.Code
-		}
-		if co.PostalAddress != nil {
-			summary.PostalAddress = formatAddress(co.PostalAddress)
-		}
-		if co.BusinessAddress != nil {
-			summary.BusinessAddress = formatAddress(co.BusinessAddress)
-		}
-		companies[i] = summary
+		companies[i] = buildCompanySummary(co)
 	}
 
 	return SearchCompaniesResult{
@@ -65,6 +50,42 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		Page:         resp.Page.Number,
 		TotalPages:   resp.Page.TotalPages,
 	}, nil
+}
+
+// buildCompanySummary flattens a Brønnøysund Company into the CompanySummary
+// shape returned by the MCP search/batch endpoints. Each optional field group
+// is guarded separately so callers don't need to repeat the nil checks.
+func buildCompanySummary(co Company) CompanySummary {
+	summary := CompanySummary{
+		OrganizationNumber: co.OrganizationNumber,
+		Name:               co.Name,
+		Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
+	}
+	if co.OrganizationForm != nil {
+		summary.OrganizationForm = co.OrganizationForm.Code
+	}
+	if co.PostalAddress != nil {
+		summary.PostalAddress = formatAddress(co.PostalAddress)
+	}
+	if co.BusinessAddress != nil {
+		summary.BusinessAddress = formatAddress(co.BusinessAddress)
+	}
+	return summary
+}
+
+// buildSubUnitSummary flattens a Brønnøysund SubUnit into the SubUnitSummary
+// shape returned by the MCP sub-unit endpoints.
+func buildSubUnitSummary(su SubUnit) SubUnitSummary {
+	summary := SubUnitSummary{
+		OrganizationNumber: su.OrganizationNumber,
+		Name:               su.Name,
+		ParentOrgNumber:    su.ParentOrganizationNumber,
+		EmployeeCount:      su.EmployeeCount,
+	}
+	if su.BusinessAddress != nil {
+		summary.BusinessAddress = formatAddress(su.BusinessAddress)
+	}
+	return summary
 }
 
 // GetCompanyMCP is the MCP wrapper for GetCompany
@@ -84,12 +105,16 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		return GetCompanyResult{}, err
 	}
 
-	// Return full data if requested
 	if args.Full {
 		return GetCompanyResult{Found: true, Company: company}, nil
 	}
+	return GetCompanyResult{Found: true, Summary: buildCompanyDetailSummary(company)}, nil
+}
 
-	// Default: return summary
+// buildCompanyDetailSummary projects a full Brønnøysund Company response into
+// the compact CompanyDetailSummary returned when the caller doesn't request
+// `full` data.
+func buildCompanyDetailSummary(company *Company) *CompanyDetailSummary {
 	summary := &CompanyDetailSummary{
 		OrganizationNumber:        company.OrganizationNumber,
 		Name:                      company.Name,
@@ -114,8 +139,7 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	if company.IndustryCode1 != nil {
 		summary.Industry = company.IndustryCode1.Code + " - " + company.IndustryCode1.Description
 	}
-
-	return GetCompanyResult{Found: true, Summary: summary}, nil
+	return summary
 }
 
 // GetRolesMCP is the MCP wrapper for GetRoles
@@ -129,38 +153,49 @@ func (c *Client) GetRolesMCP(ctx context.Context, args GetRolesArgs) (GetRolesRe
 		return GetRolesResult{}, err
 	}
 
-	// Convert to summary format
 	groups := make([]RoleGroupSummary, 0, len(resp.RoleGroups))
 	for _, rg := range resp.RoleGroups {
-		group := RoleGroupSummary{
-			Type:         rg.Type.Code,
-			Description:  rg.Type.Description,
-			LastModified: rg.LastModified,
-			Roles:        make([]RoleSummary, 0, len(rg.Roles)),
-		}
-
-		for _, r := range rg.Roles {
-			role := RoleSummary{
-				Type:        r.Type.Code,
-				Description: r.Type.Description,
-				Resigned:    r.Resigned,
-			}
-			if r.Person != nil {
-				role.Name = r.Person.Name.FullName()
-				role.BirthDate = r.Person.BirthDate
-			}
-			if r.Entity != nil {
-				role.EntityOrgNr = r.Entity.OrganizationNumber
-				if len(r.Entity.Name) > 0 {
-					role.Name = strings.Join(r.Entity.Name, " ")
-				}
-			}
-			group.Roles = append(group.Roles, role)
-		}
-		groups = append(groups, group)
+		groups = append(groups, buildRoleGroupSummary(rg))
 	}
 
 	return GetRolesResult{RoleGroups: groups}, nil
+}
+
+// buildRoleGroupSummary flattens a Brønnøysund RoleGroup into the
+// RoleGroupSummary shape, delegating per-role projection to buildRoleSummary.
+func buildRoleGroupSummary(rg RoleGroup) RoleGroupSummary {
+	group := RoleGroupSummary{
+		Type:         rg.Type.Code,
+		Description:  rg.Type.Description,
+		LastModified: rg.LastModified,
+		Roles:        make([]RoleSummary, 0, len(rg.Roles)),
+	}
+	for _, r := range rg.Roles {
+		group.Roles = append(group.Roles, buildRoleSummary(r))
+	}
+	return group
+}
+
+// buildRoleSummary flattens a Brønnøysund Role into the RoleSummary returned
+// by the MCP roles endpoint. Person and Entity blocks are mutually exclusive
+// per the upstream schema; the order below mirrors that contract.
+func buildRoleSummary(r Role) RoleSummary {
+	role := RoleSummary{
+		Type:        r.Type.Code,
+		Description: r.Type.Description,
+		Resigned:    r.Resigned,
+	}
+	if r.Person != nil {
+		role.Name = r.Person.Name.FullName()
+		role.BirthDate = r.Person.BirthDate
+	}
+	if r.Entity != nil {
+		role.EntityOrgNr = r.Entity.OrganizationNumber
+		if len(r.Entity.Name) > 0 {
+			role.Name = strings.Join(r.Entity.Name, " ")
+		}
+	}
+	return role
 }
 
 // GetSubUnitsMCP is the MCP wrapper for GetSubUnits
@@ -174,19 +209,9 @@ func (c *Client) GetSubUnitsMCP(ctx context.Context, args GetSubUnitsArgs) (GetS
 		return GetSubUnitsResult{}, err
 	}
 
-	// Convert to summary format - pre-allocate exact size
 	subunits := make([]SubUnitSummary, len(resp.Embedded.SubUnits))
 	for i, su := range resp.Embedded.SubUnits {
-		summary := SubUnitSummary{
-			OrganizationNumber: su.OrganizationNumber,
-			Name:               su.Name,
-			ParentOrgNumber:    su.ParentOrganizationNumber,
-			EmployeeCount:      su.EmployeeCount,
-		}
-		if su.BusinessAddress != nil {
-			summary.BusinessAddress = formatAddress(su.BusinessAddress)
-		}
-		subunits[i] = summary
+		subunits[i] = buildSubUnitSummary(su)
 	}
 
 	return GetSubUnitsResult{
@@ -249,19 +274,9 @@ func (c *Client) SearchSubUnitsMCP(ctx context.Context, args SearchSubUnitsArgs)
 		return SearchSubUnitsResult{}, err
 	}
 
-	// Convert to summary format
 	subunits := make([]SubUnitSummary, 0, len(resp.Embedded.SubUnits))
 	for _, su := range resp.Embedded.SubUnits {
-		summary := SubUnitSummary{
-			OrganizationNumber: su.OrganizationNumber,
-			Name:               su.Name,
-			ParentOrgNumber:    su.ParentOrganizationNumber,
-			EmployeeCount:      su.EmployeeCount,
-		}
-		if su.BusinessAddress != nil {
-			summary.BusinessAddress = formatAddress(su.BusinessAddress)
-		}
-		subunits = append(subunits, summary)
+		subunits = append(subunits, buildSubUnitSummary(su))
 	}
 
 	return SearchSubUnitsResult{
@@ -344,66 +359,83 @@ func (c *Client) GetSignatureRightsMCP(ctx context.Context, args GetSignatureRig
 		SignatureRights:    []SignatureRight{},
 		Prokura:            []SignatureRight{},
 	}
+	result.SignatureRights, result.Prokura = collectSignatureRights(resp.RoleGroups)
+	result.Summary = formatSignatureSummary(result.SignatureRights, result.Prokura)
 
-	// Extract signature-related roles (SIGN = signaturrett, PROK = prokura)
-	for _, rg := range resp.RoleGroups {
+	return result, nil
+}
+
+// collectSignatureRights walks all active (non-resigned) roles and bins them
+// into signaturrett (SIGN) and prokura (PROK) groups per the Brønnøysund role
+// taxonomy. Resigned roles and other role codes are ignored.
+func collectSignatureRights(roleGroups []RoleGroup) (signatureRights, prokura []SignatureRight) {
+	signatureRights = []SignatureRight{}
+	prokura = []SignatureRight{}
+	for _, rg := range roleGroups {
 		for _, r := range rg.Roles {
 			if r.Resigned {
 				continue
 			}
-
-			sr := SignatureRight{
-				Type:        r.Type.Code,
-				Description: r.Type.Description,
-			}
-
-			if r.Person != nil {
-				sr.Name = r.Person.Name.FullName()
-				sr.BirthDate = r.Person.BirthDate
-			}
-			if r.Entity != nil {
-				sr.EntityOrgNr = r.Entity.OrganizationNumber
-				if len(r.Entity.Name) > 0 {
-					sr.Name = strings.Join(r.Entity.Name, " ")
-				}
-			}
-
+			sr := signatureRightFromRole(r)
 			switch r.Type.Code {
 			case "SIGN":
-				result.SignatureRights = append(result.SignatureRights, sr)
+				signatureRights = append(signatureRights, sr)
 			case "PROK":
-				result.Prokura = append(result.Prokura, sr)
+				prokura = append(prokura, sr)
 			}
 		}
 	}
+	return signatureRights, prokura
+}
 
-	// Build summary
+// signatureRightFromRole projects a Role into a SignatureRight, applying the
+// same Person/Entity mutual-exclusivity rule as buildRoleSummary.
+func signatureRightFromRole(r Role) SignatureRight {
+	sr := SignatureRight{
+		Type:        r.Type.Code,
+		Description: r.Type.Description,
+	}
+	if r.Person != nil {
+		sr.Name = r.Person.Name.FullName()
+		sr.BirthDate = r.Person.BirthDate
+	}
+	if r.Entity != nil {
+		sr.EntityOrgNr = r.Entity.OrganizationNumber
+		if len(r.Entity.Name) > 0 {
+			sr.Name = strings.Join(r.Entity.Name, " ")
+		}
+	}
+	return sr
+}
+
+// formatSignatureSummary builds the human-readable summary string for the
+// signature-rights endpoint. Empty input on both slices yields the "none found"
+// fallback the upstream callers expect.
+func formatSignatureSummary(signatureRights, prokura []SignatureRight) string {
 	var summary strings.Builder
-	if len(result.SignatureRights) > 0 {
-		summary.WriteString("Signature rights: ")
-		names := make([]string, len(result.SignatureRights))
-		for i, sr := range result.SignatureRights {
-			names[i] = sr.Name
-		}
-		summary.WriteString(strings.Join(names, ", "))
+	appendSignatureSection(&summary, "Signature rights: ", signatureRights)
+	if len(prokura) > 0 && summary.Len() > 0 {
+		summary.WriteString(". ")
 	}
-	if len(result.Prokura) > 0 {
-		if summary.Len() > 0 {
-			summary.WriteString(". ")
-		}
-		summary.WriteString("Prokura: ")
-		names := make([]string, len(result.Prokura))
-		for i, sr := range result.Prokura {
-			names[i] = sr.Name
-		}
-		summary.WriteString(strings.Join(names, ", "))
-	}
+	appendSignatureSection(&summary, "Prokura: ", prokura)
 	if summary.Len() == 0 {
-		summary.WriteString("No signature rights or prokura found")
+		return "No signature rights or prokura found"
 	}
-	result.Summary = summary.String()
+	return summary.String()
+}
 
-	return result, nil
+// appendSignatureSection writes "label: name1, name2, ..." to summary if rights
+// is non-empty. No-op for empty input so callers can chain unconditionally.
+func appendSignatureSection(summary *strings.Builder, label string, rights []SignatureRight) {
+	if len(rights) == 0 {
+		return
+	}
+	summary.WriteString(label)
+	names := make([]string, len(rights))
+	for i, sr := range rights {
+		names[i] = sr.Name
+	}
+	summary.WriteString(strings.Join(names, ", "))
 }
 
 // BatchGetCompaniesMCP is the MCP wrapper for BatchGetCompanies
@@ -424,42 +456,41 @@ func (c *Client) BatchGetCompaniesMCP(ctx context.Context, args BatchGetCompanie
 		return BatchGetCompaniesResult{}, err
 	}
 
-	// Build a set of found org numbers for quick lookup
-	found := make(map[string]bool, len(resp.Embedded.Companies))
-	companies := make([]CompanySummary, len(resp.Embedded.Companies))
-	for i, co := range resp.Embedded.Companies {
-		found[co.OrganizationNumber] = true
-		summary := CompanySummary{
-			OrganizationNumber: co.OrganizationNumber,
-			Name:               co.Name,
-			Status:             getStatus(co.Bankrupt, co.UnderLiquidation),
-		}
-		if co.OrganizationForm != nil {
-			summary.OrganizationForm = co.OrganizationForm.Code
-		}
-		if co.PostalAddress != nil {
-			summary.PostalAddress = formatAddress(co.PostalAddress)
-		}
-		if co.BusinessAddress != nil {
-			summary.BusinessAddress = formatAddress(co.BusinessAddress)
-		}
-		companies[i] = summary
-	}
-
-	// Identify not found org numbers
-	var notFound []string
-	for _, on := range args.OrgNumbers {
-		normalized := NormalizeOrgNumber(on)
-		if !found[normalized] {
-			notFound = append(notFound, on)
-		}
-	}
+	companies, found := buildBatchCompanies(resp.Embedded.Companies)
+	notFound := diffMissingOrgNumbers(args.OrgNumbers, found)
 
 	return BatchGetCompaniesResult{
 		Companies:    companies,
 		TotalResults: len(companies),
 		NotFound:     notFound,
 	}, nil
+}
+
+// buildBatchCompanies projects an upstream batch response into CompanySummary
+// records and returns the set of upstream-known organization numbers (used by
+// the caller to compute the not-found delta).
+func buildBatchCompanies(in []Company) ([]CompanySummary, map[string]bool) {
+	found := make(map[string]bool, len(in))
+	companies := make([]CompanySummary, len(in))
+	for i, co := range in {
+		found[co.OrganizationNumber] = true
+		companies[i] = buildCompanySummary(co)
+	}
+	return companies, found
+}
+
+// diffMissingOrgNumbers returns the input org numbers (preserving caller form,
+// e.g. with separators) that are not present in the found set. Normalization
+// is applied to the lookup, not the output, so error messages keep the
+// caller's original spelling.
+func diffMissingOrgNumbers(requested []string, found map[string]bool) []string {
+	var notFound []string
+	for _, on := range requested {
+		if !found[NormalizeOrgNumber(on)] {
+			notFound = append(notFound, on)
+		}
+	}
+	return notFound
 }
 
 // getStatus derives company status from boolean flags
