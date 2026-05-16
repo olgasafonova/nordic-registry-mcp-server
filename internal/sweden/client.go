@@ -232,7 +232,6 @@ func (c *Client) refreshToken(ctx context.Context) (string, error) {
 
 // doRequest performs an HTTP request with authentication.
 func (c *Client) doRequest(ctx context.Context, method, endpoint string, body any) ([]byte, error) {
-	// Check circuit breaker
 	if !c.circuitBreaker.Allow() {
 		return nil, errors.New("sweden: circuit breaker open")
 	}
@@ -243,26 +242,15 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body an
 		return nil, err
 	}
 
-	var reqBody io.Reader
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("sweden: marshaling request body: %w", err)
-		}
-		reqBody = bytes.NewReader(jsonBody)
-	}
-
-	reqURL := c.baseURL + endpoint
-	req, err := http.NewRequestWithContext(ctx, method, reqURL, reqBody)
+	req, err := c.buildAuthenticatedRequest(ctx, authenticatedRequest{
+		Method:   method,
+		Endpoint: endpoint,
+		Body:     body,
+		Token:    token,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("sweden: creating request: %w", err)
+		return nil, err
 	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
 	if err != nil {
@@ -279,19 +267,57 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body an
 
 	if resp.StatusCode >= 400 {
 		c.circuitBreaker.RecordFailure()
-		// Try to parse Bolagsverket Problem Details envelope first; the
-		// parsed Title/Detail are the operator-facing diagnostic and stay
-		// untruncated.
-		var apiErr APIError
-		if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.Detail != "" {
-			return nil, fmt.Errorf("sweden: API error %d: %s - %s", apiErr.Status, apiErr.Title, apiErr.Detail)
-		}
-		// SECURITY (HG-2): unparsed body fallback — truncate.
-		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, truncateBody(respBody))
+		return nil, formatBolagsverketError(resp.StatusCode, respBody)
 	}
 
 	c.circuitBreaker.RecordSuccess()
 	return respBody, nil
+}
+
+// authenticatedRequest holds the parameters needed to build a Bolagsverket
+// authenticated HTTP request.
+type authenticatedRequest struct {
+	Method   string
+	Endpoint string
+	Body     any
+	Token    string
+}
+
+// buildAuthenticatedRequest constructs an authenticated HTTP request with
+// JSON body (if any) and the Bolagsverket OAuth Bearer token.
+func (c *Client) buildAuthenticatedRequest(ctx context.Context, ar authenticatedRequest) (*http.Request, error) {
+	var reqBody io.Reader
+	if ar.Body != nil {
+		jsonBody, err := json.Marshal(ar.Body)
+		if err != nil {
+			return nil, fmt.Errorf("sweden: marshaling request body: %w", err)
+		}
+		reqBody = bytes.NewReader(jsonBody)
+	}
+
+	reqURL := c.baseURL + ar.Endpoint
+	req, err := http.NewRequestWithContext(ctx, ar.Method, reqURL, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("sweden: creating request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+ar.Token)
+	if ar.Body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+	return req, nil
+}
+
+// formatBolagsverketError parses a Bolagsverket Problem Details envelope when
+// present (operator-facing diagnostic stays untruncated) and falls back to a
+// truncated body for unparsed responses (HG-2 unbounded-body guard).
+func formatBolagsverketError(statusCode int, respBody []byte) error {
+	var apiErr APIError
+	if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.Detail != "" {
+		return fmt.Errorf("sweden: API error %d: %s - %s", apiErr.Status, apiErr.Title, apiErr.Detail)
+	}
+	return fmt.Errorf("sweden: request returned %d: %s", statusCode, truncateBody(respBody))
 }
 
 // NormalizeOrgNumber normalizes a Swedish organization number.
@@ -397,7 +423,6 @@ func (c *Client) DownloadDocument(ctx context.Context, documentID string) ([]byt
 		return nil, errors.New("sweden: document ID is required")
 	}
 
-	// Check circuit breaker
 	if !c.circuitBreaker.Allow() {
 		return nil, errors.New("sweden: circuit breaker open")
 	}
@@ -408,14 +433,10 @@ func (c *Client) DownloadDocument(ctx context.Context, documentID string) ([]byt
 		return nil, err
 	}
 
-	reqURL := c.baseURL + "/dokument/" + url.PathEscape(documentID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := c.buildDocumentRequest(ctx, documentID, token)
 	if err != nil {
-		return nil, fmt.Errorf("sweden: creating request: %w", err)
+		return nil, err
 	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/zip")
 
 	resp, err := c.httpClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
 	if err != nil {
@@ -427,18 +448,29 @@ func (c *Client) DownloadDocument(ctx context.Context, documentID string) ([]byt
 	if resp.StatusCode >= 400 {
 		c.circuitBreaker.RecordFailure()
 		body, _ := io.ReadAll(resp.Body)
-		// Same pattern as doRequest: parse Bolagsverket Problem Details
-		// envelope first, fall back to truncated body.
-		var apiErr APIError
-		if err := json.Unmarshal(body, &apiErr); err == nil && apiErr.Detail != "" {
-			return nil, fmt.Errorf("sweden: API error %d: %s - %s", apiErr.Status, apiErr.Title, apiErr.Detail)
-		}
-		// SECURITY (HG-2): unparsed body fallback — truncate.
-		return nil, fmt.Errorf("sweden: request returned %d: %s", resp.StatusCode, truncateBody(body))
+		return nil, formatBolagsverketError(resp.StatusCode, body)
 	}
 
-	// Limit response size to prevent memory exhaustion
-	limitedReader := io.LimitReader(resp.Body, maxDocumentSize+1)
+	return c.readBoundedDocument(resp.Body)
+}
+
+// buildDocumentRequest constructs the GET /dokument/{id} request with the
+// ZIP-accept header and Bearer auth.
+func (c *Client) buildDocumentRequest(ctx context.Context, documentID, token string) (*http.Request, error) {
+	reqURL := c.baseURL + "/dokument/" + url.PathEscape(documentID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("sweden: creating request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/zip")
+	return req, nil
+}
+
+// readBoundedDocument reads the response body up to maxDocumentSize, recording
+// circuit-breaker state for read errors and oversized payloads.
+func (c *Client) readBoundedDocument(body io.Reader) ([]byte, error) {
+	limitedReader := io.LimitReader(body, maxDocumentSize+1)
 	data, err := io.ReadAll(limitedReader)
 	if err != nil {
 		c.circuitBreaker.RecordFailure()
