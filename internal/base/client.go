@@ -136,21 +136,51 @@ type RequestConfig struct {
 // DoRequest performs an HTTP request with circuit breaker, rate limiting, and retries.
 // Returns the response body on success. The caller handles response parsing.
 func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int, error) {
-	// Check circuit breaker
 	if err := c.CheckCircuitBreaker(); err != nil {
 		return nil, 0, err
 	}
 
-	// Rate limiting via semaphore
 	if err := c.AcquireSlot(ctx); err != nil {
 		return nil, 0, err
 	}
 	defer c.ReleaseSlot()
 
-	// Create request
+	req, err := c.buildRequest(ctx, cfg)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	maxRetry := cfg.MaxRetry
+	if maxRetry <= 0 {
+		maxRetry = 3
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetry; attempt++ {
+		if err := c.waitBeforeAttempt(ctx, attempt); err != nil {
+			return nil, 0, err
+		}
+
+		body, status, retryErr, fatal := c.executeAttempt(ctx, req, cfg, attempt)
+		if fatal != nil {
+			return nil, 0, fatal
+		}
+		if retryErr != nil {
+			lastErr = retryErr
+			continue
+		}
+		return body, status, nil
+	}
+
+	c.CircuitBreaker.RecordFailure()
+	return nil, 0, lastErr
+}
+
+// buildRequest constructs the HTTP request with default headers.
+func (c *Client) buildRequest(ctx context.Context, cfg RequestConfig) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.URL, nil)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Accept", "application/json")
@@ -159,71 +189,75 @@ func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int,
 	} else {
 		req.Header.Set("User-Agent", "nordic-registry-mcp-server/1.0")
 	}
+	return req, nil
+}
 
-	maxRetry := cfg.MaxRetry
-	if maxRetry <= 0 {
-		maxRetry = 3
+// waitBeforeAttempt sleeps with exponential backoff + jitter before retries.
+// Returns an error only when the context is canceled mid-backoff.
+func (c *Client) waitBeforeAttempt(ctx context.Context, attempt int) error {
+	if attempt == 0 {
+		return nil
+	}
+	baseBackoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
+	jitter := time.Duration(rand.Int63n(int64(baseBackoff / 2))) // #nosec G404 -- jitter for timing, not security
+	backoff := baseBackoff + jitter
+	select {
+	case <-time.After(backoff):
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("context canceled during backoff: %w", ctx.Err())
+	}
+}
+
+// executeAttempt performs a single HTTP attempt. Returns body/status on success,
+// a retryErr if the attempt should be retried, or a fatal error to abort the loop.
+func (c *Client) executeAttempt(ctx context.Context, req *http.Request, cfg RequestConfig, attempt int) (body []byte, status int, retryErr, fatal error) {
+	resp, err := c.HTTPClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
+	if err != nil {
+		c.Logger.Warn("API request failed, retrying",
+			"attempt", attempt+1,
+			"url", cfg.URL,
+			"error", err)
+		return nil, 0, fmt.Errorf("request failed: %w", err), nil
 	}
 
-	// Execute with retry
-	var lastErr error
-	for attempt := 0; attempt < maxRetry; attempt++ {
-		if attempt > 0 {
-			// Exponential backoff with jitter to prevent thundering herd
-			baseBackoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
-			jitter := time.Duration(rand.Int63n(int64(baseBackoff / 2))) // #nosec G404 -- jitter for timing, not security
-			backoff := baseBackoff + jitter
-			select {
-			case <-time.After(backoff):
-			case <-ctx.Done():
-				return nil, 0, fmt.Errorf("context canceled during backoff: %w", ctx.Err())
-			}
-		}
-
-		resp, err := c.HTTPClient.Do(req) // #nosec G704 -- URL constructed from hardcoded base + validated input
-		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
-			c.Logger.Warn("API request failed, retrying",
-				"attempt", attempt+1,
-				"url", cfg.URL,
-				"error", err)
-			continue
-		}
-
-		body, err := readAndClose(resp)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to read response: %w", err)
-			continue
-		}
-
-		// Handle rate limiting with Retry-After header
-		if resp.StatusCode == http.StatusTooManyRequests {
-			if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-				if seconds, parseErr := strconv.Atoi(retryAfter); parseErr == nil {
-					select {
-					case <-time.After(time.Duration(seconds) * time.Second):
-					case <-ctx.Done():
-						return nil, 0, ctx.Err()
-					}
-					continue
-				}
-			}
-			lastErr = fmt.Errorf("rate limited (429)")
-			continue
-		}
-
-		// Server errors (5xx) should be retried
-		if resp.StatusCode >= 500 {
-			lastErr = fmt.Errorf("server error %d: %s", resp.StatusCode, truncate(string(body), 200))
-			continue
-		}
-
-		// Return body and status code for caller to handle
-		return body, resp.StatusCode, nil
+	body, err = readAndClose(resp)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to read response: %w", err), nil
 	}
 
-	c.CircuitBreaker.RecordFailure()
-	return nil, 0, lastErr
+	if resp.StatusCode == http.StatusTooManyRequests {
+		if fatal := handleRateLimit(ctx, resp); fatal != nil {
+			return nil, 0, nil, fatal
+		}
+		return nil, 0, fmt.Errorf("rate limited (429)"), nil
+	}
+
+	if resp.StatusCode >= 500 {
+		return nil, 0, fmt.Errorf("server error %d: %s", resp.StatusCode, truncate(string(body), 200)), nil
+	}
+
+	return body, resp.StatusCode, nil, nil
+}
+
+// handleRateLimit honors a Retry-After header if present. Returns a fatal
+// error only when the context is canceled while waiting; nil otherwise (so the
+// caller falls through to retry on the next loop iteration).
+func handleRateLimit(ctx context.Context, resp *http.Response) error {
+	retryAfter := resp.Header.Get("Retry-After")
+	if retryAfter == "" {
+		return nil
+	}
+	seconds, parseErr := strconv.Atoi(retryAfter)
+	if parseErr != nil {
+		return nil
+	}
+	select {
+	case <-time.After(time.Duration(seconds) * time.Second):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // RecordSuccess records a successful request with the circuit breaker
