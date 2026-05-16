@@ -56,6 +56,8 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 // buildCompanySummary projects a Bolagsverket Organisation into the flat
 // CompanySummary the MCP caller consumes. The Bolagsverket schema is heavily
 // optional, so the helpers below isolate each optional field group.
+//
+//nolint:misspell // Swedish API uses "Organisation"
 func buildCompanySummary(org *Organisation) *CompanySummary {
 	summary := &CompanySummary{
 		OrganizationNumber:  org.GetOrgNumber(),
@@ -98,6 +100,8 @@ func formatCodeKlartext(kod, klartext string) string {
 // applyDeregistrationInfo copies deregistration date/reason fields from the
 // upstream response into the summary, marking the company inactive if a
 // deregistration date is present.
+//
+//nolint:misspell // Swedish API uses "Organisation"
 func applyDeregistrationInfo(summary *CompanySummary, org *Organisation) {
 	if org.AvregistreradOrganisation != nil && org.AvregistreradOrganisation.Avregistreringsdatum != "" {
 		summary.DeregisteredDate = org.AvregistreradOrganisation.Avregistreringsdatum
@@ -110,6 +114,8 @@ func applyDeregistrationInfo(summary *CompanySummary, org *Organisation) {
 
 // collectOngoingProceedings flattens the Bolagsverket bankruptcy / liquidation
 // list into human-readable strings.
+//
+//nolint:misspell // Swedish API uses "Organisation"
 func collectOngoingProceedings(org *Organisation) []string {
 	if org.PagaendeAvvecklingsEllerOmstruktureringsforfarande == nil {
 		return nil
@@ -130,6 +136,8 @@ func collectOngoingProceedings(org *Organisation) []string {
 
 // collectSNICodes flattens the SNI (Swedish industry classification) codes
 // into "Kod - Klartext" form for the MCP caller.
+//
+//nolint:misspell // Swedish API uses "Organisation"
 func collectSNICodes(org *Organisation) []string {
 	var out []string
 	for _, sni := range org.GetSNICodes() {
