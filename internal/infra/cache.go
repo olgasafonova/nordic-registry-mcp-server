@@ -83,25 +83,32 @@ func (c *Cache) Set(key string, data interface{}, ttl time.Duration) {
 		Key:        key,
 	})
 
-	// Only increment count for new entries
-	if !existed {
-		newCount := atomic.AddInt64(&c.count, 1)
-
-		// Trigger eviction if over limit (async to not block caller)
-		// Use atomic compare-and-swap to prevent duplicate eviction goroutines
-		if newCount > c.maxEntries {
-			if atomic.CompareAndSwapInt32(&c.evicting, 0, 1) {
-				go func() {
-					defer atomic.StoreInt32(&c.evicting, 0)
-					// Re-check current count as more entries may have been added
-					currentCount := atomic.LoadInt64(&c.count)
-					if currentCount > c.maxEntries {
-						c.evictLRU(int(currentCount - c.maxEntries + c.maxEntries/10))
-					}
-				}()
-			}
-		}
+	// Updates don't change the count.
+	if existed {
+		return
 	}
+
+	newCount := atomic.AddInt64(&c.count, 1)
+	if newCount > c.maxEntries {
+		c.maybeTriggerEviction()
+	}
+}
+
+// maybeTriggerEviction launches a single async eviction pass if one isn't
+// already running. The compare-and-swap ensures only one goroutine evicts at
+// a time, even under concurrent Set pressure.
+func (c *Cache) maybeTriggerEviction() {
+	if !atomic.CompareAndSwapInt32(&c.evicting, 0, 1) {
+		return
+	}
+	go func() {
+		defer atomic.StoreInt32(&c.evicting, 0)
+		// Re-check current count as more entries may have been added
+		currentCount := atomic.LoadInt64(&c.count)
+		if currentCount > c.maxEntries {
+			c.evictLRU(int(currentCount - c.maxEntries + c.maxEntries/10))
+		}
+	}()
 }
 
 // Delete removes a key from the cache

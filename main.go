@@ -557,7 +557,13 @@ Common codes:
 	})
 
 	// Register all tools using the registry
-	registry := tools.NewHandlerRegistry(norwayClient, denmarkClient, finlandClient, swedenClient, logger)
+	registry := tools.NewHandlerRegistry(tools.HandlerRegistryConfig{
+		NorwayClient:  norwayClient,
+		DenmarkClient: denmarkClient,
+		FinlandClient: finlandClient,
+		SwedenClient:  swedenClient,
+		Logger:        logger,
+	})
 	registry.RegisterAll(server)
 
 	ctx := context.Background()

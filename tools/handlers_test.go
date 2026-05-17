@@ -27,7 +27,7 @@ func TestNewHandlerRegistry(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -55,7 +55,7 @@ func TestBuildTool(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	tests := []struct {
 		name      string
@@ -139,7 +139,7 @@ func TestRecoverPanic(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	// Test that recoverPanic doesn't panic itself
 	func() {
@@ -159,7 +159,7 @@ func TestLogExecution(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 	spec := ToolSpec{Name: "test_tool", Country: "norway"}
 
 	// Test with SearchCompaniesArgs
@@ -307,7 +307,7 @@ func TestRegisteredTools(t *testing.T) {
 
 	t.Run("without Sweden client", func(t *testing.T) {
 		// Create registry without Sweden client
-		registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+		registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 		registeredTools := registry.RegisteredTools()
 
@@ -326,7 +326,7 @@ func TestRegisteredTools(t *testing.T) {
 	})
 
 	t.Run("registered tools subset of AllTools", func(t *testing.T) {
-		registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+		registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 		registeredTools := registry.RegisteredTools()
 
 		// All registered tools should be in AllTools
@@ -364,7 +364,7 @@ func TestRegisteredTools(t *testing.T) {
 		}
 
 		// Create registry with Sweden client
-		registry := NewHandlerRegistry(noClient, dkClient, fiClient, seClient, logger)
+		registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: seClient, Logger: logger})
 		registeredTools := registry.RegisteredTools()
 
 		// Should have Norway (12) + Denmark (5) + Finland (2) + Sweden (4) = 23 tools
@@ -395,7 +395,7 @@ func TestBuildTool_DestructiveHint(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	spec := ToolSpec{
 		Name:        "test_tool",
@@ -422,7 +422,7 @@ func TestLogExecution_AllArgTypes(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 	spec := ToolSpec{Name: "test_tool", Country: "norway"}
 
 	// Test GetSubUnitArgs
@@ -559,7 +559,7 @@ func TestRegisterAll(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 	server := createTestMCPServer()
 
 	// RegisterAll should not panic
@@ -581,7 +581,7 @@ func TestRegisterTool(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 	server := createTestMCPServer()
 
 	t.Run("valid tool registration", func(t *testing.T) {
@@ -626,7 +626,7 @@ func TestRegisterAllTools_ByCountry(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 	server := createTestMCPServer()
 
 	registry.RegisterAll(server)
@@ -662,7 +662,7 @@ func TestRegisterAllTools_Categories(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 	server := createTestMCPServer()
 
 	registry.RegisterAll(server)
@@ -691,7 +691,7 @@ func TestMakeHandler(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	// Test that handlers map is populated
 	if len(registry.handlers) == 0 {
@@ -779,7 +779,7 @@ func TestToolInvocation_Success(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	// Create MCP server and register tools
 	server := mcp.NewServer(&mcp.Implementation{
@@ -865,7 +865,7 @@ func TestToolInvocation_Error(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "test-server",
@@ -916,7 +916,7 @@ func TestToolInvocation_ListTools(t *testing.T) {
 	fiClient := finland.NewClient(finland.WithLogger(logger))
 	defer fiClient.Close()
 
-	registry := NewHandlerRegistry(noClient, dkClient, fiClient, nil, logger)
+	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "test-server",

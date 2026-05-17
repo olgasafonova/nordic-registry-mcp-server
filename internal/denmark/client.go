@@ -216,7 +216,6 @@ func (c *Client) GetCompany(ctx context.Context, cvr string) (*Company, error) {
 
 // doRequest performs an HTTP request using the base client infrastructure
 func (c *Client) doRequest(ctx context.Context, params url.Values, result interface{}) error {
-	// Build URL
 	reqURL := c.baseURL + "?" + params.Encode()
 
 	body, statusCode, err := c.Client.DoRequest(ctx, base.RequestConfig{
@@ -227,51 +226,71 @@ func (c *Client) doRequest(ctx context.Context, params url.Values, result interf
 		return err
 	}
 
-	// Handle HTTP errors
+	if errResp := c.classifyError(statusCode, body, params); errResp != nil {
+		return errResp
+	}
+
+	// 200 with embedded CVR error envelope (the CVR API occasionally
+	// returns success status alongside an error body).
+	if notFound := c.checkEmbeddedNotFound(body, params); notFound != nil {
+		return notFound
+	}
+
+	if err := json.Unmarshal(body, result); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	c.RecordSuccess()
+	return nil
+}
+
+// classifyError translates HTTP error status codes into Denmark-specific
+// errors. Returns nil when the status code is in the success range, allowing
+// the caller to proceed with response parsing.
+func (c *Client) classifyError(statusCode int, body []byte, params url.Values) error {
 	if statusCode == http.StatusNotFound {
 		c.RecordSuccess()
 		return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
 	}
 
-	if statusCode >= 400 {
-		// Try to parse API error envelope first (CVR returns a documented
-		// JSON error shape; preserve apiErr.String() because it's the
-		// user-facing diagnostic).
-		var apiErr APIError
-		if json.Unmarshal(body, &apiErr) == nil && apiErr.Error != "" {
-			// Check for "not found" type errors
-			if apiErr.T == 1 || strings.Contains(strings.ToLower(apiErr.Error), "not found") {
-				c.RecordSuccess()
-				return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
-			}
-			c.RecordSuccess() // Client errors don't indicate service issues
-			return fmt.Errorf("API error %d: %s", statusCode, apiErr.String())
-		}
-		c.RecordSuccess()
-		// SECURITY (HG-2): unparsed body fallback — truncate to bound the
-		// blast radius. CVR's documented envelope is handled above; this
-		// path catches HTML 4xx pages, proxy errors, and any non-JSON
-		// upstream response. Body comes from a public registry so it
-		// isn't credentials, but unbounded HTML / stack traces still leak
-		// into the MCP caller's error otherwise.
-		return fmt.Errorf("API error %d: %s", statusCode, truncateBody(body))
+	if statusCode < 400 {
+		return nil
 	}
 
-	// Check for API error in successful response (CVR API sometimes returns 200 with error)
+	// CVR returns a documented JSON error envelope; preserve apiErr.String()
+	// because it's the user-facing diagnostic.
 	var apiErr APIError
 	if json.Unmarshal(body, &apiErr) == nil && apiErr.Error != "" {
 		if apiErr.T == 1 || strings.Contains(strings.ToLower(apiErr.Error), "not found") {
 			c.RecordSuccess()
 			return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
 		}
-	}
-
-	// Parse success response
-	if err := json.Unmarshal(body, result); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
+		c.RecordSuccess() // Client errors don't indicate service issues
+		return fmt.Errorf("API error %d: %s", statusCode, apiErr.String())
 	}
 
 	c.RecordSuccess()
+	// SECURITY (HG-2): unparsed body fallback — truncate to bound the
+	// blast radius. CVR's documented envelope is handled above; this
+	// path catches HTML 4xx pages, proxy errors, and any non-JSON
+	// upstream response. Body comes from a public registry so it
+	// isn't credentials, but unbounded HTML / stack traces still leak
+	// into the MCP caller's error otherwise.
+	return fmt.Errorf("API error %d: %s", statusCode, truncateBody(body))
+}
+
+// checkEmbeddedNotFound looks for a CVR "not found" error embedded in a 2xx
+// response body and returns the corresponding error. Returns nil if the body
+// is a normal success response.
+func (c *Client) checkEmbeddedNotFound(body []byte, params url.Values) error {
+	var apiErr APIError
+	if json.Unmarshal(body, &apiErr) != nil || apiErr.Error == "" {
+		return nil
+	}
+	if apiErr.T == 1 || strings.Contains(strings.ToLower(apiErr.Error), "not found") {
+		c.RecordSuccess()
+		return apierrors.NewNotFoundError("denmark", notFoundIdentifier(params))
+	}
 	return nil
 }
 

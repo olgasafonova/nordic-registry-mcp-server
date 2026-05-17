@@ -42,7 +42,6 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		return GetCompanyResult{}, err
 	}
 
-	// Handle case where no organization was found
 	if resp == nil || len(resp.Organisationer) == 0 {
 		return GetCompanyResult{}, fmt.Errorf("no company found for organization number %s", args.OrgNumber)
 	}
@@ -50,6 +49,16 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	// Take the first organization (there can be multiple for sole proprietors)
 	org := resp.Organisationer[0]
 
+	summary := buildCompanySummary(&org)
+	return GetCompanyResult{Company: summary}, nil
+}
+
+// buildCompanySummary projects a Bolagsverket Organisation into the flat
+// CompanySummary the MCP caller consumes. The Bolagsverket schema is heavily
+// optional, so the helpers below isolate each optional field group.
+//
+//nolint:misspell // Swedish API uses "Organisation"
+func buildCompanySummary(org *Organisation) *CompanySummary {
 	summary := &CompanySummary{
 		OrganizationNumber:  org.GetOrgNumber(),
 		Name:                org.GetName(),
@@ -58,31 +67,42 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 		PostalAddress:       org.GetAddress(),
 		BusinessDescription: org.GetBusinessDescription(),
 	}
-
-	// Organization form (e.g., "AB - Aktiebolag")
 	if org.Organisationsform != nil {
-		if org.Organisationsform.Klartext != "" {
-			summary.OrganizationForm = org.Organisationsform.Kod + " - " + org.Organisationsform.Klartext
-		} else {
-			summary.OrganizationForm = org.Organisationsform.Kod
-		}
+		summary.OrganizationForm = formatCodeKlartext(org.Organisationsform.Kod, org.Organisationsform.Klartext)
 	}
-
-	// Legal form (e.g., "49 - Övriga aktiebolag")
 	if org.JuridiskForm != nil {
-		if org.JuridiskForm.Klartext != "" {
-			summary.LegalForm = org.JuridiskForm.Kod + " - " + org.JuridiskForm.Klartext
-		} else {
-			summary.LegalForm = org.JuridiskForm.Kod
-		}
+		summary.LegalForm = formatCodeKlartext(org.JuridiskForm.Kod, org.JuridiskForm.Klartext)
 	}
 
-	// Registration country
 	if org.Registreringsland != nil {
 		summary.RegistrationCountry = org.Registreringsland.Klartext
 	}
 
-	// Deregistration info
+	applyDeregistrationInfo(summary, org)
+	summary.OngoingProceedings = collectOngoingProceedings(org)
+	summary.IndustryCodes = collectSNICodes(org)
+
+	if org.Reklamsparr != nil && org.Reklamsparr.Kod == JaNejJA {
+		summary.AdBlockEnabled = true
+	}
+	return summary
+}
+
+// formatCodeKlartext formats a Bolagsverket Kod/Klartext pair as "Kod - Klartext"
+// when both are present, otherwise the bare code.
+func formatCodeKlartext(kod, klartext string) string {
+	if klartext != "" {
+		return kod + " - " + klartext
+	}
+	return kod
+}
+
+// applyDeregistrationInfo copies deregistration date/reason fields from the
+// upstream response into the summary, marking the company inactive if a
+// deregistration date is present.
+//
+//nolint:misspell // Swedish API uses "Organisation"
+func applyDeregistrationInfo(summary *CompanySummary, org *Organisation) {
 	if org.AvregistreradOrganisation != nil && org.AvregistreradOrganisation.Avregistreringsdatum != "" {
 		summary.DeregisteredDate = org.AvregistreradOrganisation.Avregistreringsdatum
 		summary.IsActive = false
@@ -90,36 +110,44 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	if org.Avregistreringsorsak != nil && org.Avregistreringsorsak.Klartext != "" {
 		summary.DeregisteredReason = org.Avregistreringsorsak.Klartext
 	}
+}
 
-	// Ongoing proceedings (bankruptcy, liquidation, etc.)
-	if org.PagaendeAvvecklingsEllerOmstruktureringsforfarande != nil {
-		for _, p := range org.PagaendeAvvecklingsEllerOmstruktureringsforfarande.PagaendeAvvecklingsEllerOmstruktureringsforfarandeLista {
-			desc := p.Klartext
-			if desc == "" {
-				desc = p.Kod
-			}
-			if p.FromDatum != "" {
-				desc += " (from " + p.FromDatum + ")"
-			}
-			summary.OngoingProceedings = append(summary.OngoingProceedings, desc)
-		}
+// collectOngoingProceedings flattens the Bolagsverket bankruptcy / liquidation
+// list into human-readable strings.
+//
+//nolint:misspell // Swedish API uses "Organisation"
+func collectOngoingProceedings(org *Organisation) []string {
+	if org.PagaendeAvvecklingsEllerOmstruktureringsforfarande == nil {
+		return nil
 	}
+	var out []string
+	for _, p := range org.PagaendeAvvecklingsEllerOmstruktureringsforfarande.PagaendeAvvecklingsEllerOmstruktureringsforfarandeLista {
+		desc := p.Klartext
+		if desc == "" {
+			desc = p.Kod
+		}
+		if p.FromDatum != "" {
+			desc += " (from " + p.FromDatum + ")"
+		}
+		out = append(out, desc)
+	}
+	return out
+}
 
-	// Industry codes (SNI)
+// collectSNICodes flattens the SNI (Swedish industry classification) codes
+// into "Kod - Klartext" form for the MCP caller.
+//
+//nolint:misspell // Swedish API uses "Organisation"
+func collectSNICodes(org *Organisation) []string {
+	var out []string
 	for _, sni := range org.GetSNICodes() {
 		code := sni.Kod
 		if sni.Klartext != "" {
 			code += " - " + sni.Klartext
 		}
-		summary.IndustryCodes = append(summary.IndustryCodes, code)
+		out = append(out, code)
 	}
-
-	// Ad block (reklamsparr)
-	if org.Reklamsparr != nil && org.Reklamsparr.Kod == JaNejJA {
-		summary.AdBlockEnabled = true
-	}
-
-	return GetCompanyResult{Company: summary}, nil
+	return out
 }
 
 // GetDocumentListMCP is the MCP wrapper for GetDocumentList.

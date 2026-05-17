@@ -79,6 +79,43 @@ func (c *Client) GetCompanyMCP(ctx context.Context, args GetCompanyArgs) (GetCom
 	return GetCompanyResult{Summary: summary}, nil
 }
 
+// currentCompanyName returns the active name (type=1, no end date) for a
+// PRH Company, falling back to the first name if no active name is recorded.
+func currentCompanyName(c *Company) string {
+	for _, name := range c.Names {
+		if name.Type == "1" && name.EndDate == "" {
+			return name.Name
+		}
+	}
+	if len(c.Names) > 0 {
+		return c.Names[0].Name
+	}
+	return ""
+}
+
+// currentCompanyForm returns the active company form (no end date). The two
+// returned strings are the type code and its English description; either may
+// be empty if not found.
+func currentCompanyForm(c *Company) (string, string) {
+	for _, form := range c.CompanyForms {
+		if form.EndDate == "" {
+			return form.Type, getEnglishDesc(form.Descriptions)
+		}
+	}
+	return "", ""
+}
+
+// primaryStreetAddress returns the first street address (type=1). The boolean
+// reports whether a match was found.
+func primaryStreetAddress(c *Company) (Address, bool) {
+	for _, addr := range c.Addresses {
+		if addr.Type == 1 {
+			return addr, true
+		}
+	}
+	return Address{}, false
+}
+
 // toCompanyDetailSummary converts a Company to CompanyDetailSummary (compact format)
 func toCompanyDetailSummary(c *Company) *CompanyDetailSummary {
 	if c == nil {
@@ -89,54 +126,33 @@ func toCompanyDetailSummary(c *Company) *CompanyDetailSummary {
 		BusinessID:       c.BusinessID.Value,
 		RegistrationDate: c.RegistrationDate,
 		Status:           statusToDesc(c.Status),
+		Name:             currentCompanyName(c),
 	}
 
-	// Get current name (type=1, no end date)
-	for _, name := range c.Names {
-		if name.Type == "1" && name.EndDate == "" {
-			summary.Name = name.Name
-			break
-		}
+	if code, desc := currentCompanyForm(c); code != "" {
+		summary.CompanyForm = formatCodeAndDesc(code, desc)
 	}
-	// Fallback to first name if no current name found
-	if summary.Name == "" && len(c.Names) > 0 {
-		summary.Name = c.Names[0].Name
-	}
-
-	// Get company form
-	for _, form := range c.CompanyForms {
-		if form.EndDate == "" {
-			summary.CompanyForm = form.Type
-			if desc := getEnglishDesc(form.Descriptions); desc != "" {
-				summary.CompanyForm += " - " + desc
-			}
-			break
-		}
-	}
-
-	// Get industry
 	if c.MainBusinessLine != nil {
-		summary.Industry = c.MainBusinessLine.Type
-		if desc := getEnglishDesc(c.MainBusinessLine.Descriptions); desc != "" {
-			summary.Industry += " - " + desc
-		}
+		summary.Industry = formatCodeAndDesc(c.MainBusinessLine.Type, getEnglishDesc(c.MainBusinessLine.Descriptions))
 	}
-
-	// Get website
 	if c.Website != nil {
 		summary.Website = c.Website.URL
 	}
-
-	// Get address (prefer street address, type=1)
-	for _, addr := range c.Addresses {
-		if addr.Type == 1 {
-			summary.StreetAddress = formatAddress(addr)
-			summary.City = getCity(addr)
-			break
-		}
+	if addr, ok := primaryStreetAddress(c); ok {
+		summary.StreetAddress = formatAddress(addr)
+		summary.City = getCity(addr)
 	}
 
 	return summary
+}
+
+// formatCodeAndDesc returns "code - desc" when desc is non-empty, otherwise the
+// bare code. Centralizes the PRH code+English-description rendering pattern.
+func formatCodeAndDesc(code, desc string) string {
+	if desc != "" {
+		return code + " - " + desc
+	}
+	return code
 }
 
 // toCompanySummary converts a Company to CompanySummary
@@ -145,48 +161,27 @@ func toCompanySummary(c Company) CompanySummary {
 		BusinessID:       c.BusinessID.Value,
 		RegistrationDate: c.RegistrationDate,
 		Status:           statusToDesc(c.Status),
+		Name:             currentCompanyName(&c),
 	}
 
-	// Get current name (type=1, no end date)
-	for _, name := range c.Names {
-		if name.Type == "1" && name.EndDate == "" {
-			summary.Name = name.Name
-			break
-		}
-	}
-	// Fallback to first name if no current name found
-	if summary.Name == "" && len(c.Names) > 0 {
-		summary.Name = c.Names[0].Name
+	if code, desc := currentCompanyForm(&c); code != "" {
+		summary.CompanyForm = code
+		summary.CompanyFormDesc = desc
 	}
 
-	// Get company form
-	for _, form := range c.CompanyForms {
-		if form.EndDate == "" {
-			summary.CompanyForm = form.Type
-			summary.CompanyFormDesc = getEnglishDesc(form.Descriptions)
-			break
-		}
-	}
-
-	// Get industry
 	if c.MainBusinessLine != nil {
 		summary.IndustryCode = c.MainBusinessLine.Type
 		summary.Industry = getEnglishDesc(c.MainBusinessLine.Descriptions)
 	}
 
-	// Get website
 	if c.Website != nil {
 		summary.Website = c.Website.URL
 	}
 
-	// Get address (prefer street address, type=1)
-	for _, addr := range c.Addresses {
-		if addr.Type == 1 {
-			summary.StreetAddress = formatAddress(addr)
-			summary.PostCode = addr.PostCode
-			summary.City = getCity(addr)
-			break
-		}
+	if addr, ok := primaryStreetAddress(&c); ok {
+		summary.StreetAddress = formatAddress(addr)
+		summary.PostCode = addr.PostCode
+		summary.City = getCity(addr)
 	}
 
 	return summary
@@ -207,79 +202,96 @@ func toCompanyDetails(c *Company) *CompanyDetails {
 		LastModified:     c.LastModified,
 	}
 
-	// EU ID
 	if c.EUID != nil {
 		details.EUID = c.EUID.Value
 	}
 
-	// Names
-	for _, name := range c.Names {
-		switch name.Type {
-		case "1": // Current or previous name
-			if name.EndDate == "" {
-				details.Name = name.Name
-			} else {
-				details.PreviousNames = append(details.PreviousNames, name.Name)
-			}
-		case "3": // Auxiliary name
-			details.AuxiliaryNames = append(details.AuxiliaryNames, name.Name)
-		}
+	applyDetailNames(details, c.Names)
+
+	if code, desc := currentCompanyForm(c); code != "" {
+		details.CompanyForm = code
+		details.CompanyFormDesc = desc
 	}
 
-	// Company form
-	for _, form := range c.CompanyForms {
-		if form.EndDate == "" {
-			details.CompanyForm = form.Type
-			details.CompanyFormDesc = getEnglishDesc(form.Descriptions)
-			break
-		}
-	}
-
-	// Industry
 	if c.MainBusinessLine != nil {
 		details.IndustryCode = c.MainBusinessLine.Type
 		details.Industry = getEnglishDesc(c.MainBusinessLine.Descriptions)
 	}
 
-	// Website
 	if c.Website != nil {
 		details.Website = c.Website.URL
 	}
 
-	// Addresses
-	for _, addr := range c.Addresses {
+	applyDetailAddresses(details, c.Addresses)
+	details.Situations = collectSituations(c.CompanySituations)
+	details.Registrations = collectRegistrations(c.RegisteredEntries)
+
+	return details
+}
+
+// applyDetailNames classifies PRH name entries into the current name, previous
+// names (ended type=1 entries), and auxiliary names (type=3). Other types are
+// silently dropped, matching the original behavior.
+func applyDetailNames(details *CompanyDetails, names []CompanyName) {
+	for _, name := range names {
+		switch name.Type {
+		case "1":
+			if name.EndDate == "" {
+				details.Name = name.Name
+			} else {
+				details.PreviousNames = append(details.PreviousNames, name.Name)
+			}
+		case "3":
+			details.AuxiliaryNames = append(details.AuxiliaryNames, name.Name)
+		}
+	}
+}
+
+// applyDetailAddresses routes type=1 (street) and type=2 (postal) PRH
+// addresses to the corresponding CompanyDetails slots.
+func applyDetailAddresses(details *CompanyDetails, addresses []Address) {
+	for _, addr := range addresses {
 		addrSummary := &AddressSummary{
 			Street:   formatAddress(addr),
 			PostCode: addr.PostCode,
 			City:     getCity(addr),
 		}
-		if addr.Type == 1 {
+		switch addr.Type {
+		case 1:
 			details.StreetAddress = addrSummary
-		} else if addr.Type == 2 {
+		case 2:
 			details.PostalAddress = addrSummary
 		}
 	}
+}
 
-	// Situations (liquidation, bankruptcy, etc.)
-	for _, sit := range c.CompanySituations {
-		details.Situations = append(details.Situations, SituationInfo{
+// collectSituations flattens PRH liquidation / bankruptcy / restructuring
+// records into SituationInfo entries.
+func collectSituations(situations []CompanySituation) []SituationInfo {
+	var out []SituationInfo
+	for _, sit := range situations {
+		out = append(out, SituationInfo{
 			Type:      situationTypeToDesc(sit.Type),
 			StartDate: sit.RegistrationDate,
 			EndDate:   sit.EndDate,
 		})
 	}
+	return out
+}
 
-	// Registrations
-	for _, entry := range c.RegisteredEntries {
-		details.Registrations = append(details.Registrations, RegistrationInfo{
+// collectRegistrations flattens PRH register memberships (trade register, VAT
+// register, etc.) into RegistrationInfo entries.
+func collectRegistrations(entries []RegisteredEntry) []RegistrationInfo {
+	var out []RegistrationInfo
+	for _, entry := range entries {
+		out = append(out, RegistrationInfo{
 			Register:  getEnglishDesc(entry.RegisterDescriptions),
 			Status:    entry.RegistrationStatus,
 			Authority: getEnglishDesc(entry.AuthorityDescriptions),
 			Date:      entry.RegistrationDate,
 		})
 	}
-
-	return details
+	return out
 }
 
 // getEnglishDesc finds the English description (languageCode=3) or falls back to Finnish (1)
