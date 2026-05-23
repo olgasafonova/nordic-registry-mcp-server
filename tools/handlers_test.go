@@ -141,13 +141,35 @@ func TestRecoverPanic(t *testing.T) {
 
 	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
-	// Test that recoverPanic doesn't panic itself
+	// Test that recoverPanic recovers from panics AND writes a structured
+	// error with a correlation ID to errPtr. Without the errPtr write, the
+	// dispatcher closure would surface (nil, zero, nil) to the MCP caller —
+	// silent fake-success. See HG-1 in rules/code-review-prompts.md.
+	var got error
 	func() {
-		defer registry.recoverPanic("test_tool")
+		defer registry.recoverPanic("test_tool", &got)
 		panic("test panic")
 	}()
 
-	// If we get here, panic was recovered successfully
+	if got == nil {
+		t.Fatal("recoverPanic must write a non-nil error to errPtr on panic; got nil")
+	}
+	if !strings.Contains(got.Error(), "test_tool") {
+		t.Errorf("error message must include tool name; got %q", got.Error())
+	}
+	if !strings.Contains(got.Error(), "correlation_id=") {
+		t.Errorf("error message must include correlation_id; got %q", got.Error())
+	}
+
+	// Also verify the no-panic path: errPtr must NOT be set when there is
+	// nothing to recover.
+	var noPanic error
+	func() {
+		defer registry.recoverPanic("test_tool", &noPanic)
+	}()
+	if noPanic != nil {
+		t.Errorf("recoverPanic must not write to errPtr when no panic occurs; got %v", noPanic)
+	}
 }
 
 func TestLogExecution(t *testing.T) {

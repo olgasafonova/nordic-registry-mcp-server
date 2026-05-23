@@ -237,6 +237,15 @@ func (c *Client) executeAttempt(ctx context.Context, req *http.Request, cfg Requ
 		return nil, 0, fmt.Errorf("server error %d: %s", resp.StatusCode, truncate(string(body), 200)), nil
 	}
 
+	// CheckRedirect returns ErrUseLastResponse, which surfaces 3xx responses
+	// to this layer instead of following them. The Nordic registry APIs do
+	// not redirect under normal operation, so any 3xx is anomalous and must
+	// not be returned as a successful response (it would be parsed as JSON
+	// by per-country callers). Treat as a non-retryable fatal error.
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return nil, 0, nil, fmt.Errorf("unexpected redirect %d from %s (location=%q)", resp.StatusCode, cfg.URL, resp.Header.Get("Location"))
+	}
+
 	return body, resp.StatusCode, nil, nil
 }
 
@@ -297,7 +306,19 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
-// newHTTPClient creates an HTTP client with optimized transport settings
+// newHTTPClient creates an HTTP client with optimized transport settings.
+//
+// SECURITY: refuses all redirects. The Nordic registry clients that share
+// this base (Norway/Brønnøysundregistrene, Denmark/CVR, Finland/PRH) target
+// pinned single-host APIs with hardcoded base URLs; legitimate operation
+// does not require following 3xx responses. Go's default redirect policy
+// follows up to 10 redirects, which would bypass any URL allowlist applied
+// at the original call site — a 302/307 Location: https://attacker/ would
+// be followed silently, and 307/308 preserves method + body across origins.
+// Returning ErrUseLastResponse short-circuits the redirect and surfaces the
+// 3xx response to the caller as an error. Matches the Sweden client
+// (internal/sweden/client.go) and the HG-4 graduated rule in
+// rules/code-review-prompts.md.
 func newHTTPClient(timeout time.Duration) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:          100,
@@ -313,5 +334,8 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 }

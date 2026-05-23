@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -164,6 +166,12 @@ const ToolTimeout = 30 * time.Second
 
 // register is a generic helper that registers a tool with the MCP server.
 // It wraps the client method with panic recovery, metrics, tracing, and logging.
+//
+// The dispatcher closure uses NAMED return values so the deferred recoverPanic
+// can reassign `err` on panic. Without named returns, Go cannot mutate the
+// return values from a deferred function and a panic-then-recover would surface
+// as `(nil, zero, nil)` to the MCP caller — looking like a successful empty
+// response. See HG-1 in rules/code-review-prompts.md.
 func register[Args, Result any](
 	h *HandlerRegistry,
 	server *mcp.Server,
@@ -171,8 +179,8 @@ func register[Args, Result any](
 	spec ToolSpec,
 	method func(context.Context, Args) (Result, error),
 ) {
-	mcp.AddTool(server, tool, func(ctx context.Context, req *mcp.CallToolRequest, args Args) (*mcp.CallToolResult, Result, error) {
-		defer h.recoverPanic(spec.Name)
+	mcp.AddTool(server, tool, func(ctx context.Context, req *mcp.CallToolRequest, args Args) (res *mcp.CallToolResult, out Result, err error) {
+		defer h.recoverPanic(spec.Name, &err)
 
 		// Add timeout to prevent hanging requests
 		ctx, cancel := context.WithTimeout(ctx, ToolTimeout)
@@ -194,17 +202,17 @@ func register[Args, Result any](
 		defer metrics.RequestInFlight.WithLabelValues(spec.Name).Dec()
 
 		start := time.Now()
-		result, err := method(ctx, args)
+		result, methodErr := method(ctx, args)
 		duration := time.Since(start).Seconds()
 
 		span.SetAttributes(attribute.Float64("mcp.tool.duration_seconds", duration))
 
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+		if methodErr != nil {
+			span.RecordError(methodErr)
+			span.SetStatus(codes.Error, methodErr.Error())
 			metrics.RecordRequest(spec.Name, duration, false)
 			var zero Result
-			return nil, zero, fmt.Errorf("%s failed: %w", spec.Name, err)
+			return nil, zero, fmt.Errorf("%s failed: %w", spec.Name, methodErr)
 		}
 
 		span.SetStatus(codes.Ok, "")
@@ -214,15 +222,40 @@ func register[Args, Result any](
 	})
 }
 
-// recoverPanic recovers from panics in tool handlers.
-func (h *HandlerRegistry) recoverPanic(toolName string) {
-	if rec := recover(); rec != nil {
-		metrics.PanicsRecovered.WithLabelValues(toolName).Inc()
-		h.logger.Error("Panic recovered",
-			"tool", toolName,
-			"panic", rec,
-			"stack", string(debug.Stack()))
+// recoverPanic recovers from panics in tool handlers and converts them into a
+// structured error with a correlation ID. The panic value and stack are logged
+// server-side; only the correlation ID reaches the MCP caller.
+//
+// MUST be called as `defer h.recoverPanic(spec.Name, &err)` from a function
+// with NAMED return values. Without named returns the deferred reassignment
+// is a no-op and panics surface as silent fake-success responses — i.e.
+// (nil, zero, nil) reaches the MCP caller as a successful empty result.
+// See HG-1 in rules/code-review-prompts.md.
+func (h *HandlerRegistry) recoverPanic(toolName string, errPtr *error) {
+	rec := recover()
+	if rec == nil {
+		return
 	}
+	corrID := newCorrelationID()
+	metrics.PanicsRecovered.WithLabelValues(toolName).Inc()
+	h.logger.Error("Panic recovered",
+		"tool", toolName,
+		"correlation_id", corrID,
+		"panic", rec,
+		"stack", string(debug.Stack()))
+	if errPtr != nil {
+		*errPtr = fmt.Errorf("%s: internal error (correlation_id=%s)", toolName, corrID)
+	}
+}
+
+// newCorrelationID returns a short hex string for log correlation. Falls back
+// to a timestamp-based ID if crypto/rand is unavailable (vanishingly rare).
+func newCorrelationID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("ts-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
 }
 
 // logExecution logs tool execution details.
