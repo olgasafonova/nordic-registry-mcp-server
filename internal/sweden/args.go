@@ -65,11 +65,14 @@ type DownloadDocumentArgs struct {
 	DocumentID string `json:"document_id" jsonschema:"required" jsonschema_description:"Document ID from sweden_get_document_list"`
 }
 
-// DownloadDocumentResult is the MCP response for downloading a document.
+// DownloadDocumentResult is the MCP response for downloading a document. The
+// ZIP bytes are written to a local file (Path) rather than inlined as base64:
+// a 1-10 MB annual report base64-encodes to far more than is safe to carry in
+// the caller's context (HG-2 cost-lens).
 type DownloadDocumentResult struct {
 	DocumentID  string `json:"document_id"`
 	FileFormat  string `json:"file_format"`
 	SizeBytes   int    `json:"size_bytes"`
-	ContentB64  string `json:"content_base64"` // Base64-encoded ZIP file
+	Path        string `json:"path"` // local filesystem path to the downloaded ZIP
 	Description string `json:"description"`
 }

@@ -267,7 +267,7 @@ var AllTools = []ToolSpec{
 		Title:       "Download Swedish Annual Report",
 		Category:    "documents",
 		Country:     "sweden",
-		Description: `Download an annual report (årsredovisning) by document ID. USE WHEN: you have a document ID from sweden_get_document_list. Returns ZIP containing XBRL/iXBRL files, base64-encoded. WARNING: base64-encoded response is 1-10 MB. Do not use inside a context-sensitive agent pipeline; save to file instead. FAILS WHEN: document ID is not found or the file has been removed from Bolagsverket. Requires Sweden OAuth2 credentials configured server-side; use sweden_check_status to verify availability first.`,
+		Description: `Download an annual report (årsredovisning) by document ID. USE WHEN: you have a document ID from sweden_get_document_list. Writes the ZIP (XBRL/iXBRL files, typically 1-10 MB) to a local file and returns its path plus size_bytes — the bytes are NOT inlined, so this is safe to call inside an agent pipeline. Read or unzip the file at the returned path to inspect the report. FAILS WHEN: document ID is not found or the file has been removed from Bolagsverket. Requires Sweden OAuth2 credentials configured server-side; use sweden_check_status to verify availability first.`,
 		ReadOnly:    true,
 		Idempotent:  true,
 		OpenWorld:   true,

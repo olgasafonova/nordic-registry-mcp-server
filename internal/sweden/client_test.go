@@ -1044,13 +1044,18 @@ func TestDownloadDocumentMCP_Success(t *testing.T) {
 		t.Errorf("SizeBytes = %d, want %d", result.SizeBytes, len(zipContent))
 	}
 
-	// Verify base64 encoding
-	decoded, err := base64.StdEncoding.DecodeString(result.ContentB64)
-	if err != nil {
-		t.Fatalf("Failed to decode base64: %v", err)
+	// HG-2: bytes are written to a temp file and returned as a path handle,
+	// not inlined as base64. Verify the file exists and round-trips the bytes.
+	if result.Path == "" {
+		t.Fatal("expected a non-empty Path to the downloaded document")
 	}
-	if string(decoded) != string(zipContent) {
-		t.Error("Decoded content mismatch")
+	t.Cleanup(func() { _ = os.Remove(result.Path) })
+	onDisk, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded document at %s: %v", result.Path, err)
+	}
+	if string(onDisk) != string(zipContent) {
+		t.Error("On-disk content mismatch")
 	}
 }
 
