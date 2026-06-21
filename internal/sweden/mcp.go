@@ -2,9 +2,9 @@ package sweden
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 )
 
@@ -208,11 +208,37 @@ func (c *Client) DownloadDocumentMCP(ctx context.Context, args DownloadDocumentA
 		return DownloadDocumentResult{}, err
 	}
 
+	path, err := writeDocumentToTempFile(data)
+	if err != nil {
+		return DownloadDocumentResult{}, err
+	}
+
 	return DownloadDocumentResult{
-		DocumentID:  args.DocumentID,
-		FileFormat:  "application/zip",
-		SizeBytes:   len(data),
-		ContentB64:  base64.StdEncoding.EncodeToString(data),
-		Description: "Annual report (årsredovisning) as ZIP archive containing XBRL/iXBRL files",
+		DocumentID: args.DocumentID,
+		FileFormat: "application/zip",
+		SizeBytes:  len(data),
+		Path:       path,
+		Description: fmt.Sprintf(
+			"Annual report (årsredovisning) ZIP (%d bytes) written to %s. Read or unzip the file at that path; the bytes are not inlined to keep the response small.",
+			len(data), path,
+		),
 	}, nil
+}
+
+// writeDocumentToTempFile writes the downloaded ZIP bytes to a server-created
+// temp file and returns its path. The path is chosen by os.CreateTemp, never
+// from agent input, so there is no path-traversal surface. Returning a handle
+// instead of inline base64 keeps the tool response small (HG-2 cost-lens): a
+// 1-10 MB annual report base64-encodes to ~33% more than its raw size, far
+// past what is safe to carry into the caller's next-turn context.
+func writeDocumentToTempFile(data []byte) (string, error) {
+	f, err := os.CreateTemp("", "sweden-arsredovisning-*.zip")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file for downloaded document: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	if _, err := f.Write(data); err != nil {
+		return "", fmt.Errorf("writing downloaded document to temp file: %w", err)
+	}
+	return f.Name(), nil
 }
