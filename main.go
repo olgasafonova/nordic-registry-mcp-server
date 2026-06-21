@@ -31,7 +31,35 @@ const (
 	ServerVersion = "1.0.0"
 )
 
-func main() {
+// cliFlags holds the parsed command-line flags.
+type cliFlags struct {
+	httpAddr       string
+	bearerToken    string
+	allowedOrigins string
+	rateLimit      int
+	trustedProxies string
+}
+
+// countryClients groups the per-country registry clients.
+type countryClients struct {
+	norway  *norway.Client
+	denmark *denmark.Client
+	finland *finland.Client
+	sweden  *sweden.Client
+}
+
+// httpServerConfig groups everything runHTTPServer needs to stand up the
+// HTTP transport, replacing an 11-argument signature.
+type httpServerConfig struct {
+	server    *mcp.Server
+	logger    *slog.Logger
+	flags     cliFlags
+	authToken string
+	clients   *countryClients
+	registry  *tools.HandlerRegistry
+}
+
+func parseFlags() cliFlags {
 	httpAddr := flag.String("http", "", "HTTP address to listen on (e.g., :8080). If empty, uses stdio transport.")
 	bearerToken := flag.String("token", "", "Bearer token for HTTP authentication. Can also use MCP_AUTH_TOKEN env var.")
 	allowedOrigins := flag.String("origins", "", "Comma-separated allowed origins for CORS.")
@@ -39,55 +67,79 @@ func main() {
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated trusted proxy IPs/CIDRs.")
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	return cliFlags{
+		httpAddr:       *httpAddr,
+		bearerToken:    *bearerToken,
+		allowedOrigins: *allowedOrigins,
+		rateLimit:      *rateLimit,
+		trustedProxies: *trustedProxies,
+	}
+}
 
-	// Initialize OpenTelemetry tracing
+// setupTracing initializes OpenTelemetry tracing and returns a shutdown
+// function (nil when tracing is disabled or failed to initialize).
+func setupTracing(logger *slog.Logger) func() {
 	tracingConfig := tracing.DefaultConfig()
 	tracingConfig.ServiceVersion = ServerVersion
 	shutdownTracing, err := tracing.Setup(context.Background(), tracingConfig)
 	if err != nil {
 		logger.Warn("Failed to initialize tracing", "error", err)
-	} else if tracingConfig.Enabled {
-		defer func() { _ = shutdownTracing(context.Background()) }()
-		logger.Info("OpenTelemetry tracing enabled",
-			"endpoint", tracingConfig.OTLPEndpoint,
-			"service", tracingConfig.ServiceName)
+		return nil
+	}
+	if !tracingConfig.Enabled {
+		return nil
+	}
+	logger.Info("OpenTelemetry tracing enabled",
+		"endpoint", tracingConfig.OTLPEndpoint,
+		"service", tracingConfig.ServiceName)
+	return func() { _ = shutdownTracing(context.Background()) }
+}
+
+// buildClients creates the per-country registry clients. The Sweden client
+// is only created when OAuth2 credentials are configured.
+func buildClients(logger *slog.Logger) *countryClients {
+	clients := &countryClients{
+		norway:  norway.NewClient(norway.WithLogger(logger)),
+		denmark: denmark.NewClient(denmark.WithLogger(logger)),
+		finland: finland.NewClient(finland.WithLogger(logger)),
 	}
 
-	// Create country clients
-	norwayClient := norway.NewClient(norway.WithLogger(logger))
-	defer norwayClient.Close()
-
-	denmarkClient := denmark.NewClient(denmark.WithLogger(logger))
-	defer denmarkClient.Close()
-
-	finlandClient := finland.NewClient(finland.WithLogger(logger))
-	defer finlandClient.Close()
-
-	// Sweden client requires OAuth2 credentials (optional)
-	var swedenClient *sweden.Client
-	if sweden.IsConfigured() {
-		var err error
-		swedenClient, err = sweden.NewClient()
-		if err != nil {
-			logger.Warn("Failed to create Sweden client", "error", err)
-		} else {
-			defer swedenClient.Close()
-			logger.Info("Sweden client initialized (OAuth2 credentials configured)")
-		}
-	} else {
+	if !sweden.IsConfigured() {
 		logger.Info("Sweden client not configured (set BOLAGSVERKET_CLIENT_ID and BOLAGSVERKET_CLIENT_SECRET)")
+		return clients
 	}
 
-	// Get bearer token from flag or environment
-	authToken := *bearerToken
-	if authToken == "" {
-		authToken = os.Getenv("MCP_AUTH_TOKEN")
+	swedenClient, err := sweden.NewClient()
+	if err != nil {
+		logger.Warn("Failed to create Sweden client", "error", err)
+		return clients
 	}
+	clients.sweden = swedenClient
+	logger.Info("Sweden client initialized (OAuth2 credentials configured)")
+	return clients
+}
 
-	// Create MCP server
+// close releases all configured clients.
+func (c *countryClients) close() {
+	c.norway.Close()
+	c.denmark.Close()
+	c.finland.Close()
+	if c.sweden != nil {
+		c.sweden.Close()
+	}
+}
+
+// resolveAuthToken returns the bearer token from the flag, falling back to
+// the MCP_AUTH_TOKEN environment variable.
+func resolveAuthToken(flagToken string) string {
+	if flagToken != "" {
+		return flagToken
+	}
+	return os.Getenv("MCP_AUTH_TOKEN")
+}
+
+// buildServer creates the MCP server and registers all tools.
+func buildServer(logger *slog.Logger, clients *countryClients) (*mcp.Server, *tools.HandlerRegistry) {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    ServerName,
 		Version: ServerVersion,
@@ -103,7 +155,80 @@ func main() {
 		Capabilities: &mcp.ServerCapabilities{
 			Tools: &mcp.ToolCapabilities{},
 		},
-		Instructions: `Nordic Registry MCP Server - Access Nordic Business Registries
+		Instructions: serverInstructions,
+	})
+
+	registry := tools.NewHandlerRegistry(tools.HandlerRegistryConfig{
+		NorwayClient:  clients.norway,
+		DenmarkClient: clients.denmark,
+		FinlandClient: clients.finland,
+		SwedenClient:  clients.sweden,
+		Logger:        logger,
+	})
+	registry.RegisterAll(server)
+	return server, registry
+}
+
+// runStdioServer runs the MCP server over the stdio transport until a
+// shutdown signal is received.
+func runStdioServer(server *mcp.Server, logger *slog.Logger) {
+	logger.Info("Starting Nordic Registry MCP Server (stdio mode)",
+		"name", ServerName,
+		"version", ServerVersion,
+	)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		sig := <-sigChan
+		logger.Info("Shutdown signal received", "signal", sig.String())
+		cancel()
+	}()
+
+	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && err != context.Canceled {
+		log.Fatalf("Server error: %v", err)
+	}
+
+	logger.Info("Shutdown complete")
+}
+
+func main() {
+	flags := parseFlags()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	if shutdownTracing := setupTracing(logger); shutdownTracing != nil {
+		defer shutdownTracing()
+	}
+
+	clients := buildClients(logger)
+	defer clients.close()
+
+	authToken := resolveAuthToken(flags.bearerToken)
+	server, registry := buildServer(logger, clients)
+
+	if flags.httpAddr != "" {
+		runHTTPServer(httpServerConfig{
+			server:    server,
+			logger:    logger,
+			flags:     flags,
+			authToken: authToken,
+			clients:   clients,
+			registry:  registry,
+		})
+		return
+	}
+
+	runStdioServer(server, logger)
+}
+
+const serverInstructions = `Nordic Registry MCP Server - Access Nordic Business Registries
 
 ## Available Countries
 
@@ -243,103 +368,54 @@ Common codes:
 - Ky: Kommandiittiyhtiö (Limited partnership)
 - Ay: Avoin yhtiö (General partnership)
 - Tmi: Toiminimi (Sole proprietorship)
-- Osk: Osuuskunta (Cooperative)`,
-	})
+- Osk: Osuuskunta (Cooperative)`
 
-	// Register all tools using the registry
-	registry := tools.NewHandlerRegistry(tools.HandlerRegistryConfig{
-		NorwayClient:  norwayClient,
-		DenmarkClient: denmarkClient,
-		FinlandClient: finlandClient,
-		SwedenClient:  swedenClient,
-		Logger:        logger,
-	})
-	registry.RegisterAll(server)
-
-	ctx := context.Background()
-
-	if *httpAddr != "" {
-		runHTTPServer(server, logger, *httpAddr, authToken, *allowedOrigins, *rateLimit, *trustedProxies, norwayClient, denmarkClient, finlandClient, registry)
-	} else {
-		logger.Info("Starting Nordic Registry MCP Server (stdio mode)",
-			"name", ServerName,
-			"version", ServerVersion,
-		)
-
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		go func() {
-			sig := <-sigChan
-			logger.Info("Shutdown signal received", "signal", sig.String())
-			cancel()
-		}()
-
-		if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && err != context.Canceled {
-			log.Fatalf("Server error: %v", err)
-		}
-
-		logger.Info("Shutdown complete")
+// parseCSVList splits a comma-separated string into a slice, trimming
+// whitespace and dropping empty entries.
+func parseCSVList(s string) []string {
+	if s == "" {
+		return nil
 	}
+	var list []string
+	for _, item := range strings.Split(s, ",") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			list = append(list, item)
+		}
+	}
+	return list
 }
 
-func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, origins string, rateLimit int, trustedProxies string, norwayClient *norway.Client, denmarkClient *denmark.Client, finlandClient *finland.Client, registry *tools.HandlerRegistry) {
-	var allowedOriginsList []string
-	if origins != "" {
-		for _, o := range strings.Split(origins, ",") {
-			o = strings.TrimSpace(o)
-			if o != "" {
-				allowedOriginsList = append(allowedOriginsList, o)
-			}
-		}
-	}
-
-	var trustedProxiesList []string
-	if trustedProxies != "" {
-		for _, p := range strings.Split(trustedProxies, ",") {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				trustedProxiesList = append(trustedProxiesList, p)
-			}
-		}
-	}
-
-	mcpHandler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
-		return server
-	}, nil)
-
-	securityConfig := SecurityConfig{
-		BearerToken:    authToken,
-		AllowedOrigins: allowedOriginsList,
-		RateLimit:      rateLimit,
-		TrustedProxies: trustedProxiesList,
-	}
-	securedHandler := NewSecurityMiddleware(mcpHandler, logger, securityConfig)
-
+// registerHTTPRoutes wires the operational endpoints (health, ready, metrics,
+// tools, status) plus the secured MCP handler onto a new mux.
+func registerHTTPRoutes(cfg httpServerConfig, securedHandler http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/ready", readyHandler(cfg.clients))
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/tools", toolsHandler(cfg.logger, cfg.registry))
+	mux.HandleFunc("/status", statusHandler(cfg.logger, cfg.clients))
+	mux.Handle("/", securedHandler)
+	return mux
+}
 
-	// Health endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `{"status":"healthy","server":"%s","version":"%s"}`, ServerName, ServerVersion)
+}
+
+func readyHandler(clients *countryClients) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, `{"status":"healthy","server":"%s","version":"%s"}`, ServerName, ServerVersion)
-	})
 
-	// Readiness endpoint
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
+		noCBStats := clients.norway.CircuitBreakerStats()
+		dkCBStats := clients.denmark.CircuitBreakerStats()
+		fiCBStats := clients.finland.CircuitBreakerStats()
 
-		// Check circuit breaker state for all clients
-		noCBStats := norwayClient.CircuitBreakerStats()
-		dkCBStats := denmarkClient.CircuitBreakerStats()
-		fiCBStats := finlandClient.CircuitBreakerStats()
-
-		if noCBStats.State != "closed" || dkCBStats.State != "closed" || fiCBStats.State != "closed" {
+		if !allClosed(noCBStats.State, dkCBStats.State, fiCBStats.State) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = fmt.Fprintf(w, `{"status":"not_ready","norway_cb":"%s","denmark_cb":"%s","finland_cb":"%s"}`, noCBStats.State, dkCBStats.State, fiCBStats.State)
 			return
@@ -347,13 +423,21 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintf(w, `{"status":"ready","countries":["norway","denmark","finland"]}`)
-	})
+	}
+}
 
-	// Prometheus metrics endpoint
-	mux.Handle("/metrics", promhttp.Handler())
+// allClosed reports whether every circuit breaker state is "closed".
+func allClosed(states ...string) bool {
+	for _, s := range states {
+		if s != "closed" {
+			return false
+		}
+	}
+	return true
+}
 
-	// Tools discovery endpoint - only shows tools with registered handlers
-	mux.HandleFunc("/tools", func(w http.ResponseWriter, r *http.Request) {
+func toolsHandler(logger *slog.Logger, registry *tools.HandlerRegistry) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 
@@ -380,18 +464,19 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			logger.Error("Failed to encode tools response", "error", err)
 		}
-	})
+	}
+}
 
-	// Status endpoint
-	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+func statusHandler(logger *slog.Logger, clients *countryClients) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 
-		noCBStats := norwayClient.CircuitBreakerStats()
-		noDedupStats := norwayClient.DedupStats()
-		dkCBStats := denmarkClient.CircuitBreakerStats()
-		dkDedupStats := denmarkClient.DedupStats()
-		fiCBStats := finlandClient.CircuitBreakerStats()
+		noCBStats := clients.norway.CircuitBreakerStats()
+		noDedupStats := clients.norway.DedupStats()
+		dkCBStats := clients.denmark.CircuitBreakerStats()
+		dkDedupStats := clients.denmark.DedupStats()
+		fiCBStats := clients.finland.CircuitBreakerStats()
 
 		response := map[string]any{
 			"server":  ServerName,
@@ -428,33 +513,12 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			logger.Error("Failed to encode status response", "error", err)
 		}
-	})
-
-	mux.Handle("/", securedHandler)
-
-	httpServer := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
 	}
+}
 
-	logger.Info("Starting Nordic Registry MCP Server (HTTP mode)",
-		"name", ServerName,
-		"version", ServerVersion,
-		"address", addr,
-		"auth_enabled", authToken != "",
-		"rate_limit", rateLimit,
-	)
-
-	if authToken == "" {
-		logger.Warn("HTTP server running WITHOUT authentication. Set -token flag or MCP_AUTH_TOKEN env var for production use.")
-	}
-	if !strings.HasPrefix(addr, "127.0.0.1") && !strings.HasPrefix(addr, "localhost") {
-		logger.Warn("Server binding to external interface. Ensure you're behind HTTPS proxy in production.")
-	}
-
+// serveHTTP starts the HTTP server and blocks until a shutdown signal or a
+// fatal server error, then performs a graceful shutdown.
+func serveHTTP(httpServer *http.Server, securedHandler *SecurityMiddleware, logger *slog.Logger) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -490,4 +554,49 @@ func runHTTPServer(server *mcp.Server, logger *slog.Logger, addr, authToken, ori
 	}
 
 	logger.Info("Shutdown complete")
+}
+
+func runHTTPServer(cfg httpServerConfig) {
+	logger := cfg.logger
+	addr := cfg.flags.httpAddr
+	authToken := cfg.authToken
+
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
+		return cfg.server
+	}, nil)
+
+	securityConfig := SecurityConfig{
+		BearerToken:    authToken,
+		AllowedOrigins: parseCSVList(cfg.flags.allowedOrigins),
+		RateLimit:      cfg.flags.rateLimit,
+		TrustedProxies: parseCSVList(cfg.flags.trustedProxies),
+	}
+	securedHandler := NewSecurityMiddleware(mcpHandler, logger, securityConfig)
+
+	mux := registerHTTPRoutes(cfg, securedHandler)
+
+	httpServer := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	logger.Info("Starting Nordic Registry MCP Server (HTTP mode)",
+		"name", ServerName,
+		"version", ServerVersion,
+		"address", addr,
+		"auth_enabled", authToken != "",
+		"rate_limit", cfg.flags.rateLimit,
+	)
+
+	if authToken == "" {
+		logger.Warn("HTTP server running WITHOUT authentication. Set -token flag or MCP_AUTH_TOKEN env var for production use.")
+	}
+	if !strings.HasPrefix(addr, "127.0.0.1") && !strings.HasPrefix(addr, "localhost") {
+		logger.Warn("Server binding to external interface. Ensure you're behind HTTPS proxy in production.")
+	}
+
+	serveHTTP(httpServer, securedHandler, logger)
 }

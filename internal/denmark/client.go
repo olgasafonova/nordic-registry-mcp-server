@@ -80,29 +80,69 @@ func NewClient(opts ...ClientOption) *Client {
 	return c
 }
 
+// lookupRequest describes a single-company CVR lookup: the upstream query
+// params, the cache key/TTL, and the identifier to report when not found.
+type lookupRequest struct {
+	params     url.Values
+	cacheKey   string
+	notFoundID string
+	ttl        time.Duration
+}
+
+// cachedLookup performs a cached single-company CVR request: it returns a
+// cached hit under req.cacheKey, otherwise issues the request, treats a zero
+// CVR as not-found (reported against req.notFoundID), and caches the hit for
+// req.ttl. All single-result Denmark lookups (search, P-number, phone) share
+// this flow; only the request descriptor differs.
+func (c *Client) cachedLookup(ctx context.Context, req lookupRequest) (*Company, error) {
+	if cached, ok := c.Cache.Get(req.cacheKey); ok {
+		return cached.(*Company), nil
+	}
+
+	var result Company
+	if err := c.doRequest(ctx, req.params, &result); err != nil {
+		return nil, err
+	}
+
+	// Check if we got a valid result
+	if result.CVR == 0 {
+		return nil, apierrors.NewNotFoundError("denmark", req.notFoundID)
+	}
+
+	c.Cache.Set(req.cacheKey, &result, req.ttl)
+	return &result, nil
+}
+
 // SearchCompany searches for a company by name
 func (c *Client) SearchCompany(ctx context.Context, query string) (*Company, error) {
 	params := url.Values{}
 	params.Set("search", query)
 	params.Set("country", "dk")
 
-	cacheKey := "search:" + params.Encode()
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*Company), nil
-	}
+	return c.cachedLookup(ctx, lookupRequest{
+		params:     params,
+		cacheKey:   "search:" + params.Encode(),
+		notFoundID: query,
+		ttl:        SearchCacheTTL,
+	})
+}
 
-	var result Company
-	if err := c.doRequest(ctx, params, &result); err != nil {
-		return nil, err
-	}
+// lookupByParam performs a cached single-key CVR lookup keyed on one query
+// parameter, caching under "<cacheKind>:<value>". GetByPNumber and
+// SearchByPhone share this flow; only the parameter name and cache prefix
+// differ.
+func (c *Client) lookupByParam(ctx context.Context, paramKey, value, cacheKind string) (*Company, error) {
+	params := url.Values{}
+	params.Set(paramKey, value)
+	params.Set("country", "dk")
 
-	// Check if we got a valid result
-	if result.CVR == 0 {
-		return nil, apierrors.NewNotFoundError("denmark", query)
-	}
-
-	c.Cache.Set(cacheKey, &result, SearchCacheTTL)
-	return &result, nil
+	cacheKey := cacheKind + ":" + value
+	return c.cachedLookup(ctx, lookupRequest{
+		params:     params,
+		cacheKey:   cacheKey,
+		notFoundID: cacheKey,
+		ttl:        DefaultCacheTTL,
+	})
 }
 
 // GetByPNumber retrieves a company by production unit P-number
@@ -116,27 +156,7 @@ func (c *Client) GetByPNumber(ctx context.Context, pnumber string) (*Company, er
 		return nil, err
 	}
 
-	params := url.Values{}
-	params.Set("produ", pnumber)
-	params.Set("country", "dk")
-
-	cacheKey := "pnumber:" + pnumber
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*Company), nil
-	}
-
-	var result Company
-	if err := c.doRequest(ctx, params, &result); err != nil {
-		return nil, err
-	}
-
-	// Check if we got a valid result
-	if result.CVR == 0 {
-		return nil, apierrors.NewNotFoundError("denmark", "pnumber:"+pnumber)
-	}
-
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
-	return &result, nil
+	return c.lookupByParam(ctx, "produ", pnumber, "pnumber")
 }
 
 // SearchByPhone searches for a company by phone number
@@ -151,27 +171,7 @@ func (c *Client) SearchByPhone(ctx context.Context, phone string) (*Company, err
 		return nil, err
 	}
 
-	params := url.Values{}
-	params.Set("phone", phone)
-	params.Set("country", "dk")
-
-	cacheKey := "phone:" + phone
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*Company), nil
-	}
-
-	var result Company
-	if err := c.doRequest(ctx, params, &result); err != nil {
-		return nil, err
-	}
-
-	// Check if we got a valid result
-	if result.CVR == 0 {
-		return nil, apierrors.NewNotFoundError("denmark", "phone:"+phone)
-	}
-
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
-	return &result, nil
+	return c.lookupByParam(ctx, "phone", phone, "phone")
 }
 
 // GetCompany retrieves a company by CVR number
