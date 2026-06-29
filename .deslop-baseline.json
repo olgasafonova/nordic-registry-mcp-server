@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-04-25T15:30:00Z",
-  "deslop_version": "2.1.2",
+  "generated_at": "2026-06-29T00:00:00Z",
+  "deslop_version": "2.1.0",
   "scores": {
     "file_health": 95.0,
-    "test_coverage": 69.6,
+    "test_coverage": 100.0,
     "secret_detection": 100.0,
     "todo_debt": 100.0,
     "dependency_health": 100.0,
     "structural_quality": 100.0,
-    "overall": 94.1
+    "overall": 99.2
   },
   "findings": [
     {
@@ -28,7 +28,7 @@
       "detector": "file_health",
       "severity": "critical",
       "key": "internal/sweden/client_test.go",
-      "summary": "internal/sweden/client_test.go (1,955 LOC)"
+      "summary": "internal/sweden/client_test.go (1,960 LOC)"
     },
     {
       "detector": "file_health",
@@ -46,7 +46,7 @@
       "detector": "file_health",
       "severity": "high",
       "key": "tools/handlers_test.go",
-      "summary": "tools/handlers_test.go (972 LOC)"
+      "summary": "tools/handlers_test.go (994 LOC)"
     },
     {
       "detector": "file_health",
@@ -70,49 +70,7 @@
       "detector": "file_health",
       "severity": "warning",
       "key": "main.go",
-      "summary": "main.go (797 LOC)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "internal/denmark/types.go",
-      "summary": "internal/denmark/types.go has no test file (1 trivial unexported func)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "internal/finland/mcp.go",
-      "summary": "internal/finland/mcp.go has no test file (10 funcs incl. pure converters)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "internal/norway/mcp.go",
-      "summary": "internal/norway/mcp.go has no test file (14 funcs incl. getStatus, formatAddress helpers)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "internal/norway/types.go",
-      "summary": "internal/norway/types.go has no test file (PersonName.FullName, APIError.String)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "internal/sweden/mcp.go",
-      "summary": "internal/sweden/mcp.go has no test file (5 funcs incl. ValidateOrgNumber regex)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "internal/sweden/types.go",
-      "summary": "internal/sweden/types.go has no test file (9 Organisation getters incl. IsActive, GetAddress)"
-    },
-    {
-      "detector": "test_coverage",
-      "severity": "warning",
-      "key": "tools/registry.go",
-      "summary": "tools/registry.go has no test file (ToolSpec + trivial generic helper)"
+      "summary": "main.go (602 LOC)"
     }
   ]
 }
