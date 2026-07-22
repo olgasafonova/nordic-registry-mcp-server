@@ -24,6 +24,29 @@ func recoverPanic(logger *slog.Logger, operation string) {
 	}
 }
 
+// isLoopbackAddr reports whether addr binds only to a loopback interface.
+// An empty host (e.g. ":8080") binds to every interface and is treated as
+// non-loopback. "localhost" and any loopback IP literal (127.0.0.0/8, ::1)
+// count as loopback.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port present; treat the whole value as the host.
+		host = addr
+	}
+	host = strings.TrimSpace(host)
+	switch host {
+	case "":
+		return false
+	case "localhost":
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
+}
+
 // =============================================================================
 // Security Middleware for HTTP Transport
 // =============================================================================

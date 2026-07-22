@@ -386,16 +386,28 @@ func parseCSVList(s string) []string {
 	return list
 }
 
-// registerHTTPRoutes wires the operational endpoints (health, ready, metrics,
-// tools, status) plus the secured MCP handler onto a new mux.
+// registerHTTPRoutes wires the public liveness/readiness probes onto a new mux
+// and routes everything else through the shared secured handler. Only /health
+// and /ready stay unauthenticated so orchestrators can probe them; the
+// diagnostics endpoints and the MCP handler all sit behind the secured handler.
 func registerHTTPRoutes(cfg httpServerConfig, securedHandler http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/ready", readyHandler(cfg.clients))
+	mux.Handle("/", securedHandler)
+	return mux
+}
+
+// registerSecuredRoutes wires the diagnostics endpoints (/metrics, /tools,
+// /status) and the MCP protocol handler onto one mux. The caller wraps this
+// mux with the security middleware so a single auth path guards all of them,
+// rather than leaving the diagnostics endpoints exposed alongside it.
+func registerSecuredRoutes(cfg httpServerConfig, mcpHandler http.Handler) *http.ServeMux {
+	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/tools", toolsHandler(cfg.logger, cfg.registry))
 	mux.HandleFunc("/status", statusHandler(cfg.logger, cfg.clients))
-	mux.Handle("/", securedHandler)
+	mux.Handle("/", mcpHandler)
 	return mux
 }
 
@@ -571,7 +583,8 @@ func runHTTPServer(cfg httpServerConfig) {
 		RateLimit:      cfg.flags.rateLimit,
 		TrustedProxies: parseCSVList(cfg.flags.trustedProxies),
 	}
-	securedHandler := NewSecurityMiddleware(mcpHandler, logger, securityConfig)
+	securedMux := registerSecuredRoutes(cfg, mcpHandler)
+	securedHandler := NewSecurityMiddleware(securedMux, logger, securityConfig)
 
 	mux := registerHTTPRoutes(cfg, securedHandler)
 
@@ -583,6 +596,13 @@ func runHTTPServer(cfg httpServerConfig) {
 		IdleTimeout:  120 * time.Second,
 	}
 
+	// A server reachable from outside the host must not run without a token.
+	// Loopback binds keep the softer warn-only behavior for local development.
+	loopback := isLoopbackAddr(addr)
+	if authToken == "" && !loopback {
+		log.Fatalf("refusing to start: HTTP server bound to non-loopback address %q without authentication; set -token or MCP_AUTH_TOKEN, or bind to a loopback address such as 127.0.0.1", addr)
+	}
+
 	logger.Info("Starting Nordic Registry MCP Server (HTTP mode)",
 		"name", ServerName,
 		"version", ServerVersion,
@@ -592,9 +612,9 @@ func runHTTPServer(cfg httpServerConfig) {
 	)
 
 	if authToken == "" {
-		logger.Warn("HTTP server running WITHOUT authentication. Set -token flag or MCP_AUTH_TOKEN env var for production use.")
+		logger.Warn("HTTP server running WITHOUT authentication on a loopback address. Set -token flag or MCP_AUTH_TOKEN env var for production use.")
 	}
-	if !strings.HasPrefix(addr, "127.0.0.1") && !strings.HasPrefix(addr, "localhost") {
+	if !loopback {
 		logger.Warn("Server binding to external interface. Ensure you're behind HTTPS proxy in production.")
 	}
 

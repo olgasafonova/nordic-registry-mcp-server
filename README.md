@@ -423,7 +423,7 @@ For remote access or integration with other tools:
 
 ### Security Features
 
-- **Bearer Token Auth**: Optional authentication via `-token` flag or `MCP_AUTH_TOKEN` env var
+- **Bearer Token Auth**: Optional authentication via `-token` flag or `MCP_AUTH_TOKEN` env var. Binding to a non-loopback address without a token is refused at startup; loopback binds (`127.0.0.1`, `localhost`) still run token-free for local development.
 - **CORS Protection**: Restrict origins via `-origins` flag (comma-separated)
 - **Rate Limiting**: Per-IP rate limiting via `-rate-limit` (requests per minute)
 - **Trusted Proxies**: Honor `X-Forwarded-For` from trusted networks via `-trusted-proxies`
@@ -431,14 +431,16 @@ For remote access or integration with other tools:
 
 ### Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `/` | MCP protocol (Streamable HTTP) |
-| `/health` | Liveness check |
-| `/ready` | Readiness check (verifies API connectivity) |
-| `/tools` | List all tools by country |
-| `/status` | Circuit breaker stats |
-| `/metrics` | Prometheus metrics |
+Every endpoint except the `/health` and `/ready` probes shares the same auth path: when a token is set, `/`, `/metrics`, `/status`, and `/tools` all require it. The probes stay unauthenticated so orchestrators can reach them.
+
+| Endpoint | Description | Auth |
+|----------|-------------|------|
+| `/` | MCP protocol (Streamable HTTP) | Required when token set |
+| `/health` | Liveness check | Public |
+| `/ready` | Readiness check (verifies API connectivity) | Public |
+| `/tools` | List all tools by country | Required when token set |
+| `/status` | Circuit breaker stats | Required when token set |
+| `/metrics` | Prometheus metrics | Required when token set |
 
 ---
 
