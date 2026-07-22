@@ -342,3 +342,57 @@ func TestGetClientIPWithIPv6(t *testing.T) {
 		t.Errorf("Expected IP ::1, got %s", ip)
 	}
 }
+
+func TestIsLoopbackAddr(t *testing.T) {
+	tests := []struct {
+		addr string
+		want bool
+	}{
+		{"127.0.0.1:8080", true},
+		{"localhost:8080", true},
+		{"[::1]:8080", true},
+		{"127.0.0.1", true},
+		{"localhost", true},
+		{":8080", false},        // empty host binds every interface
+		{"0.0.0.0:8080", false}, // wildcard bind
+		{"192.168.1.5:8080", false},
+		{"[2001:db8::1]:8080", false},
+		{"example.com:8080", false}, // non-loopback hostname
+	}
+	for _, tt := range tests {
+		if got := isLoopbackAddr(tt.addr); got != tt.want {
+			t.Errorf("isLoopbackAddr(%q) = %v, want %v", tt.addr, got, tt.want)
+		}
+	}
+}
+
+// TestRegisterHTTPRoutesSecuresDiagnostics verifies that the diagnostics
+// endpoints (and any non-probe path) fall through to the secured handler,
+// while the liveness probe stays public.
+func TestRegisterHTTPRoutesSecuresDiagnostics(t *testing.T) {
+	const sentinel = "SECURED"
+	securedHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(sentinel))
+	})
+	mux := registerHTTPRoutes(httpServerConfig{}, securedHandler)
+
+	for _, path := range []string{"/metrics", "/status", "/tools", "/"} {
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if got := w.Body.String(); got != sentinel {
+			t.Errorf("path %q: expected secured handler (%q), got %q", path, sentinel, got)
+		}
+	}
+
+	// The health probe must remain public (must not reach the secured handler).
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got := w.Body.String(); got == sentinel {
+		t.Error("/health routed through secured handler; expected public health handler")
+	}
+	if w.Code != http.StatusOK {
+		t.Errorf("/health status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
