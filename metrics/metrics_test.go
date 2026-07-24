@@ -83,7 +83,13 @@ func TestRecordAPICall(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			RecordAPICall(tt.country, tt.action, tt.duration, tt.success, tt.errorCode)
+			RecordAPICall(APICall{
+				Country:   tt.country,
+				Action:    tt.action,
+				Duration:  tt.duration,
+				Success:   tt.success,
+				ErrorCode: tt.errorCode,
+			})
 
 			// Verify request counter
 			status := "success"

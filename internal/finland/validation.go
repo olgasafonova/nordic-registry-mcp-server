@@ -28,37 +28,51 @@ func ValidateBusinessID(businessID string) error {
 		return apierrors.NewValidationError("business_id", businessID, "invalid format")
 	}
 
-	digits := parts[0]
 	checkDigit, err := strconv.Atoi(parts[1])
 	if err != nil {
 		return apierrors.NewValidationError("business_id", businessID, "check digit must be numeric")
 	}
 
+	sum, err := weightedChecksum(businessID, parts[0])
+	if err != nil {
+		return err
+	}
+
+	return verifyCheckDigit(businessID, sum, checkDigit)
+}
+
+// weightedChecksum computes the weighted digit sum over the 7-digit body
+// using the official weights 7, 9, 10, 5, 8, 4, 2.
+func weightedChecksum(businessID, digits string) (int, error) {
 	weights := []int{7, 9, 10, 5, 8, 4, 2}
 	sum := 0
 	for i, w := range weights {
 		d, err := strconv.Atoi(string(digits[i]))
 		if err != nil {
-			return apierrors.NewValidationError("business_id", businessID, "digits must be numeric")
+			return 0, apierrors.NewValidationError("business_id", businessID, "digits must be numeric")
 		}
 		sum += d * w
 	}
+	return sum, nil
+}
 
+// verifyCheckDigit compares the supplied check digit with the value the
+// mod-11 algorithm expects for the computed sum.
+func verifyCheckDigit(businessID string, sum, checkDigit int) error {
 	remainder := sum % 11
-	var expectedCheck int
-	if remainder == 0 {
-		expectedCheck = 0
-	} else if remainder == 1 {
+	if remainder == 1 {
 		// Check digit 1 is not valid, this business ID would not be issued
 		return apierrors.NewValidationError("business_id", businessID, "invalid check digit")
-	} else {
+	}
+
+	expectedCheck := 0
+	if remainder > 1 {
 		expectedCheck = 11 - remainder
 	}
 
 	if checkDigit != expectedCheck {
 		return apierrors.NewValidationError("business_id", businessID, "incorrect check digit")
 	}
-
 	return nil
 }
 

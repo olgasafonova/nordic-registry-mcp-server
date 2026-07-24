@@ -245,3 +245,80 @@ type BatchGetCompaniesResult struct {
 	TotalResults int              `json:"total_results"`
 	NotFound     []string         `json:"not_found,omitempty"` // Org numbers that were not found
 }
+
+// LogAttrs implementations expose each tool's structured-log attributes so
+// the handler layer can log requests and results without per-type dispatch.
+
+// LogAttrs returns structured-log attributes for the search request.
+func (a SearchCompaniesArgs) LogAttrs() []any { return []any{"query", a.Query} }
+
+// LogAttrs returns structured-log attributes for the company lookup.
+func (a GetCompanyArgs) LogAttrs() []any { return []any{"org_number", a.OrgNumber} }
+
+// LogAttrs returns structured-log attributes for the roles lookup.
+func (a GetRolesArgs) LogAttrs() []any { return []any{"org_number", a.OrgNumber} }
+
+// LogAttrs returns structured-log attributes for the sub-unit listing.
+func (a GetSubUnitsArgs) LogAttrs() []any { return []any{"parent_org_number", a.ParentOrgNumber} }
+
+// LogAttrs returns structured-log attributes for the sub-unit lookup.
+func (a GetSubUnitArgs) LogAttrs() []any { return []any{"org_number", a.OrgNumber} }
+
+// LogAttrs returns structured-log attributes for the updates feed request.
+func (a GetUpdatesArgs) LogAttrs() []any { return []any{"since", a.Since} }
+
+// LogAttrs returns structured-log attributes for the sub-unit search.
+func (a SearchSubUnitsArgs) LogAttrs() []any { return []any{"query", a.Query} }
+
+// LogAttrs marks the type as recognized; there are no arguments to log.
+func (ListMunicipalitiesArgs) LogAttrs() []any { return []any{} }
+
+// LogAttrs marks the type as recognized; there are no arguments to log.
+func (ListOrgFormsArgs) LogAttrs() []any { return []any{} }
+
+// LogAttrs returns structured-log attributes for the sub-unit updates feed.
+func (a GetSubUnitUpdatesArgs) LogAttrs() []any { return []any{"since", a.Since} }
+
+// LogAttrs returns structured-log attributes for the signature-rights lookup.
+func (a GetSignatureRightsArgs) LogAttrs() []any { return []any{"org_number", a.OrgNumber} }
+
+// LogAttrs returns structured-log attributes for the batch lookup.
+func (a BatchGetCompaniesArgs) LogAttrs() []any { return []any{"org_numbers_count", len(a.OrgNumbers)} }
+
+// LogAttrs returns structured-log attributes for the search result.
+func (r SearchCompaniesResult) LogAttrs() []any {
+	return []any{"results_count", len(r.Companies), "total_results", r.TotalResults}
+}
+
+// LogAttrs returns structured-log attributes for the roles result.
+func (r GetRolesResult) LogAttrs() []any { return []any{"role_groups", len(r.RoleGroups)} }
+
+// LogAttrs returns structured-log attributes for the sub-unit listing result.
+func (r GetSubUnitsResult) LogAttrs() []any { return []any{"subunits", len(r.SubUnits)} }
+
+// LogAttrs returns structured-log attributes for the updates result.
+func (r GetUpdatesResult) LogAttrs() []any { return []any{"updates", len(r.Updates)} }
+
+// LogAttrs returns structured-log attributes for the sub-unit search result.
+func (r SearchSubUnitsResult) LogAttrs() []any {
+	return []any{"results_count", len(r.SubUnits), "total_results", r.TotalResults}
+}
+
+// LogAttrs returns structured-log attributes for the municipality listing.
+func (r ListMunicipalitiesResult) LogAttrs() []any { return []any{"municipalities", r.Count} }
+
+// LogAttrs returns structured-log attributes for the org-form listing.
+func (r ListOrgFormsResult) LogAttrs() []any { return []any{"org_forms", r.Count} }
+
+// LogAttrs returns structured-log attributes for the sub-unit updates result.
+func (r GetSubUnitUpdatesResult) LogAttrs() []any { return []any{"updates", len(r.Updates)} }
+
+// LogAttrs returns structured-log attributes for the signature-rights result.
+func (r GetSignatureRightsResult) LogAttrs() []any {
+	return []any{"signature_rights", len(r.SignatureRights), "prokura", len(r.Prokura)}
+}
+
+// LogAttrs returns structured-log attributes for the batch lookup result.
+func (r BatchGetCompaniesResult) LogAttrs() []any {
+	return []any{"companies", len(r.Companies), "not_found", len(r.NotFound)}
+}

@@ -103,3 +103,17 @@ type RegistrationInfo struct {
 	Authority string `json:"authority,omitempty"`
 	Date      string `json:"date,omitempty"`
 }
+
+// LogAttrs implementations expose each tool's structured-log attributes so
+// the handler layer can log requests and results without per-type dispatch.
+
+// LogAttrs returns structured-log attributes for the search request.
+func (a SearchCompaniesArgs) LogAttrs() []any { return []any{"query", a.Query} }
+
+// LogAttrs returns structured-log attributes for the company lookup.
+func (a GetCompanyArgs) LogAttrs() []any { return []any{"business_id", a.BusinessID} }
+
+// LogAttrs returns structured-log attributes for the search result.
+func (r SearchCompaniesResult) LogAttrs() []any {
+	return []any{"results_count", len(r.Companies), "total_results", r.TotalResults}
+}

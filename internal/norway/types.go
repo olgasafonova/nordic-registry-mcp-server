@@ -2,7 +2,10 @@
 // It enables lookups of companies, roles, and sub-units in the Norwegian business registry.
 package norway
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Company represents a Norwegian business entity (Enhet)
 type Company struct {
@@ -172,20 +175,13 @@ type PersonName struct {
 
 // FullName returns the complete name as a single string
 func (n PersonName) FullName() string {
-	name := n.FirstName
-	if n.MiddleName != "" {
-		if name != "" {
-			name += " "
+	var parts []string
+	for _, p := range []string{n.FirstName, n.MiddleName, n.LastName} {
+		if p != "" {
+			parts = append(parts, p)
 		}
-		name += n.MiddleName
 	}
-	if n.LastName != "" {
-		if name != "" {
-			name += " "
-		}
-		name += n.LastName
-	}
-	return name
+	return strings.Join(parts, " ")
 }
 
 // ElectedBy represents who elected/appointed a role holder

@@ -12,25 +12,9 @@ import (
 // MCP Tool wrapper methods
 // These methods wrap the client methods with Args/Result types for MCP integration.
 
-// SearchCompaniesMCP is the MCP wrapper for SearchCompany
-func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
-	query := strings.TrimSpace(args.Query)
-	if err := ValidateSearchQuery(query); err != nil {
-		return SearchCompaniesResult{}, err
-	}
-
-	company, err := c.SearchCompany(ctx, query)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return SearchCompaniesResult{
-				Found:   false,
-				Message: "No company found matching: " + args.Query,
-			}, nil
-		}
-		return SearchCompaniesResult{}, err
-	}
-
-	summary := &CompanySummary{
+// toCompanySummary maps a CVR company record to the shared summary shape.
+func toCompanySummary(company *Company) *CompanySummary {
+	return &CompanySummary{
 		CVR:          strconv.Itoa(company.CVR),
 		Name:         company.Name,
 		Address:      company.Address,
@@ -44,11 +28,45 @@ func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArg
 		Phone:        company.Phone,
 		Email:        company.Email,
 	}
+}
 
-	return SearchCompaniesResult{
-		Company: summary,
-		Found:   true,
-	}, nil
+// companyLookup describes the outcome of a single-company lookup shared by
+// the search-style MCP wrappers: either a summary, a polite not-found
+// message, or an error.
+type companyLookup struct {
+	Company *CompanySummary
+	Found   bool
+	Message string
+}
+
+// lookupCompany runs lookup and maps the result into the shared
+// found/summary/message shape, treating not-found as a non-error outcome.
+func lookupCompany(lookup func() (*Company, error), notFoundMsg string) (companyLookup, error) {
+	company, err := lookup()
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return companyLookup{Found: false, Message: notFoundMsg}, nil
+		}
+		return companyLookup{}, err
+	}
+	return companyLookup{Company: toCompanySummary(company), Found: true}, nil
+}
+
+// SearchCompaniesMCP is the MCP wrapper for SearchCompany
+func (c *Client) SearchCompaniesMCP(ctx context.Context, args SearchCompaniesArgs) (SearchCompaniesResult, error) {
+	query := strings.TrimSpace(args.Query)
+	if err := ValidateSearchQuery(query); err != nil {
+		return SearchCompaniesResult{}, err
+	}
+
+	outcome, err := lookupCompany(func() (*Company, error) {
+		return c.SearchCompany(ctx, query)
+	}, "No company found matching: "+args.Query)
+	if err != nil {
+		return SearchCompaniesResult{}, err
+	}
+
+	return SearchCompaniesResult(outcome), nil
 }
 
 // GetCompanyMCP is the MCP wrapper for GetCompany
@@ -93,6 +111,68 @@ const (
 	MaxProductionUnitsPageSize     = 100
 )
 
+// pageWindow describes one page of a paginated listing: the normalized
+// page/size, the total page count, and the slice bounds into the full list.
+type pageWindow struct {
+	page       int
+	size       int
+	totalPages int
+	start      int
+	end        int
+}
+
+// productionUnitsWindow normalizes page/size against the configured defaults
+// and limits, then computes the slice bounds over total items.
+func productionUnitsWindow(page, size, total int) pageWindow {
+	if page < 0 {
+		page = 0
+	}
+	if size <= 0 {
+		size = DefaultProductionUnitsPageSize
+	}
+	if size > MaxProductionUnitsPageSize {
+		size = MaxProductionUnitsPageSize
+	}
+
+	totalPages := (total + size - 1) / size // ceiling division
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	w := pageWindow{page: page, size: size, totalPages: totalPages}
+	w.start = min(page*size, total)
+	w.end = min(w.start+size, total)
+	return w
+}
+
+// employeesString renders the CVR API's polymorphic employees field (number
+// or string, depending on the record) as a string.
+func employeesString(v any) string {
+	switch v := v.(type) {
+	case float64:
+		return strconv.Itoa(int(v))
+	case int:
+		return strconv.Itoa(v)
+	case string:
+		return v
+	}
+	return ""
+}
+
+// toProductionUnitSummary converts a ProductionUnit to its MCP summary shape.
+func toProductionUnitSummary(pu ProductionUnit) ProductionUnitSummary {
+	return ProductionUnitSummary{
+		PNumber:      strconv.FormatInt(pu.PNumber, 10),
+		Name:         pu.Name,
+		Address:      pu.Address,
+		City:         pu.City,
+		Zipcode:      pu.Zipcode,
+		IsMain:       pu.Main,
+		Employees:    employeesString(pu.Employees),
+		IndustryDesc: pu.IndustryDesc,
+	}
+}
+
 // GetProductionUnitsMCP gets production units for a company with pagination
 func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUnitsArgs) (GetProductionUnitsResult, error) {
 	if err := ValidateCVR(args.CVR); err != nil {
@@ -104,146 +184,47 @@ func (c *Client) GetProductionUnitsMCP(ctx context.Context, args GetProductionUn
 		return GetProductionUnitsResult{}, err
 	}
 
-	// Apply pagination defaults and limits
-	page := args.Page
-	if page < 0 {
-		page = 0
-	}
-	size := args.Size
-	if size <= 0 {
-		size = DefaultProductionUnitsPageSize
-	}
-	if size > MaxProductionUnitsPageSize {
-		size = MaxProductionUnitsPageSize
-	}
-
-	// Calculate pagination
 	totalUnits := len(company.ProductionUnits)
-	totalPages := (totalUnits + size - 1) / size // ceiling division
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	w := productionUnitsWindow(args.Page, args.Size, totalUnits)
 
-	// Calculate slice bounds
-	start := page * size
-	end := start + size
-	if start > totalUnits {
-		start = totalUnits
-	}
-	if end > totalUnits {
-		end = totalUnits
-	}
-
-	// Build paginated result
-	units := make([]ProductionUnitSummary, 0, end-start)
-	for _, pu := range company.ProductionUnits[start:end] {
-		employees := ""
-		switch v := pu.Employees.(type) {
-		case float64:
-			employees = strconv.Itoa(int(v))
-		case int:
-			employees = strconv.Itoa(v)
-		case string:
-			employees = v
-		}
-		units = append(units, ProductionUnitSummary{
-			PNumber:      strconv.FormatInt(pu.PNumber, 10),
-			Name:         pu.Name,
-			Address:      pu.Address,
-			City:         pu.City,
-			Zipcode:      pu.Zipcode,
-			IsMain:       pu.Main,
-			Employees:    employees,
-			IndustryDesc: pu.IndustryDesc,
-		})
+	units := make([]ProductionUnitSummary, 0, w.end-w.start)
+	for _, pu := range company.ProductionUnits[w.start:w.end] {
+		units = append(units, toProductionUnitSummary(pu))
 	}
 
 	return GetProductionUnitsResult{
 		ProductionUnits: units,
 		TotalResults:    totalUnits,
-		Page:            page,
-		Size:            size,
-		TotalPages:      totalPages,
-		HasMore:         page < totalPages-1,
+		Page:            w.page,
+		Size:            w.size,
+		TotalPages:      w.totalPages,
+		HasMore:         w.page < w.totalPages-1,
 	}, nil
+}
+
+// lookupByIdentifier validates a required identifier and runs the shared
+// single-company lookup flow. The not-found message echoes the raw
+// (untrimmed) identifier the caller supplied.
+func lookupByIdentifier(raw, fieldName, notFoundPrefix string, lookup func(string) (*Company, error)) (companyLookup, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return companyLookup{}, fmt.Errorf("%s is required", fieldName)
+	}
+	return lookupCompany(func() (*Company, error) { return lookup(value) }, notFoundPrefix+raw)
 }
 
 // SearchByPhoneMCP is the MCP wrapper for SearchByPhone
 func (c *Client) SearchByPhoneMCP(ctx context.Context, args SearchByPhoneArgs) (SearchByPhoneResult, error) {
-	phone := strings.TrimSpace(args.Phone)
-	if phone == "" {
-		return SearchByPhoneResult{}, fmt.Errorf("phone number is required")
-	}
-
-	company, err := c.SearchByPhone(ctx, phone)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return SearchByPhoneResult{
-				Found:   false,
-				Message: "No company found with phone number: " + args.Phone,
-			}, nil
-		}
-		return SearchByPhoneResult{}, err
-	}
-
-	summary := &CompanySummary{
-		CVR:          strconv.Itoa(company.CVR),
-		Name:         company.Name,
-		Address:      company.Address,
-		City:         company.City,
-		Zipcode:      company.Zipcode,
-		CompanyType:  company.CompanyType,
-		IndustryDesc: company.IndustryDesc,
-		Employees:    strconv.Itoa(company.Employees),
-		StartDate:    company.StartDate,
-		Status:       getStatus(company),
-		Phone:        company.Phone,
-		Email:        company.Email,
-	}
-
-	return SearchByPhoneResult{
-		Company: summary,
-		Found:   true,
-	}, nil
+	outcome, err := lookupByIdentifier(args.Phone, "phone number", "No company found with phone number: ",
+		func(v string) (*Company, error) { return c.SearchByPhone(ctx, v) })
+	return SearchByPhoneResult(outcome), err
 }
 
 // GetByPNumberMCP is the MCP wrapper for GetByPNumber
 func (c *Client) GetByPNumberMCP(ctx context.Context, args GetByPNumberArgs) (GetByPNumberResult, error) {
-	pnumber := strings.TrimSpace(args.PNumber)
-	if pnumber == "" {
-		return GetByPNumberResult{}, fmt.Errorf("P-number is required")
-	}
-
-	company, err := c.GetByPNumber(ctx, pnumber)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return GetByPNumberResult{
-				Found:   false,
-				Message: "No company found with P-number: " + args.PNumber,
-			}, nil
-		}
-		return GetByPNumberResult{}, err
-	}
-
-	summary := &CompanySummary{
-		CVR:          strconv.Itoa(company.CVR),
-		Name:         company.Name,
-		Address:      company.Address,
-		City:         company.City,
-		Zipcode:      company.Zipcode,
-		CompanyType:  company.CompanyType,
-		IndustryDesc: company.IndustryDesc,
-		Employees:    strconv.Itoa(company.Employees),
-		StartDate:    company.StartDate,
-		Status:       getStatus(company),
-		Phone:        company.Phone,
-		Email:        company.Email,
-	}
-
-	return GetByPNumberResult{
-		Company: summary,
-		Found:   true,
-	}, nil
+	outcome, err := lookupByIdentifier(args.PNumber, "P-number", "No company found with P-number: ",
+		func(v string) (*Company, error) { return c.GetByPNumber(ctx, v) })
+	return GetByPNumberResult(outcome), err
 }
 
 // getStatus derives company status from available fields

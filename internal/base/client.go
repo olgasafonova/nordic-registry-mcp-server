@@ -150,13 +150,19 @@ func (c *Client) DoRequest(ctx context.Context, cfg RequestConfig) ([]byte, int,
 		return nil, 0, err
 	}
 
-	maxRetry := cfg.MaxRetry
-	if maxRetry <= 0 {
-		maxRetry = 3
+	if cfg.MaxRetry <= 0 {
+		cfg.MaxRetry = 3
 	}
 
+	return c.doWithRetries(ctx, req, cfg)
+}
+
+// doWithRetries runs the attempt loop: transient errors retry up to
+// cfg.MaxRetry times with backoff, fatal errors return immediately, and
+// exhausting the attempts records a circuit-breaker failure.
+func (c *Client) doWithRetries(ctx context.Context, req *http.Request, cfg RequestConfig) ([]byte, int, error) {
 	var lastErr error
-	for attempt := 0; attempt < maxRetry; attempt++ {
+	for attempt := 0; attempt < cfg.MaxRetry; attempt++ {
 		if err := c.waitBeforeAttempt(ctx, attempt); err != nil {
 			return nil, 0, err
 		}
