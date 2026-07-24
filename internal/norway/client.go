@@ -76,47 +76,80 @@ func NewClient(opts ...ClientOption) *Client {
 	return c
 }
 
+// setPositiveInt sets key when v is greater than zero.
+func setPositiveInt(params url.Values, key string, v int) {
+	if v > 0 {
+		params.Set(key, strconv.Itoa(v))
+	}
+}
+
+// setNonEmpty sets key when v is a non-empty string.
+func setNonEmpty(params url.Values, key, v string) {
+	if v != "" {
+		params.Set(key, v)
+	}
+}
+
+// setBoolPtr sets key when v is non-nil.
+func setBoolPtr(params url.Values, key string, v *bool) {
+	if v != nil {
+		params.Set(key, strconv.FormatBool(*v))
+	}
+}
+
+// cachedFetch describes a cache-backed GET: where to look in the cache,
+// which endpoint to hit on a miss, and how long to keep the result.
+type cachedFetch struct {
+	key    string
+	path   string
+	params url.Values
+	ttl    time.Duration
+}
+
+// getCached fetches a resource through the cache: return the cached value
+// when present, otherwise perform the request and cache the result.
+func getCached[T any](ctx context.Context, c *Client, req cachedFetch) (*T, error) {
+	if cached, ok := c.Cache.Get(req.key); ok {
+		return cached.(*T), nil
+	}
+
+	var result T
+	if err := c.doRequest(ctx, req.path, req.params, &result); err != nil {
+		return nil, err
+	}
+
+	c.Cache.Set(req.key, &result, req.ttl)
+	return &result, nil
+}
+
+// updateParams builds the query parameters shared by the registry's
+// update feeds.
+func updateParams(since time.Time, opts *UpdatesOptions) url.Values {
+	params := url.Values{}
+	params.Set("dato", since.Format("2006-01-02T15:04:05.000Z"))
+	if opts != nil {
+		setPositiveInt(params, "size", opts.Size)
+	}
+	return params
+}
+
+// fetchFresh performs an uncached request; update feeds use it because
+// they represent real-time data.
+func fetchFresh[T any](ctx context.Context, c *Client, path string, params url.Values) (*T, error) {
+	var result T
+	if err := c.doRequest(ctx, path, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SearchCompanies searches for companies by name or other criteria
 func (c *Client) SearchCompanies(ctx context.Context, query string, opts *SearchOptions) (*SearchResponse, error) {
 	params := url.Values{}
 	params.Set("navn", query)
+	opts.apply(params)
 
-	if opts != nil {
-		if opts.Page > 0 {
-			params.Set("page", strconv.Itoa(opts.Page))
-		}
-		if opts.Size > 0 {
-			params.Set("size", strconv.Itoa(opts.Size))
-		}
-		if opts.OrgForm != "" {
-			params.Set("organisasjonsform", opts.OrgForm)
-		}
-		if opts.Municipality != "" {
-			params.Set("kommunenummer", opts.Municipality)
-		}
-		if opts.RegisteredInVAT != nil {
-			params.Set("registrertIMvaregisteret", strconv.FormatBool(*opts.RegisteredInVAT))
-		}
-		if opts.Bankrupt != nil {
-			params.Set("konkurs", strconv.FormatBool(*opts.Bankrupt))
-		}
-		if opts.RegisteredInVoluntary != nil {
-			params.Set("registrertIFrivillighetsregisteret", strconv.FormatBool(*opts.RegisteredInVoluntary))
-		}
-	}
-
-	cacheKey := "search:" + params.Encode()
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*SearchResponse), nil
-	}
-
-	var result SearchResponse
-	if err := c.doRequest(ctx, "/enheter", params, &result); err != nil {
-		return nil, err
-	}
-
-	c.Cache.Set(cacheKey, &result, SearchCacheTTL)
-	return &result, nil
+	return getCached[SearchResponse](ctx, c, cachedFetch{key: "search:" + params.Encode(), path: "/enheter", params: params, ttl: SearchCacheTTL})
 }
 
 // SearchOptions configures company search
@@ -128,6 +161,20 @@ type SearchOptions struct {
 	RegisteredInVAT       *bool
 	Bankrupt              *bool
 	RegisteredInVoluntary *bool // Filter for voluntary organizations (Frivillighetsregisteret)
+}
+
+// apply copies the set options into params; a nil receiver is a no-op.
+func (o *SearchOptions) apply(params url.Values) {
+	if o == nil {
+		return
+	}
+	setPositiveInt(params, "page", o.Page)
+	setPositiveInt(params, "size", o.Size)
+	setNonEmpty(params, "organisasjonsform", o.OrgForm)
+	setNonEmpty(params, "kommunenummer", o.Municipality)
+	setBoolPtr(params, "registrertIMvaregisteret", o.RegisteredInVAT)
+	setBoolPtr(params, "konkurs", o.Bankrupt)
+	setBoolPtr(params, "registrertIFrivillighetsregisteret", o.RegisteredInVoluntary)
 }
 
 // GetCompany retrieves a company by organization number
@@ -167,18 +214,7 @@ func (c *Client) GetRoles(ctx context.Context, orgNumber string) (*RolesResponse
 		return nil, err
 	}
 
-	cacheKey := "roles:" + orgNumber
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*RolesResponse), nil
-	}
-
-	var result RolesResponse
-	if err := c.doRequest(ctx, "/enheter/"+orgNumber+"/roller", nil, &result); err != nil {
-		return nil, err
-	}
-
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
-	return &result, nil
+	return getCached[RolesResponse](ctx, c, cachedFetch{key: "roles:" + orgNumber, path: "/enheter/" + orgNumber + "/roller", ttl: DefaultCacheTTL})
 }
 
 // GetSubUnits retrieves sub-units (branches) for a parent company
@@ -191,18 +227,7 @@ func (c *Client) GetSubUnits(ctx context.Context, parentOrgNumber string) (*SubU
 	params := url.Values{}
 	params.Set("overordnetEnhet", parentOrgNumber)
 
-	cacheKey := "subunits:" + parentOrgNumber
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*SubUnitSearchResponse), nil
-	}
-
-	var result SubUnitSearchResponse
-	if err := c.doRequest(ctx, "/underenheter", params, &result); err != nil {
-		return nil, err
-	}
-
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
-	return &result, nil
+	return getCached[SubUnitSearchResponse](ctx, c, cachedFetch{key: "subunits:" + parentOrgNumber, path: "/underenheter", params: params, ttl: DefaultCacheTTL})
 }
 
 // GetSubUnit retrieves a specific sub-unit by organization number
@@ -212,38 +237,12 @@ func (c *Client) GetSubUnit(ctx context.Context, orgNumber string) (*SubUnit, er
 		return nil, err
 	}
 
-	cacheKey := "subunit:" + orgNumber
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*SubUnit), nil
-	}
-
-	var result SubUnit
-	if err := c.doRequest(ctx, "/underenheter/"+orgNumber, nil, &result); err != nil {
-		return nil, err
-	}
-
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
-	return &result, nil
+	return getCached[SubUnit](ctx, c, cachedFetch{key: "subunit:" + orgNumber, path: "/underenheter/" + orgNumber, ttl: DefaultCacheTTL})
 }
 
 // GetUpdates retrieves recent updates from the registry
 func (c *Client) GetUpdates(ctx context.Context, since time.Time, opts *UpdatesOptions) (*UpdatesResponse, error) {
-	params := url.Values{}
-	params.Set("dato", since.Format("2006-01-02T15:04:05.000Z"))
-
-	if opts != nil {
-		if opts.Size > 0 {
-			params.Set("size", strconv.Itoa(opts.Size))
-		}
-	}
-
-	// Updates are not cached as they represent real-time data
-	var result UpdatesResponse
-	if err := c.doRequest(ctx, "/oppdateringer/enheter", params, &result); err != nil {
-		return nil, err
-	}
-
-	return &result, nil
+	return fetchFresh[UpdatesResponse](ctx, c, "/oppdateringer/enheter", updateParams(since, opts))
 }
 
 // UpdatesOptions configures the updates query
@@ -262,69 +261,28 @@ type SearchSubUnitsOptions struct {
 func (c *Client) SearchSubUnits(ctx context.Context, query string, opts *SearchSubUnitsOptions) (*SubUnitSearchResponse, error) {
 	params := url.Values{}
 	params.Set("navn", query)
-
 	if opts != nil {
-		if opts.Page > 0 {
-			params.Set("page", strconv.Itoa(opts.Page))
-		}
-		if opts.Size > 0 {
-			params.Set("size", strconv.Itoa(opts.Size))
-		}
-		if opts.Municipality != "" {
-			params.Set("kommunenummer", opts.Municipality)
-		}
+		setPositiveInt(params, "page", opts.Page)
+		setPositiveInt(params, "size", opts.Size)
+		setNonEmpty(params, "kommunenummer", opts.Municipality)
 	}
 
-	cacheKey := "search_subunits:" + params.Encode()
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*SubUnitSearchResponse), nil
-	}
-
-	var result SubUnitSearchResponse
-	if err := c.doRequest(ctx, "/underenheter", params, &result); err != nil {
-		return nil, err
-	}
-
-	c.Cache.Set(cacheKey, &result, SearchCacheTTL)
-	return &result, nil
+	return getCached[SubUnitSearchResponse](ctx, c, cachedFetch{key: "search_subunits:" + params.Encode(), path: "/underenheter", params: params, ttl: SearchCacheTTL})
 }
 
 // GetMunicipalities retrieves the list of Norwegian municipalities.
 // Uses size=500 to fetch all municipalities in one request (Norway has ~365).
+// Cached for 24h since this data rarely changes.
 func (c *Client) GetMunicipalities(ctx context.Context) (*MunicipalitiesResponse, error) {
-	cacheKey := "municipalities"
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*MunicipalitiesResponse), nil
-	}
-
 	// Request all municipalities at once (default page size is 20)
 	params := url.Values{"size": {"500"}}
-
-	var result MunicipalitiesResponse
-	if err := c.doRequest(ctx, "/kommuner", params, &result); err != nil {
-		return nil, err
-	}
-
-	// Cache for longer since this data rarely changes
-	c.Cache.Set(cacheKey, &result, 24*time.Hour)
-	return &result, nil
+	return getCached[MunicipalitiesResponse](ctx, c, cachedFetch{key: "municipalities", path: "/kommuner", params: params, ttl: 24 * time.Hour})
 }
 
-// GetOrgForms retrieves the list of organization forms (AS, ENK, etc.)
+// GetOrgForms retrieves the list of organization forms (AS, ENK, etc.).
+// Cached for 24h since this data rarely changes.
 func (c *Client) GetOrgForms(ctx context.Context) (*OrgFormsResponse, error) {
-	cacheKey := "orgforms"
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*OrgFormsResponse), nil
-	}
-
-	var result OrgFormsResponse
-	if err := c.doRequest(ctx, "/organisasjonsformer", nil, &result); err != nil {
-		return nil, err
-	}
-
-	// Cache for longer since this data rarely changes
-	c.Cache.Set(cacheKey, &result, 24*time.Hour)
-	return &result, nil
+	return getCached[OrgFormsResponse](ctx, c, cachedFetch{key: "orgforms", path: "/organisasjonsformer", ttl: 24 * time.Hour})
 }
 
 // BatchGetCompanies retrieves multiple companies by organization numbers in one request.
@@ -350,38 +308,12 @@ func (c *Client) BatchGetCompanies(ctx context.Context, orgNumbers []string) (*S
 	params := url.Values{}
 	params.Set("organisasjonsnummer", strings.Join(normalized, ","))
 
-	cacheKey := "batch:" + strings.Join(normalized, ",")
-	if cached, ok := c.Cache.Get(cacheKey); ok {
-		return cached.(*SearchResponse), nil
-	}
-
-	var result SearchResponse
-	if err := c.doRequest(ctx, "/enheter", params, &result); err != nil {
-		return nil, err
-	}
-
-	c.Cache.Set(cacheKey, &result, DefaultCacheTTL)
-	return &result, nil
+	return getCached[SearchResponse](ctx, c, cachedFetch{key: "batch:" + strings.Join(normalized, ","), path: "/enheter", params: params, ttl: DefaultCacheTTL})
 }
 
 // GetSubUnitUpdates retrieves recent updates to sub-units from the registry
 func (c *Client) GetSubUnitUpdates(ctx context.Context, since time.Time, opts *UpdatesOptions) (*SubUnitUpdatesResponse, error) {
-	params := url.Values{}
-	params.Set("dato", since.Format("2006-01-02T15:04:05.000Z"))
-
-	if opts != nil {
-		if opts.Size > 0 {
-			params.Set("size", strconv.Itoa(opts.Size))
-		}
-	}
-
-	// Updates are not cached as they represent real-time data
-	var result SubUnitUpdatesResponse
-	if err := c.doRequest(ctx, "/oppdateringer/underenheter", params, &result); err != nil {
-		return nil, err
-	}
-
-	return &result, nil
+	return fetchFresh[SubUnitUpdatesResponse](ctx, c, "/oppdateringer/underenheter", updateParams(since, opts))
 }
 
 // doRequest performs an HTTP request using the base client infrastructure
