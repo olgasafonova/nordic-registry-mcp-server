@@ -261,178 +261,24 @@ func newCorrelationID() string {
 // logExecution logs tool execution details.
 func (h *HandlerRegistry) logExecution(spec ToolSpec, args, result any) {
 	attrs := []any{"tool", spec.Name, "country", spec.Country}
-	attrs = appendArgAttrs(attrs, args)
-	attrs = appendResultAttrs(attrs, result)
+	attrs = appendLogAttrs(attrs, args)
+	attrs = appendLogAttrs(attrs, result)
 	h.logger.Info("Tool executed", attrs...)
 }
 
-// appendArgAttrs adds structured-log attributes describing the request args
-// for any supported tool. Per-country branches stay isolated so each country's
-// arg surface evolves independently (matches the per-country divergence
-// documented in memory/project_nordic_registry_weird_by_design.md).
-func appendArgAttrs(attrs []any, args any) []any {
-	if extra := norwayArgAttrs(args); extra != nil {
-		return append(attrs, extra...)
-	}
-	if extra := denmarkArgAttrs(args); extra != nil {
-		return append(attrs, extra...)
-	}
-	if extra := finlandArgAttrs(args); extra != nil {
-		return append(attrs, extra...)
-	}
-	if extra := swedenArgAttrs(args); extra != nil {
-		return append(attrs, extra...)
+// logAttrsProvider is implemented by arg and result types that expose the
+// structured-log attributes for the "Tool executed" log line. Each country
+// package owns its types' attribute shapes (matches the per-country
+// divergence documented in memory/project_nordic_registry_weird_by_design.md).
+type logAttrsProvider interface {
+	LogAttrs() []any
+}
+
+// appendLogAttrs appends v's structured-log attributes when v declares them;
+// unrecognized types leave attrs unchanged.
+func appendLogAttrs(attrs []any, v any) []any {
+	if p, ok := v.(logAttrsProvider); ok {
+		return append(attrs, p.LogAttrs()...)
 	}
 	return attrs
-}
-
-// appendResultAttrs adds structured-log attributes describing the result of
-// any supported tool. Mirrors appendArgAttrs.
-func appendResultAttrs(attrs []any, result any) []any {
-	if extra := norwayResultAttrs(result); extra != nil {
-		return append(attrs, extra...)
-	}
-	if extra := denmarkResultAttrs(result); extra != nil {
-		return append(attrs, extra...)
-	}
-	if extra := finlandResultAttrs(result); extra != nil {
-		return append(attrs, extra...)
-	}
-	if extra := swedenResultAttrs(result); extra != nil {
-		return append(attrs, extra...)
-	}
-	return attrs
-}
-
-func norwayArgAttrs(args any) []any {
-	switch a := args.(type) {
-	case norway.SearchCompaniesArgs:
-		return []any{"query", a.Query}
-	case norway.GetCompanyArgs:
-		return []any{"org_number", a.OrgNumber}
-	case norway.GetRolesArgs:
-		return []any{"org_number", a.OrgNumber}
-	case norway.GetSubUnitsArgs:
-		return []any{"parent_org_number", a.ParentOrgNumber}
-	case norway.GetSubUnitArgs:
-		return []any{"org_number", a.OrgNumber}
-	case norway.GetUpdatesArgs:
-		return []any{"since", a.Since}
-	case norway.SearchSubUnitsArgs:
-		return []any{"query", a.Query}
-	case norway.ListMunicipalitiesArgs, norway.ListOrgFormsArgs:
-		return []any{} // recognized but no args to log
-	case norway.GetSubUnitUpdatesArgs:
-		return []any{"since", a.Since}
-	case norway.GetSignatureRightsArgs:
-		return []any{"org_number", a.OrgNumber}
-	case norway.BatchGetCompaniesArgs:
-		return []any{"org_numbers_count", len(a.OrgNumbers)}
-	}
-	return nil
-}
-
-func denmarkArgAttrs(args any) []any {
-	switch a := args.(type) {
-	case denmark.SearchCompaniesArgs:
-		return []any{"query", a.Query}
-	case denmark.GetCompanyArgs:
-		return []any{"cvr", a.CVR}
-	case denmark.GetProductionUnitsArgs:
-		return []any{"cvr", a.CVR}
-	case denmark.SearchByPhoneArgs:
-		return []any{"phone", a.Phone}
-	case denmark.GetByPNumberArgs:
-		return []any{"p_number", a.PNumber}
-	}
-	return nil
-}
-
-func finlandArgAttrs(args any) []any {
-	switch a := args.(type) {
-	case finland.SearchCompaniesArgs:
-		return []any{"query", a.Query}
-	case finland.GetCompanyArgs:
-		return []any{"business_id", a.BusinessID}
-	}
-	return nil
-}
-
-func swedenArgAttrs(args any) []any {
-	switch a := args.(type) {
-	case sweden.GetCompanyArgs:
-		return []any{"org_number", a.OrgNumber}
-	case sweden.GetDocumentListArgs:
-		return []any{"org_number", a.OrgNumber}
-	case sweden.CheckStatusArgs:
-		return []any{} // recognized but no args to log
-	case sweden.DownloadDocumentArgs:
-		return []any{"document_id", a.DocumentID}
-	}
-	return nil
-}
-
-func norwayResultAttrs(result any) []any {
-	switch r := result.(type) {
-	case norway.SearchCompaniesResult:
-		return []any{"results_count", len(r.Companies), "total_results", r.TotalResults}
-	case norway.GetRolesResult:
-		return []any{"role_groups", len(r.RoleGroups)}
-	case norway.GetSubUnitsResult:
-		return []any{"subunits", len(r.SubUnits)}
-	case norway.GetUpdatesResult:
-		return []any{"updates", len(r.Updates)}
-	case norway.SearchSubUnitsResult:
-		return []any{"results_count", len(r.SubUnits), "total_results", r.TotalResults}
-	case norway.ListMunicipalitiesResult:
-		return []any{"municipalities", r.Count}
-	case norway.ListOrgFormsResult:
-		return []any{"org_forms", r.Count}
-	case norway.GetSubUnitUpdatesResult:
-		return []any{"updates", len(r.Updates)}
-	case norway.GetSignatureRightsResult:
-		return []any{"signature_rights", len(r.SignatureRights), "prokura", len(r.Prokura)}
-	case norway.BatchGetCompaniesResult:
-		return []any{"companies", len(r.Companies), "not_found", len(r.NotFound)}
-	}
-	return nil
-}
-
-func denmarkResultAttrs(result any) []any {
-	switch r := result.(type) {
-	case denmark.SearchCompaniesResult:
-		return []any{"found", r.Found}
-	case denmark.GetProductionUnitsResult:
-		return []any{"production_units", len(r.ProductionUnits)}
-	case denmark.SearchByPhoneResult:
-		return []any{"found", r.Found}
-	case denmark.GetByPNumberResult:
-		return []any{"found", r.Found}
-	}
-	return nil
-}
-
-func finlandResultAttrs(result any) []any {
-	switch r := result.(type) {
-	case finland.SearchCompaniesResult:
-		return []any{"results_count", len(r.Companies), "total_results", r.TotalResults}
-	}
-	return nil
-}
-
-func swedenResultAttrs(result any) []any {
-	switch r := result.(type) {
-	case sweden.GetCompanyResult:
-		if r.Company != nil {
-			return []any{"found", true, "name", r.Company.Name}
-		}
-		return []any{"found", false}
-	case sweden.GetDocumentListResult:
-		return []any{"documents", r.Count}
-	case sweden.CheckStatusResult:
-		return []any{"available", r.Available}
-	case sweden.DownloadDocumentResult:
-		return []any{"document_id", r.DocumentID, "size_bytes", r.SizeBytes}
-	}
-	return nil
 }

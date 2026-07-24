@@ -175,16 +175,25 @@ func RecordRequest(tool string, duration float64, success bool) {
 	RequestDuration.WithLabelValues(tool).Observe(duration)
 }
 
+// APICall describes a completed registry API call for metrics recording.
+type APICall struct {
+	Country   string
+	Action    string
+	Duration  float64
+	Success   bool
+	ErrorCode string
+}
+
 // RecordAPICall records a registry API call
-func RecordAPICall(country, action string, duration float64, success bool, errorCode string) {
+func RecordAPICall(call APICall) {
 	status := "success"
-	if !success {
+	if !call.Success {
 		status = "error"
 	}
-	RegistryAPIRequestsTotal.WithLabelValues(country, action, status).Inc()
-	RegistryAPILatency.WithLabelValues(country, action).Observe(duration)
-	if errorCode != "" {
-		RegistryAPIErrors.WithLabelValues(country, action, errorCode).Inc()
+	RegistryAPIRequestsTotal.WithLabelValues(call.Country, call.Action, status).Inc()
+	RegistryAPILatency.WithLabelValues(call.Country, call.Action).Observe(call.Duration)
+	if call.ErrorCode != "" {
+		RegistryAPIErrors.WithLabelValues(call.Country, call.Action, call.ErrorCode).Inc()
 	}
 }
 

@@ -116,34 +116,26 @@ func primaryStreetAddress(c *Company) (Address, bool) {
 	return Address{}, false
 }
 
-// toCompanyDetailSummary converts a Company to CompanyDetailSummary (compact format)
+// toCompanyDetailSummary converts a Company to CompanyDetailSummary (compact
+// format). It projects the full CompanySummary down to the detail shape,
+// collapsing the code/description pairs into single "code - desc" strings.
 func toCompanyDetailSummary(c *Company) *CompanyDetailSummary {
 	if c == nil {
 		return nil
 	}
 
-	summary := &CompanyDetailSummary{
-		BusinessID:       c.BusinessID.Value,
-		RegistrationDate: c.RegistrationDate,
-		Status:           statusToDesc(c.Status),
-		Name:             currentCompanyName(c),
+	s := toCompanySummary(*c)
+	return &CompanyDetailSummary{
+		BusinessID:       s.BusinessID,
+		RegistrationDate: s.RegistrationDate,
+		Status:           s.Status,
+		Name:             s.Name,
+		CompanyForm:      formatCodeAndDesc(s.CompanyForm, s.CompanyFormDesc),
+		Industry:         formatCodeAndDesc(s.IndustryCode, s.Industry),
+		Website:          s.Website,
+		StreetAddress:    s.StreetAddress,
+		City:             s.City,
 	}
-
-	if code, desc := currentCompanyForm(c); code != "" {
-		summary.CompanyForm = formatCodeAndDesc(code, desc)
-	}
-	if c.MainBusinessLine != nil {
-		summary.Industry = formatCodeAndDesc(c.MainBusinessLine.Type, getEnglishDesc(c.MainBusinessLine.Descriptions))
-	}
-	if c.Website != nil {
-		summary.Website = c.Website.URL
-	}
-	if addr, ok := primaryStreetAddress(c); ok {
-		summary.StreetAddress = formatAddress(addr)
-		summary.City = getCity(addr)
-	}
-
-	return summary
 }
 
 // formatCodeAndDesc returns "code - desc" when desc is non-empty, otherwise the
@@ -164,10 +156,7 @@ func toCompanySummary(c Company) CompanySummary {
 		Name:             currentCompanyName(&c),
 	}
 
-	if code, desc := currentCompanyForm(&c); code != "" {
-		summary.CompanyForm = code
-		summary.CompanyFormDesc = desc
-	}
+	summary.CompanyForm, summary.CompanyFormDesc = currentCompanyForm(&c)
 
 	if c.MainBusinessLine != nil {
 		summary.IndustryCode = c.MainBusinessLine.Type

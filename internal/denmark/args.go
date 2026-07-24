@@ -109,3 +109,35 @@ type GetByPNumberResult struct {
 	Found   bool            `json:"found"`
 	Message string          `json:"message,omitempty"`
 }
+
+// LogAttrs implementations expose each tool's structured-log attributes so
+// the handler layer can log requests and results without per-type dispatch.
+
+// LogAttrs returns structured-log attributes for the search request.
+func (a SearchCompaniesArgs) LogAttrs() []any { return []any{"query", a.Query} }
+
+// LogAttrs returns structured-log attributes for the company lookup.
+func (a GetCompanyArgs) LogAttrs() []any { return []any{"cvr", a.CVR} }
+
+// LogAttrs returns structured-log attributes for the production-unit listing.
+func (a GetProductionUnitsArgs) LogAttrs() []any { return []any{"cvr", a.CVR} }
+
+// LogAttrs returns structured-log attributes for the phone search.
+func (a SearchByPhoneArgs) LogAttrs() []any { return []any{"phone", a.Phone} }
+
+// LogAttrs returns structured-log attributes for the P-number lookup.
+func (a GetByPNumberArgs) LogAttrs() []any { return []any{"p_number", a.PNumber} }
+
+// LogAttrs returns structured-log attributes for the search result.
+func (r SearchCompaniesResult) LogAttrs() []any { return []any{"found", r.Found} }
+
+// LogAttrs returns structured-log attributes for the production-unit result.
+func (r GetProductionUnitsResult) LogAttrs() []any {
+	return []any{"production_units", len(r.ProductionUnits)}
+}
+
+// LogAttrs returns structured-log attributes for the phone-search result.
+func (r SearchByPhoneResult) LogAttrs() []any { return []any{"found", r.Found} }
+
+// LogAttrs returns structured-log attributes for the P-number result.
+func (r GetByPNumberResult) LogAttrs() []any { return []any{"found", r.Found} }

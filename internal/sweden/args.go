@@ -76,3 +76,37 @@ type DownloadDocumentResult struct {
 	Path        string `json:"path"` // local filesystem path to the downloaded ZIP
 	Description string `json:"description"`
 }
+
+// LogAttrs implementations expose each tool's structured-log attributes so
+// the handler layer can log requests and results without per-type dispatch.
+
+// LogAttrs returns structured-log attributes for the company lookup.
+func (a GetCompanyArgs) LogAttrs() []any { return []any{"org_number", a.OrgNumber} }
+
+// LogAttrs returns structured-log attributes for the document listing.
+func (a GetDocumentListArgs) LogAttrs() []any { return []any{"org_number", a.OrgNumber} }
+
+// LogAttrs marks the type as recognized; there are no arguments to log.
+func (CheckStatusArgs) LogAttrs() []any { return []any{} }
+
+// LogAttrs returns structured-log attributes for the document download.
+func (a DownloadDocumentArgs) LogAttrs() []any { return []any{"document_id", a.DocumentID} }
+
+// LogAttrs returns structured-log attributes for the company lookup result.
+func (r GetCompanyResult) LogAttrs() []any {
+	if r.Company != nil {
+		return []any{"found", true, "name", r.Company.Name}
+	}
+	return []any{"found", false}
+}
+
+// LogAttrs returns structured-log attributes for the document listing result.
+func (r GetDocumentListResult) LogAttrs() []any { return []any{"documents", r.Count} }
+
+// LogAttrs returns structured-log attributes for the availability check.
+func (r CheckStatusResult) LogAttrs() []any { return []any{"available", r.Available} }
+
+// LogAttrs returns structured-log attributes for the download result.
+func (r DownloadDocumentResult) LogAttrs() []any {
+	return []any{"document_id", r.DocumentID, "size_bytes", r.SizeBytes}
+}

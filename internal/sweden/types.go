@@ -307,21 +307,30 @@ func (o *Organisation) GetAddress() string {
 	if o.PostadressOrganisation == nil || o.PostadressOrganisation.Postadress == nil {
 		return ""
 	}
-	addr := o.PostadressOrganisation.Postadress
-	var parts []string
-	if addr.CoAdress != "" {
-		parts = append(parts, addr.CoAdress)
+	return o.PostadressOrganisation.Postadress.format()
+}
+
+// format renders the address as a comma-separated string, omitting empty
+// parts and the domestic country name.
+func (a *Postadress) format() string {
+	parts := appendNonEmpty(nil, a.CoAdress, a.Utdelningsadress)
+	if a.Postnummer != "" || a.Postort != "" {
+		parts = append(parts, a.Postnummer+" "+a.Postort)
 	}
-	if addr.Utdelningsadress != "" {
-		parts = append(parts, addr.Utdelningsadress)
-	}
-	if addr.Postnummer != "" || addr.Postort != "" {
-		parts = append(parts, addr.Postnummer+" "+addr.Postort)
-	}
-	if addr.Land != "" && addr.Land != "Sverige" {
-		parts = append(parts, addr.Land)
+	if a.Land != "" && a.Land != "Sverige" {
+		parts = append(parts, a.Land)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// appendNonEmpty appends only the non-empty values to parts.
+func appendNonEmpty(parts []string, values ...string) []string {
+	for _, v := range values {
+		if v != "" {
+			parts = append(parts, v)
+		}
+	}
+	return parts
 }
 
 // GetBusinessDescription returns the business activity description.
