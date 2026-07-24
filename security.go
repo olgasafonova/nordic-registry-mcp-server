@@ -172,87 +172,75 @@ func NewSecurityMiddleware(handler http.Handler, logger *slog.Logger, config Sec
 		rl = NewRateLimiter(config.RateLimit, time.Minute)
 	}
 
-	maxBody := config.MaxBodySize
-	if maxBody <= 0 {
-		maxBody = DefaultMaxBodySize
-	} else if maxBody > MaxAllowedBodySize {
-		maxBody = MaxAllowedBodySize
-	}
-
-	var trustedProxies []*net.IPNet
-	for _, cidr := range config.TrustedProxies {
-		cidr = strings.TrimSpace(cidr)
-		if cidr == "" {
-			continue
-		}
-		if !strings.Contains(cidr, "/") {
-			if strings.Contains(cidr, ":") {
-				cidr += "/128"
-			} else {
-				cidr += "/32"
-			}
-		}
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
-			logger.Warn("Invalid trusted proxy CIDR, skipping", "cidr", cidr, "error", err)
-			continue
-		}
-		trustedProxies = append(trustedProxies, ipNet)
-	}
-
 	return &SecurityMiddleware{
 		handler:        handler,
 		logger:         logger,
 		bearerToken:    config.BearerToken,
 		allowedOrigins: origins,
 		rateLimiter:    rl,
-		maxBodySize:    maxBody,
-		trustedProxies: trustedProxies,
+		maxBodySize:    clampMaxBodySize(config.MaxBodySize),
+		trustedProxies: parseTrustedProxies(config.TrustedProxies, logger),
 	}
+}
+
+// clampMaxBodySize normalizes a configured body-size limit into the
+// [1, MaxAllowedBodySize] range, applying the default when unset.
+func clampMaxBodySize(maxBody int64) int64 {
+	if maxBody <= 0 {
+		return DefaultMaxBodySize
+	}
+	if maxBody > MaxAllowedBodySize {
+		return MaxAllowedBodySize
+	}
+	return maxBody
+}
+
+// normalizeCIDR appends a single-host mask to bare IP literals so that
+// net.ParseCIDR accepts both "10.0.0.1" and "10.0.0.0/8" style entries.
+func normalizeCIDR(cidr string) string {
+	if strings.Contains(cidr, "/") {
+		return cidr
+	}
+	if strings.Contains(cidr, ":") {
+		return cidr + "/128"
+	}
+	return cidr + "/32"
+}
+
+// parseTrustedProxies converts configured CIDR strings into networks,
+// skipping blanks and logging entries that fail to parse.
+func parseTrustedProxies(cidrs []string, logger *slog.Logger) []*net.IPNet {
+	var trustedProxies []*net.IPNet
+	for _, cidr := range cidrs {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+		_, ipNet, err := net.ParseCIDR(normalizeCIDR(cidr))
+		if err != nil {
+			logger.Warn("Invalid trusted proxy CIDR, skipping", "cidr", cidr, "error", err)
+			continue
+		}
+		trustedProxies = append(trustedProxies, ipNet)
+	}
+	return trustedProxies
 }
 
 func (s *SecurityMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	clientIP := s.getClientIP(r)
 
-	if r.Body != nil && r.ContentLength > s.maxBodySize {
-		s.logger.Warn("Request body too large", "client_ip", clientIP, "content_length", r.ContentLength)
-		http.Error(w, fmt.Sprintf("Request body too large (max %d bytes)", s.maxBodySize), http.StatusRequestEntityTooLarge)
+	if !s.checkBodySize(w, r, clientIP) {
 		return
 	}
-	if r.Body != nil {
-		r.Body = http.MaxBytesReader(w, r.Body, s.maxBodySize)
-	}
-
-	if s.rateLimiter != nil && !s.rateLimiter.Allow(clientIP) {
-		s.logger.Warn("Rate limit exceeded", "client_ip", clientIP, "path", r.URL.Path)
-		http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+	if !s.checkRateLimit(w, r, clientIP) {
 		return
 	}
-
 	origin := r.Header.Get("Origin")
-	if origin != "" && len(s.allowedOrigins) > 0 {
-		if !s.allowedOrigins[origin] && !s.allowedOrigins["*"] {
-			s.logger.Warn("Origin not allowed", "origin", origin, "client_ip", clientIP)
-			http.Error(w, "Origin not allowed", http.StatusForbidden)
-			return
-		}
+	if !s.checkOrigin(w, origin, clientIP) {
+		return
 	}
-
-	if s.bearerToken != "" {
-		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
-			s.logger.Warn("Missing Bearer token", "client_ip", clientIP, "path", r.URL.Path)
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		token := strings.TrimPrefix(auth, "Bearer ")
-		// Length check uses constant-time comparison to prevent timing attacks on token length
-		if len(token) != len(s.bearerToken) || subtle.ConstantTimeCompare([]byte(token), []byte(s.bearerToken)) != 1 {
-			s.logger.Warn("Invalid Bearer token", "client_ip", clientIP, "path", r.URL.Path)
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
+	if !s.checkBearerToken(w, r, clientIP) {
+		return
 	}
 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -269,6 +257,69 @@ func (s *SecurityMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("HTTP request", "method", r.Method, "path", r.URL.Path, "client_ip", clientIP, "origin", origin)
 	s.handler.ServeHTTP(w, r)
+}
+
+// checkBodySize rejects oversized requests and wraps the body in a
+// MaxBytesReader. Returns false if the request was rejected.
+func (s *SecurityMiddleware) checkBodySize(w http.ResponseWriter, r *http.Request, clientIP string) bool {
+	if r.Body == nil {
+		return true
+	}
+	if r.ContentLength > s.maxBodySize {
+		s.logger.Warn("Request body too large", "client_ip", clientIP, "content_length", r.ContentLength)
+		http.Error(w, fmt.Sprintf("Request body too large (max %d bytes)", s.maxBodySize), http.StatusRequestEntityTooLarge)
+		return false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, s.maxBodySize)
+	return true
+}
+
+// checkRateLimit enforces the per-IP rate limit. Returns false if the
+// request was rejected.
+func (s *SecurityMiddleware) checkRateLimit(w http.ResponseWriter, r *http.Request, clientIP string) bool {
+	if s.rateLimiter == nil || s.rateLimiter.Allow(clientIP) {
+		return true
+	}
+	s.logger.Warn("Rate limit exceeded", "client_ip", clientIP, "path", r.URL.Path)
+	http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+	return false
+}
+
+// checkOrigin rejects requests from disallowed origins. Returns false if
+// the request was rejected.
+func (s *SecurityMiddleware) checkOrigin(w http.ResponseWriter, origin, clientIP string) bool {
+	if origin == "" || len(s.allowedOrigins) == 0 {
+		return true
+	}
+	if s.allowedOrigins[origin] || s.allowedOrigins["*"] {
+		return true
+	}
+	s.logger.Warn("Origin not allowed", "origin", origin, "client_ip", clientIP)
+	http.Error(w, "Origin not allowed", http.StatusForbidden)
+	return false
+}
+
+// checkBearerToken enforces bearer-token auth when configured. Returns
+// false if the request was rejected.
+func (s *SecurityMiddleware) checkBearerToken(w http.ResponseWriter, r *http.Request, clientIP string) bool {
+	if s.bearerToken == "" {
+		return true
+	}
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		s.logger.Warn("Missing Bearer token", "client_ip", clientIP, "path", r.URL.Path)
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	token := strings.TrimPrefix(auth, "Bearer ")
+	// Length check uses constant-time comparison to prevent timing attacks on token length
+	if len(token) != len(s.bearerToken) || subtle.ConstantTimeCompare([]byte(token), []byte(s.bearerToken)) != 1 {
+		s.logger.Warn("Invalid Bearer token", "client_ip", clientIP, "path", r.URL.Path)
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return false
+	}
+	return true
 }
 
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, allowedOrigins map[string]bool) {
@@ -299,35 +350,43 @@ func (s *SecurityMiddleware) getClientIP(r *http.Request) string {
 		remoteIP = host
 	}
 
-	if len(s.trustedProxies) == 0 {
+	if len(s.trustedProxies) == 0 || !s.isTrustedProxy(remoteIP) {
 		return remoteIP
 	}
 
-	if !s.isTrustedProxy(remoteIP) {
-		return remoteIP
+	if ip := s.ipFromForwardedFor(r.Header.Get("X-Forwarded-For")); ip != "" {
+		return ip
 	}
-
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ips := strings.Split(xff, ",")
-		for i := len(ips) - 1; i >= 0; i-- {
-			ip := strings.TrimSpace(ips[i])
-			if ip == "" {
-				continue
-			}
-			if !s.isTrustedProxy(ip) {
-				return ip
-			}
-		}
+	if ip := s.ipFromRealIP(r.Header.Get("X-Real-IP")); ip != "" {
+		return ip
 	}
-
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		xri = strings.TrimSpace(xri)
-		if xri != "" && !s.isTrustedProxy(xri) {
-			return xri
-		}
-	}
-
 	return remoteIP
+}
+
+// ipFromForwardedFor walks an X-Forwarded-For chain right to left and
+// returns the first hop that is not a trusted proxy, or "" if none.
+func (s *SecurityMiddleware) ipFromForwardedFor(xff string) string {
+	if xff == "" {
+		return ""
+	}
+	ips := strings.Split(xff, ",")
+	for i := len(ips) - 1; i >= 0; i-- {
+		ip := strings.TrimSpace(ips[i])
+		if ip != "" && !s.isTrustedProxy(ip) {
+			return ip
+		}
+	}
+	return ""
+}
+
+// ipFromRealIP returns the X-Real-IP value when it names a host outside
+// the trusted proxy set, or "" otherwise.
+func (s *SecurityMiddleware) ipFromRealIP(xri string) string {
+	xri = strings.TrimSpace(xri)
+	if xri != "" && !s.isTrustedProxy(xri) {
+		return xri
+	}
+	return ""
 }
 
 func (s *SecurityMiddleware) isTrustedProxy(ipStr string) bool {
