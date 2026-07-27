@@ -3,6 +3,11 @@ dolt/
 embeddeddolt/
 proxieddb/
 
+# Interactions log (runtime telemetry, never a cross-machine audit trail).
+# bd 1.1.0 dropped this entry; re-added deliberately — the git-tracked
+# issues.jsonl is the durable record, not this file.
+interactions.jsonl
+
 # Runtime files
 bd.sock
 bd.sock.startlock
