@@ -3,7 +3,7 @@
 [![CI](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/ci.yml)
 ![lint](https://github.com/olgasafonova/nordic-registry-mcp-server/actions/workflows/lint.yml/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-<!-- CodeScene Code Health badge: add after onboarding repo at codescene.io -->
+[![CodeScene Average Code Health](https://codescene.io/projects/83040/status-badges/average-code-health)](https://codescene.io/projects/83040)
 
 ## What is this?
 
