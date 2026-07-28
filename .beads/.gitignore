@@ -80,3 +80,6 @@ bd.db
 # They would override fork protection in .git/info/exclude.
 # Config files (metadata.json, config.yaml) are tracked by git by default
 # since no pattern above ignores them.
+
+# Auto-import staging file (local-only, per-machine)
+.auto-import-issues.jsonl
