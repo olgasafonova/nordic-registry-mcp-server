@@ -1,12 +1,20 @@
 package finland
 
+// Tag convention (verified against google/jsonschema-go, which the go-sdk uses
+// to derive input schemas): the `jsonschema:"..."` tag VALUE becomes the
+// property description, and a field is REQUIRED unless its `json` tag carries
+// `,omitempty`. There is no `required` keyword — `jsonschema:"required"` merely
+// sets the description to the literal word "required". Enum, minimum, maximum
+// and pattern constraints are not derivable from tags; they are enforced in the
+// handlers (see validation.go) and described in the tag text.
+
 // SearchCompaniesArgs contains parameters for company search
 type SearchCompaniesArgs struct {
-	Query       string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
-	Location    string `json:"location,omitempty" jsonschema_description:"Town or city to filter by"`
-	CompanyForm string `json:"company_form,omitempty" jsonschema_description:"Company form code (OY, OYJ, Ky, etc.)"`
-	Page        int    `json:"page,omitempty" jsonschema_description:"Page number for pagination (0-indexed)"`
-	Size        int    `json:"size,omitempty" jsonschema_description:"Results per page (default: 20, max: 100)"`
+	Query       string `json:"query" jsonschema:"Finnish company name to search for, 2-500 characters; partial and case-insensitive matches. Common names return 900+ hits, so prefer the exact legal name such as 'Nokia Oyj' or narrow with company_form and location"`
+	Location    string `json:"location,omitempty" jsonschema:"Town or city to filter by, e.g. Helsinki or Espoo"`
+	CompanyForm string `json:"company_form,omitempty" jsonschema:"Company form code to filter by: OY (private limited), OYJ (public limited), KY (limited partnership), AY (general partnership), and others"`
+	Page        int    `json:"page,omitempty" jsonschema:"Page number, 0-indexed (default 0)"`
+	Size        int    `json:"size,omitempty" jsonschema:"Results per page, 1-100 (default 20); values above 100 are clamped to 100"`
 }
 
 // SearchCompaniesResult is the result of a company search
@@ -36,8 +44,8 @@ type CompanySummary struct {
 
 // GetCompanyArgs contains parameters for getting a company by business ID
 type GetCompanyArgs struct {
-	BusinessID string `json:"business_id" jsonschema:"required" jsonschema_description:"Finnish business ID (Y-tunnus), e.g., 0112038-9"`
-	Full       bool   `json:"full,omitempty" jsonschema_description:"Return full company details instead of summary (default: false)"`
+	BusinessID string `json:"business_id" jsonschema:"Finnish business ID (Y-tunnus): 7 digits, a hyphen, then a mod-11 check digit, e.g. 0112038-9. A leading FI prefix is stripped automatically and the check digit is verified"`
+	Full       bool   `json:"full,omitempty" jsonschema:"Return the full company record (previous names, auxiliary names, registry entries, situations) instead of the compact summary (default false)"`
 }
 
 // GetCompanyResult is the result of getting a company

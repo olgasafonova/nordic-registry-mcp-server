@@ -1,8 +1,16 @@
 package denmark
 
+// Tag convention (verified against google/jsonschema-go, which the go-sdk uses
+// to derive input schemas): the `jsonschema:"..."` tag VALUE becomes the
+// property description, and a field is REQUIRED unless its `json` tag carries
+// `,omitempty`. There is no `required` keyword — `jsonschema:"required"` merely
+// sets the description to the literal word "required". Enum, minimum, maximum
+// and pattern constraints are not derivable from tags; they are enforced in the
+// handlers (see validation.go) and described in the tag text.
+
 // SearchCompaniesArgs contains parameters for company search
 type SearchCompaniesArgs struct {
-	Query string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
+	Query string `json:"query" jsonschema:"Danish company name to search for, 2-500 characters. The CVR API returns only the single best match, so try variations like 'Novo Nordisk A/S' or 'Novo Nordisk Denmark' if the first result is the wrong legal entity"`
 }
 
 // SearchCompaniesResult is the result of a company search
@@ -30,8 +38,8 @@ type CompanySummary struct {
 
 // GetCompanyArgs contains parameters for getting a company by CVR
 type GetCompanyArgs struct {
-	CVR  string `json:"cvr" jsonschema:"required" jsonschema_description:"8-digit Danish CVR number"`
-	Full bool   `json:"full,omitempty" jsonschema_description:"Return full company details instead of summary (default: false)"`
+	CVR  string `json:"cvr" jsonschema:"8-digit Danish CVR number; spaces, dashes and a leading DK prefix are stripped automatically, e.g. 10150817 or DK-10150817"`
+	Full bool   `json:"full,omitempty" jsonschema:"Return the full company record (production units, owners, full history) instead of the compact summary (default false)"`
 }
 
 // GetCompanyResult is the result of getting a company
@@ -59,9 +67,9 @@ type CompanyDetailSummary struct {
 
 // GetProductionUnitsArgs contains parameters for getting production units
 type GetProductionUnitsArgs struct {
-	CVR  string `json:"cvr" jsonschema:"required" jsonschema_description:"8-digit Danish CVR number"`
-	Page int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed, default: 0)"`
-	Size int    `json:"size,omitempty" jsonschema_description:"Results per page (default: 20, max: 100)"`
+	CVR  string `json:"cvr" jsonschema:"8-digit Danish CVR number of the company whose production units (P-numbers) should be listed; DK prefix, spaces and dashes are stripped automatically"`
+	Page int    `json:"page,omitempty" jsonschema:"Page number, 0-indexed (default 0)"`
+	Size int    `json:"size,omitempty" jsonschema:"Results per page, 1-100 (default 20); values above 100 are clamped to 100"`
 }
 
 // GetProductionUnitsResult is the result of getting production units
@@ -88,7 +96,7 @@ type ProductionUnitSummary struct {
 
 // SearchByPhoneArgs contains parameters for searching by phone number
 type SearchByPhoneArgs struct {
-	Phone string `json:"phone" jsonschema:"required" jsonschema_description:"Phone number to search for"`
+	Phone string `json:"phone" jsonschema:"Danish phone number registered to the company, 8-15 digits; a +45 country prefix and separators are stripped automatically, e.g. 33121212"`
 }
 
 // SearchByPhoneResult is the result of searching by phone number
@@ -100,7 +108,7 @@ type SearchByPhoneResult struct {
 
 // GetByPNumberArgs contains parameters for getting a company by P-number
 type GetByPNumberArgs struct {
-	PNumber string `json:"p_number" jsonschema:"required" jsonschema_description:"Production unit P-number"`
+	PNumber string `json:"p_number" jsonschema:"10-digit Danish production unit number (P-number) whose parent company should be returned, e.g. 1012345678. Obtain one from denmark_get_production_units"`
 }
 
 // GetByPNumberResult is the result of getting a company by P-number
