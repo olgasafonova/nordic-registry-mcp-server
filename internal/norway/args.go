@@ -2,16 +2,24 @@ package norway
 
 import "time"
 
+// Tag convention (verified against google/jsonschema-go, which the go-sdk uses
+// to derive input schemas): the `jsonschema:"..."` tag VALUE becomes the
+// property description, and a field is REQUIRED unless its `json` tag carries
+// `,omitempty`. There is no `required` keyword — `jsonschema:"required"` merely
+// sets the description to the literal word "required". Enum, minimum, maximum
+// and pattern constraints are not derivable from tags; they are enforced in the
+// handlers (see validation.go) and described in the tag text.
+
 // SearchCompaniesArgs contains parameters for company search
 type SearchCompaniesArgs struct {
-	Query                 string `json:"query" jsonschema:"required" jsonschema_description:"Company name to search for"`
-	Page                  int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
-	Size                  int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
-	OrgForm               string `json:"org_form,omitempty" jsonschema_description:"Organization form code (AS, ENK, NUF, etc.)"`
-	Municipality          string `json:"municipality,omitempty" jsonschema_description:"4-digit municipality code (use norway_list_municipalities to look up codes)"`
-	RegisteredInVAT       *bool  `json:"registered_in_vat,omitempty" jsonschema_description:"Filter by VAT registration"`
-	Bankrupt              *bool  `json:"bankrupt,omitempty" jsonschema_description:"Filter by bankruptcy status"`
-	RegisteredInVoluntary *bool  `json:"registered_in_voluntary,omitempty" jsonschema_description:"Filter for voluntary/non-profit organizations (Frivillighetsregisteret)"`
+	Query                 string `json:"query" jsonschema:"Company name to search for; partial and case-insensitive matches, 2-500 characters"`
+	Page                  int    `json:"page,omitempty" jsonschema:"Page number, 0-indexed (default 0)"`
+	Size                  int    `json:"size,omitempty" jsonschema:"Results per page, 1-100 (default 20); values above 100 are rejected"`
+	OrgForm               string `json:"org_form,omitempty" jsonschema:"Organization form code to filter by: AS (limited company), ENK (sole proprietorship), NUF (foreign branch), and others. Use norway_list_org_forms for the full list"`
+	Municipality          string `json:"municipality,omitempty" jsonschema:"4-digit Norwegian municipality code to filter by, e.g. 0301 for Oslo. Use norway_list_municipalities to look up codes"`
+	RegisteredInVAT       *bool  `json:"registered_in_vat,omitempty" jsonschema:"Filter by VAT-register (Merverdiavgiftsregisteret) membership; omit for no filter"`
+	Bankrupt              *bool  `json:"bankrupt,omitempty" jsonschema:"Filter by bankruptcy status; true returns only bankrupt companies, false only solvent ones, omit for no filter"`
+	RegisteredInVoluntary *bool  `json:"registered_in_voluntary,omitempty" jsonschema:"Filter for voluntary/non-profit organizations registered in Frivillighetsregisteret; omit for no filter"`
 }
 
 // SearchCompaniesResult is the result of a company search
@@ -34,8 +42,8 @@ type CompanySummary struct {
 
 // GetCompanyArgs contains parameters for getting a single company
 type GetCompanyArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
-	Full      bool   `json:"full,omitempty" jsonschema_description:"Return full company details instead of summary (default: false)"`
+	OrgNumber string `json:"org_number" jsonschema:"9-digit Norwegian organization number; spaces and dashes are stripped automatically, e.g. 923609016 or 923 609 016"`
+	Full      bool   `json:"full,omitempty" jsonschema:"Return the full company record (all addresses, industry codes, capital) instead of the compact summary (default false)"`
 }
 
 // GetCompanyResult is the result of getting a company
@@ -66,7 +74,7 @@ type CompanyDetailSummary struct {
 
 // GetRolesArgs contains parameters for getting company roles
 type GetRolesArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
+	OrgNumber string `json:"org_number" jsonschema:"9-digit Norwegian organization number whose board members, CEO and auditors should be listed; spaces and dashes are stripped automatically"`
 }
 
 // GetRolesResult is the result of getting company roles
@@ -94,7 +102,7 @@ type RoleSummary struct {
 
 // GetSubUnitsArgs contains parameters for getting sub-units
 type GetSubUnitsArgs struct {
-	ParentOrgNumber string `json:"parent_org_number" jsonschema:"required" jsonschema_description:"Parent company organization number"`
+	ParentOrgNumber string `json:"parent_org_number" jsonschema:"9-digit organization number of the parent company whose branch offices (underenheter) should be listed"`
 }
 
 // GetSubUnitsResult is the result of getting sub-units
@@ -114,7 +122,7 @@ type SubUnitSummary struct {
 
 // GetSubUnitArgs contains parameters for getting a single sub-unit
 type GetSubUnitArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"Sub-unit organization number"`
+	OrgNumber string `json:"org_number" jsonschema:"9-digit organization number of the sub-unit (branch office) itself, not of its parent company"`
 }
 
 // GetSubUnitResult is the result of getting a sub-unit
@@ -124,8 +132,8 @@ type GetSubUnitResult struct {
 
 // GetUpdatesArgs contains parameters for getting registry updates
 type GetUpdatesArgs struct {
-	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601 datetime with timezone, e.g., '2024-01-08T00:00:00Z')"`
-	Size  int       `json:"size,omitempty" jsonschema_description:"Maximum number of updates to return"`
+	Since time.Time `json:"since" jsonschema:"Return main-unit registry changes recorded after this instant. ISO 8601 datetime with timezone, e.g. 2024-01-08T00:00:00Z"`
+	Size  int       `json:"size,omitempty" jsonschema:"Maximum number of update entries to return; omit to let the registry apply its own default"`
 }
 
 // GetUpdatesResult is the result of getting updates
@@ -143,10 +151,10 @@ type UpdateSummary struct {
 
 // SearchSubUnitsArgs contains parameters for sub-unit search
 type SearchSubUnitsArgs struct {
-	Query        string `json:"query" jsonschema:"required" jsonschema_description:"Sub-unit name to search for"`
-	Page         int    `json:"page,omitempty" jsonschema_description:"Page number (0-indexed)"`
-	Size         int    `json:"size,omitempty" jsonschema_description:"Results per page (max 100)"`
-	Municipality string `json:"municipality,omitempty" jsonschema_description:"Municipality number to filter by"`
+	Query        string `json:"query" jsonschema:"Sub-unit (branch office) name to search for; partial and case-insensitive matches, 2-500 characters"`
+	Page         int    `json:"page,omitempty" jsonschema:"Page number, 0-indexed (default 0)"`
+	Size         int    `json:"size,omitempty" jsonschema:"Results per page, 1-100 (default 20); values above 100 are rejected"`
+	Municipality string `json:"municipality,omitempty" jsonschema:"4-digit Norwegian municipality code to filter by, e.g. 0301 for Oslo. Use norway_list_municipalities to look up codes"`
 }
 
 // SearchSubUnitsResult is the result of a sub-unit search
@@ -193,8 +201,8 @@ type OrgFormSummary struct {
 
 // GetSubUnitUpdatesArgs contains parameters for getting sub-unit updates
 type GetSubUnitUpdatesArgs struct {
-	Since time.Time `json:"since" jsonschema:"required" jsonschema_description:"Get updates since this timestamp (ISO 8601 datetime with timezone, e.g., '2024-01-08T00:00:00Z')"`
-	Size  int       `json:"size,omitempty" jsonschema_description:"Maximum number of updates to return"`
+	Since time.Time `json:"since" jsonschema:"Return sub-unit (branch office) registry changes recorded after this instant. ISO 8601 datetime with timezone, e.g. 2024-01-08T00:00:00Z"`
+	Size  int       `json:"size,omitempty" jsonschema:"Maximum number of update entries to return; omit to let the registry apply its own default"`
 }
 
 // GetSubUnitUpdatesResult is the result of getting sub-unit updates
@@ -212,7 +220,7 @@ type SubUnitUpdateSummary struct {
 
 // GetSignatureRightsArgs contains parameters for getting signature rights
 type GetSignatureRightsArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"9-digit Norwegian organization number"`
+	OrgNumber string `json:"org_number" jsonschema:"9-digit Norwegian organization number whose signature rights (signaturrett) and prokura holders should be returned"`
 }
 
 // GetSignatureRightsResult is the result of getting signature rights
@@ -236,7 +244,7 @@ type SignatureRight struct {
 
 // BatchGetCompaniesArgs contains parameters for batch company lookup
 type BatchGetCompaniesArgs struct {
-	OrgNumbers []string `json:"org_numbers" jsonschema:"required" jsonschema_description:"List of 9-digit Norwegian organization numbers (max 2000)"`
+	OrgNumbers []string `json:"org_numbers" jsonschema:"9-digit Norwegian organization numbers to look up in one request, max 2000. Entries that are not 9 digits are skipped and reported under not_found rather than failing the call"`
 }
 
 // BatchGetCompaniesResult is the result of batch company lookup

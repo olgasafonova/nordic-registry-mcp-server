@@ -1,8 +1,16 @@
 package sweden
 
+// Tag convention (verified against google/jsonschema-go, which the go-sdk uses
+// to derive input schemas): the `jsonschema:"..."` tag VALUE becomes the
+// property description, and a field is REQUIRED unless its `json` tag carries
+// `,omitempty`. There is no `required` keyword — `jsonschema:"required"` merely
+// sets the description to the literal word "required". Enum, minimum, maximum
+// and pattern constraints are not derivable from tags; they are enforced in the
+// handlers (see ValidateOrgNumber in mcp.go) and described in the tag text.
+
 // GetCompanyArgs contains parameters for getting a Swedish company.
 type GetCompanyArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"Swedish organization number (10 digits) or personal number (12 digits)"`
+	OrgNumber string `json:"org_number" jsonschema:"Swedish organization number (10 digits, e.g. 5560125790 or 556012-5790) or personal number for a sole proprietor (12 digits); separators are stripped automatically. Bolagsverket offers no name search, so ask the user for the number if you do not have it"`
 }
 
 // GetCompanyResult is the MCP response for getting a company.
@@ -30,7 +38,7 @@ type CompanySummary struct {
 
 // GetDocumentListArgs contains parameters for getting annual reports list.
 type GetDocumentListArgs struct {
-	OrgNumber string `json:"org_number" jsonschema:"required" jsonschema_description:"Swedish organization number (10 digits)"`
+	OrgNumber string `json:"org_number" jsonschema:"Swedish organization number (10 digits, e.g. 5560125790 or 556012-5790) whose filed årsredovisningar should be listed; separators are stripped automatically"`
 }
 
 // GetDocumentListResult is the MCP response for getting document list.
@@ -62,7 +70,7 @@ type CheckStatusResult struct {
 
 // DownloadDocumentArgs contains parameters for downloading an annual report.
 type DownloadDocumentArgs struct {
-	DocumentID string `json:"document_id" jsonschema:"required" jsonschema_description:"Document ID from sweden_get_document_list"`
+	DocumentID string `json:"document_id" jsonschema:"Identifier of the annual report to download, taken from the document_id field of a sweden_get_document_list result"`
 }
 
 // DownloadDocumentResult is the MCP response for downloading a document. The
