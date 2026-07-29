@@ -568,14 +568,28 @@ func serveHTTP(httpServer *http.Server, securedHandler *SecurityMiddleware, logg
 	logger.Info("Shutdown complete")
 }
 
+// newMCPHandler builds the Streamable HTTP handler for the MCP surface.
+//
+// Stateless is required to serve protocol revision 2026-07-28: without it the
+// transport rejects every request at that version with HTTP 400, with
+// server/discover the only exemption. Safe here because the same *mcp.Server is
+// returned for every request, so there is no per-session state to lose. Session
+// IDs are ignored and DELETE returns 405, per the spec (SEP-2567).
+//
+// Extracted from runHTTPServer so the protocol behavior is testable; that
+// function blocks on a listener and cannot be exercised from a test.
+func newMCPHandler(cfg httpServerConfig) http.Handler {
+	return mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
+		return cfg.server
+	}, &mcp.StreamableHTTPOptions{Stateless: true})
+}
+
 func runHTTPServer(cfg httpServerConfig) {
 	logger := cfg.logger
 	addr := cfg.flags.httpAddr
 	authToken := cfg.authToken
 
-	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
-		return cfg.server
-	}, nil)
+	mcpHandler := newMCPHandler(cfg)
 
 	securityConfig := SecurityConfig{
 		BearerToken:    authToken,
