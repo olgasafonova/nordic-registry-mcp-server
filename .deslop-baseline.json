@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "generated_at": "2026-04-25T15:30:00Z",
-  "deslop_version": "2.1.2",
+  "deslop_version": "2.3.0",
   "scores": {
     "file_health": 95.0,
     "test_coverage": 69.6,
@@ -16,103 +16,137 @@
       "detector": "file_health",
       "severity": "critical",
       "key": "internal/finland/client_test.go",
-      "summary": "internal/finland/client_test.go (1,839 LOC)"
+      "summary": "internal/finland/client_test.go (1,839 LOC)",
+      "fingerprint": "sha256:a677ffd854720a4716914f175e89974c65f399f089addf9abd13d236f73d78b2",
+      "id": "a677"
     },
     {
       "detector": "file_health",
       "severity": "critical",
       "key": "internal/norway/client_test.go",
-      "summary": "internal/norway/client_test.go (3,242 LOC)"
+      "summary": "internal/norway/client_test.go (3,242 LOC)",
+      "fingerprint": "sha256:3071292d9bb430cc2f3e886e37daac919f2522ea6b7f24bc1c883464f13a8aff",
+      "id": "3071"
     },
     {
       "detector": "file_health",
       "severity": "critical",
       "key": "internal/sweden/client_test.go",
-      "summary": "internal/sweden/client_test.go (1,955 LOC)"
+      "summary": "internal/sweden/client_test.go (1,955 LOC)",
+      "fingerprint": "sha256:5161b30ad5498eedf64180b4fc50415ad436559665fad63b14a8d725e65df8c7",
+      "id": "5161"
     },
     {
       "detector": "file_health",
       "severity": "high",
       "key": "internal/denmark/client_test.go",
-      "summary": "internal/denmark/client_test.go (1,034 LOC)"
+      "summary": "internal/denmark/client_test.go (1,034 LOC)",
+      "fingerprint": "sha256:6c684d21ef153b048981ee7b8f4bab984beb93481721696c94e081b362ca4cee",
+      "id": "6c68"
     },
     {
       "detector": "file_health",
       "severity": "high",
       "key": "internal/denmark/mcp_test.go",
-      "summary": "internal/denmark/mcp_test.go (956 LOC)"
+      "summary": "internal/denmark/mcp_test.go (956 LOC)",
+      "fingerprint": "sha256:ffb65a1766f15168214ebd30f8a4218ba7b212b35e62fbb2d9bae13a3eee94d9",
+      "id": "ffb6"
     },
     {
       "detector": "file_health",
       "severity": "high",
       "key": "tools/handlers_test.go",
-      "summary": "tools/handlers_test.go (972 LOC)"
+      "summary": "tools/handlers_test.go (972 LOC)",
+      "fingerprint": "sha256:b51fa97f9bd047e22e1ebe685a927ed989f115f25c3f0ac863fed6ded2cb77b2",
+      "id": "b51f"
     },
     {
       "detector": "file_health",
       "severity": "warning",
       "key": "internal/base/client_test.go",
-      "summary": "internal/base/client_test.go (617 LOC)"
+      "summary": "internal/base/client_test.go (617 LOC)",
+      "fingerprint": "sha256:cca50f9ebcd18b722aa7e6ee3106376d5326336a290aadf9b979d805b3e4d7ae",
+      "id": "cca5"
     },
     {
       "detector": "file_health",
       "severity": "warning",
       "key": "internal/infra/cache_test.go",
-      "summary": "internal/infra/cache_test.go (612 LOC)"
+      "summary": "internal/infra/cache_test.go (612 LOC)",
+      "fingerprint": "sha256:c754e50b1ff6b8a45c9711a725eabc073642347a94e242798742c6ae97d4d824",
+      "id": "c754"
     },
     {
       "detector": "file_health",
       "severity": "warning",
       "key": "internal/infra/resilience_test.go",
-      "summary": "internal/infra/resilience_test.go (527 LOC)"
+      "summary": "internal/infra/resilience_test.go (527 LOC)",
+      "fingerprint": "sha256:ebda5cab065b56b432105c6996f2dbbfbeb23a62dd94fa23193f9584ef2ef356",
+      "id": "ebda"
     },
     {
       "detector": "file_health",
       "severity": "warning",
       "key": "main.go",
-      "summary": "main.go (797 LOC)"
+      "summary": "main.go (797 LOC)",
+      "fingerprint": "sha256:89fdffd80571a02ea74197ba1be80a8095bb904d14f53477e710ebc35ff9ccc2",
+      "id": "89fd"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "internal/denmark/types.go",
-      "summary": "internal/denmark/types.go has no test file (1 trivial unexported func)"
+      "summary": "internal/denmark/types.go has no test file (1 trivial unexported func)",
+      "fingerprint": "sha256:2626584841540f3bc1e2c50bd74c84fdf96a7db0563fade68b0bc653df7b5c1c",
+      "id": "2626"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "internal/finland/mcp.go",
-      "summary": "internal/finland/mcp.go has no test file (10 funcs incl. pure converters)"
+      "summary": "internal/finland/mcp.go has no test file (10 funcs incl. pure converters)",
+      "fingerprint": "sha256:8d4e86dcb8c1a5d241a56a2dd3e8f23aaaad2b400fee285a101526f416535aba",
+      "id": "8d4e"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "internal/norway/mcp.go",
-      "summary": "internal/norway/mcp.go has no test file (14 funcs incl. getStatus, formatAddress helpers)"
+      "summary": "internal/norway/mcp.go has no test file (14 funcs incl. getStatus, formatAddress helpers)",
+      "fingerprint": "sha256:1d0aca63df29c8b255390fe52b34db5363fa94056f697f2519885b5d994886af",
+      "id": "1d0a"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "internal/norway/types.go",
-      "summary": "internal/norway/types.go has no test file (PersonName.FullName, APIError.String)"
+      "summary": "internal/norway/types.go has no test file (PersonName.FullName, APIError.String)",
+      "fingerprint": "sha256:80eeac95270c5ad7710a55cdd180da8e3f77335e6695eb3fd12d24d42b35ab07",
+      "id": "80ee"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "internal/sweden/mcp.go",
-      "summary": "internal/sweden/mcp.go has no test file (5 funcs incl. ValidateOrgNumber regex)"
+      "summary": "internal/sweden/mcp.go has no test file (5 funcs incl. ValidateOrgNumber regex)",
+      "fingerprint": "sha256:f44d27283ab97dfe4246f2aa3d12e98568aef88ff5dbbefc36ebe8f956cf18a0",
+      "id": "f44d"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "internal/sweden/types.go",
-      "summary": "internal/sweden/types.go has no test file (9 Organisation getters incl. IsActive, GetAddress)"
+      "summary": "internal/sweden/types.go has no test file (9 Organisation getters incl. IsActive, GetAddress)",
+      "fingerprint": "sha256:6acb7e58fce5fb50f2312029fad5a86524a1575a0a1a6a3ea9b62561dcefee0e",
+      "id": "6acb"
     },
     {
       "detector": "test_coverage",
       "severity": "warning",
       "key": "tools/registry.go",
-      "summary": "tools/registry.go has no test file (ToolSpec + trivial generic helper)"
+      "summary": "tools/registry.go has no test file (ToolSpec + trivial generic helper)",
+      "fingerprint": "sha256:b298cc1305bcdcebe703cc86ca165583362be47dc77aa16431d36f9a7f136401",
+      "id": "b298"
     }
   ]
 }
