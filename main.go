@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/olgasafonova/mcp-cache-go/mcpcache"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/denmark"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/finland"
 	"github.com/olgasafonova/nordic-registry-mcp-server/internal/norway"
@@ -157,6 +158,26 @@ func buildServer(logger *slog.Logger, clients *countryClients) (*mcp.Server, *to
 		},
 		Instructions: serverInstructions,
 	})
+
+	// SEP-2549 requires ttlMs and cacheScope on every cacheable result, but the
+	// SDK's setDefaultCacheableValues() sets cacheScope only and leaves ttlMs at
+	// 0, which the spec reads as "immediately stale". There is no ServerOptions
+	// knob for it, so a receiving middleware is the only way to advertise a real
+	// TTL. The SDK sets its defaults inside the method handler, so receiving
+	// middleware runs after and this stamp wins.
+	//
+	// Attached here rather than in runStdioServer or newMCPHandler because main
+	// builds one *mcp.Server and hands it to whichever transport is selected.
+	// Attaching in a transport branch would leave the other one unstamped.
+	//
+	// One hour: this server tracks four national registries and its tool set
+	// changes only when a release ships.
+	server.AddReceivingMiddleware(mcpcache.Middleware(mcpcache.Config{
+		TTLs: map[string]time.Duration{
+			mcpcache.MethodListTools: time.Hour,
+			mcpcache.MethodDiscover:  time.Hour,
+		},
+	}))
 
 	registry := tools.NewHandlerRegistry(tools.HandlerRegistryConfig{
 		NorwayClient:  clients.norway,
