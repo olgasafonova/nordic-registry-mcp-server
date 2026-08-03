@@ -1,7 +1,8 @@
-# MediaWiki MCP Server Makefile
+# Nordic Registry MCP Server Makefile
 
 # Variables
-BINARY_NAME=mediawiki-mcp-server
+BINARY_NAME=nordic-registry-mcp-server
+GOBIN_DIR:=$(shell go env GOPATH)/bin
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-w -s -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
@@ -97,7 +98,7 @@ docker-build: ## Build Docker image
 
 .PHONY: docker-run
 docker-run: ## Run Docker container
-	docker run --rm -e MEDIAWIKI_URL -e MEDIAWIKI_USERNAME -e MEDIAWIKI_PASSWORD -p 8080:8080 $(BINARY_NAME):latest
+	docker run --rm -e BOLAGSVERKET_CLIENT_ID -e BOLAGSVERKET_CLIENT_SECRET -p 8080:8080 $(BINARY_NAME):latest
 
 .PHONY: docker-compose-up
 docker-compose-up: ## Start with docker-compose
@@ -109,7 +110,7 @@ docker-compose-down: ## Stop docker-compose
 
 .PHONY: install
 install: build ## Install binary to GOPATH/bin
-	cp $(BINARY_NAME) $(GOPATH)/bin/
+	cp $(BINARY_NAME) $(GOBIN_DIR)/
 
 .PHONY: checksums
 checksums: ## Generate checksums for dist binaries
