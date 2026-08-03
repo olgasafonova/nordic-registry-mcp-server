@@ -18,14 +18,15 @@ var AllTools = []ToolSpec{
 	},
 
 	{
-		Name:        "norway_get_company",
-		Method:      "GetCompany",
-		Title:       "Get Norwegian Company Details",
-		Category:    "read",
-		Country:     "norway",
-		Description: `Get company details by 9-digit org number. USE WHEN: you have an org number and need company details. Spaces and dashes in org number are auto-stripped (e.g., "923 609 016" → "923609016"). Returns compact summary by default; set full=true for complete data including all addresses, industry codes, and capital info. FAILS WHEN: org number is not exactly 9 digits after stripping, or company not found.`,
-		ReadOnly:    true,
-		OpenWorld:   true,
+		Name:         "norway_get_company",
+		Method:       "GetCompany",
+		Title:        "Get Norwegian Company Details",
+		Category:     "read",
+		Country:      "norway",
+		HeaderParams: map[string]string{"org_number": "Org-Number"},
+		Description:  `Get company details by 9-digit org number. USE WHEN: you have an org number and need company details. Spaces and dashes in org number are auto-stripped (e.g., "923 609 016" → "923609016"). Returns compact summary by default; set full=true for complete data including all addresses, industry codes, and capital info. FAILS WHEN: org number is not exactly 9 digits after stripping, or company not found.`,
+		ReadOnly:     true,
+		OpenWorld:    true,
 	},
 	{
 		Name:        "norway_get_roles",
