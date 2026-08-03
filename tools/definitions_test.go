@@ -106,8 +106,13 @@ func TestToolAnnotations(t *testing.T) {
 			if tool.Destructive {
 				t.Errorf("tool %q should not be Destructive", tool.Name)
 			}
-			if !tool.Idempotent {
-				t.Errorf("tool %q should be Idempotent (registry lookups are idempotent)", tool.Name)
+			// idempotentHint carries meaning only for tools that modify
+			// state: a read-only tool is trivially repeatable, so asserting
+			// idempotence on it says nothing and misleads a client reasoning
+			// about retry safety. Every tool here is read-only, so none may
+			// set Idempotent.
+			if tool.Idempotent {
+				t.Errorf("tool %q is ReadOnly and must not also be Idempotent", tool.Name)
 			}
 			if !tool.OpenWorld {
 				t.Errorf("tool %q should be OpenWorld (accesses external registries)", tool.Name)
