@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -138,6 +139,11 @@ func TestSetCORSHeaders(t *testing.T) {
 				}
 				if got := w.Header().Get("Access-Control-Allow-Headers"); got == "" {
 					t.Error("Access-Control-Allow-Headers should be set")
+				} else if !strings.Contains(got, "Mcp-Param-Org-Number") {
+					// Every x-mcp-header suffix declared in tools/definitions.go
+					// must be preflight-allowed, or browser clients cannot send
+					// the header the transport then requires.
+					t.Errorf("Access-Control-Allow-Headers = %q, missing Mcp-Param-Org-Number", got)
 				}
 				if got := w.Header().Get("Access-Control-Max-Age"); got != "86400" {
 					t.Errorf("Access-Control-Max-Age = %q, want %q", got, "86400")

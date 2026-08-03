@@ -344,7 +344,7 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, allowedOrigins map[s
 	// from protocol revision 2026-07-28 (SEP-2243), so browser clients need
 	// them allowed through preflight.
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Protocol-Version, Mcp-Method, Mcp-Name")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Protocol-Version, Mcp-Method, Mcp-Name, Mcp-Param-Org-Number")
 	w.Header().Set("Access-Control-Max-Age", "86400")
 }
 

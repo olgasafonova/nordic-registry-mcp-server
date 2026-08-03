@@ -524,3 +524,92 @@ func extractTTLMs(t *testing.T, raw string) int {
 	t.Fatalf("no ttlMs field found in response: %s", raw)
 	return 0
 }
+
+// TestNewMCPHandler_ParamHeaderPassthrough proves the x-mcp-header annotation
+// on norway_get_company is live on the HTTP transport (SEP-2243), not merely
+// present in a schema: a tools/call whose org_number agrees with its
+// Mcp-Param-Org-Number header reaches the handler, and any disagreement —
+// wrong value or missing header — is rejected with -32020 HeaderMismatch
+// before the handler runs. The mismatch half is the proof: a malformed
+// annotation is silently ignored by the SDK, so only a rejection demonstrates
+// the binding exists. The deliberately invalid org number keeps the agree
+// case off the network: argument validation fails fast inside the handler,
+// which is already past the header check.
+func TestNewMCPHandler_ParamHeaderPassthrough(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+	clients := &countryClients{norway: norway.NewClient(norway.WithLogger(logger))}
+	defer clients.norway.Close()
+
+	server, _ := buildServer(logger, clients)
+	handler := newMCPHandler(httpServerConfig{server: server, logger: logger})
+
+	callCompany := func(t *testing.T, paramHeader string) *httptest.ResponseRecorder {
+		t.Helper()
+		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"_meta":{` +
+			`"io.modelcontextprotocol/protocolVersion":"2026-07-28",` +
+			`"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},` +
+			`"io.modelcontextprotocol/clientCapabilities":{}},` +
+			`"name":"norway_get_company","arguments":{"org_number":"123"}}}`
+
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+		req.Header.Set("Mcp-Method", "tools/call")
+		req.Header.Set("Mcp-Name", "norway_get_company")
+		if paramHeader != "" {
+			req.Header.Set("Mcp-Param-Org-Number", paramHeader)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("annotation is visible in tools/list", func(t *testing.T) {
+		body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{` +
+			`"io.modelcontextprotocol/protocolVersion":"2026-07-28",` +
+			`"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},` +
+			`"io.modelcontextprotocol/clientCapabilities":{}}}}`
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+		req.Header.Set("Mcp-Method", "tools/list")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+		}
+		got := w.Body.String()
+		if !strings.Contains(got, `"x-mcp-header":"Org-Number"`) {
+			t.Error("tools/list does not expose the x-mcp-header annotation")
+		}
+		// The SDK drops tools with malformed annotations from tools/list; the
+		// annotated tool must still be there.
+		if !strings.Contains(got, `"name":"norway_get_company"`) {
+			t.Error("norway_get_company missing from tools/list — annotation rejected by the SDK?")
+		}
+	})
+
+	t.Run("agreeing header reaches the handler", func(t *testing.T) {
+		w := callCompany(t, "123")
+		if got := w.Body.String(); strings.Contains(got, "-32020") {
+			t.Errorf("agreeing body+header was rejected with HeaderMismatch: %s", got)
+		}
+	})
+
+	t.Run("disagreeing header is rejected with -32020", func(t *testing.T) {
+		w := callCompany(t, "999")
+		if got := w.Body.String(); !strings.Contains(got, "-32020") {
+			t.Errorf("disagreeing header was not rejected with HeaderMismatch: status=%d body=%s", w.Code, got)
+		}
+	})
+
+	t.Run("missing header for a present annotated param is rejected with -32020", func(t *testing.T) {
+		w := callCompany(t, "")
+		if got := w.Body.String(); !strings.Contains(got, "-32020") {
+			t.Errorf("missing Mcp-Param-Org-Number was not rejected with HeaderMismatch: status=%d body=%s", w.Code, got)
+		}
+	})
+}
