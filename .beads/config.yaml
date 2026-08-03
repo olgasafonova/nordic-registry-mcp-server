@@ -53,4 +53,4 @@
 # - github.org
 # - github.repo
 
-sync.remote: "git+https://github.com/olgasafonova/nordic-registry-mcp-server.git"
+# sync.remote: "git+https://github.com/olgasafonova/nordic-registry-mcp-server.git"  # re-commented per rules/beads-tooling.md 5c: defuses stale-remote bootstrap trap
