@@ -210,6 +210,15 @@ func TestSecurityMiddlewareBearerToken(t *testing.T) {
 		{"wrong prefix", "Basic secret-token", http.StatusUnauthorized, false},
 		{"wrong token", "Bearer wrong-token", http.StatusUnauthorized, false},
 		{"correct token", "Bearer secret-token", http.StatusOK, true},
+
+		// Length-mismatch cases. subtle.ConstantTimeCompare returns 0 on
+		// unequal lengths, so removing the explicit `len(a) != len(b) ||`
+		// short-circuit in front of it (which leaked token length by timing)
+		// must not change the outcome for any of these.
+		{"token shorter than secret", "Bearer secret", http.StatusUnauthorized, false},
+		{"token longer than secret", "Bearer secret-token-with-extra", http.StatusUnauthorized, false},
+		{"empty token after prefix", "Bearer ", http.StatusUnauthorized, false},
+		{"correct token with trailing space", "Bearer secret-token ", http.StatusUnauthorized, false},
 	}
 
 	for _, tt := range tests {
