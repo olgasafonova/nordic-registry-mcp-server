@@ -313,8 +313,14 @@ func (s *SecurityMiddleware) checkBearerToken(w http.ResponseWriter, r *http.Req
 		return false
 	}
 	token := strings.TrimPrefix(auth, "Bearer ")
-	// Length check uses constant-time comparison to prevent timing attacks on token length
-	if len(token) != len(s.bearerToken) || subtle.ConstantTimeCompare([]byte(token), []byte(s.bearerToken)) != 1 {
+	// ConstantTimeCompare already returns 0 when the lengths differ, so it is
+	// the whole check. An explicit `len(a) != len(b) ||` guard in front of it
+	// short-circuits and returns early on a length mismatch, which reintroduces
+	// exactly the length-timing side channel it appears to prevent: a remote
+	// prober can distinguish "wrong length" from "right length, wrong bytes" by
+	// response time. The comment that used to sit here claimed the opposite,
+	// which is worse than no comment, since it stops a reviewer looking twice.
+	if subtle.ConstantTimeCompare([]byte(token), []byte(s.bearerToken)) != 1 {
 		s.logger.Warn("Invalid Bearer token", "client_ip", clientIP, "path", r.URL.Path)
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return false
