@@ -2,6 +2,8 @@ module github.com/olgasafonova/nordic-registry-mcp-server
 
 go 1.25.0
 
+toolchain go1.26.5
+
 retract v0.1.0 // Superseded by v1.0.0; old release causes stale Go Report Card grading
 
 require (
