@@ -13,8 +13,12 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Version stamp: passed by the Docker workflow (docker/metadata-action version
+# output); .dockerignore excludes .git, so git describe cannot work here.
+ARG VERSION=dev
+
 # Build binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o nordic-registry-mcp-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.ServerVersion=${VERSION}" -o nordic-registry-mcp-server .
 
 # Runtime stage
 FROM alpine:3.20

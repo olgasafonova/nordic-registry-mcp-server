@@ -3,9 +3,8 @@
 # Variables
 BINARY_NAME=nordic-registry-mcp-server
 GOBIN_DIR:=$(shell go env GOPATH)/bin
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-w -s -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
+VERSION=$(shell { git describe --tags --always --dirty 2>/dev/null || echo "dev"; } | sed 's/^v//')
+LDFLAGS=-ldflags "-w -s -X main.ServerVersion=$(VERSION)"
 
 # Go parameters
 GOCMD=go

@@ -27,10 +27,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const (
-	ServerName    = "nordic-registry-mcp-server"
-	ServerVersion = "1.0.0"
-)
+const ServerName = "nordic-registry-mcp-server"
+
+// ServerVersion is the fallback version for unstamped builds. Release builds
+// overwrite it via: go build -ldflags "-X main.ServerVersion=<version>".
+// It must stay a var — -X cannot stamp a const.
+var ServerVersion = "1.2.0"
 
 // cliFlags holds the parsed command-line flags.
 type cliFlags struct {

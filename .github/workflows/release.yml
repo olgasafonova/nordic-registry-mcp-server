@@ -44,7 +44,8 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -ldflags="-s -w" -o nordic-registry-mcp-server-${{ matrix.suffix }}${{ matrix.ext }} .
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags="-s -w -X main.ServerVersion=${VERSION}" -o nordic-registry-mcp-server-${{ matrix.suffix }}${{ matrix.ext }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
