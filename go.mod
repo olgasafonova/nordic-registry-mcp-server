@@ -8,7 +8,7 @@ retract v0.1.0 // Superseded by v1.0.0; old release causes stale Go Report Card 
 
 require (
 	github.com/google/jsonschema-go v0.4.3
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/olgasafonova/mcp-cache-go v0.1.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
