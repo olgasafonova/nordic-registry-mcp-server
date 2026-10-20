@@ -14,46 +14,6 @@
   },
   "findings": [
     {
-      "detector": "executable_hooks",
-      "severity": "info",
-      "key": "/Users/olgasafonova/Projects/nordic-registry-mcp-server/.beads/hooks/post-checkout:recognized",
-      "summary": "post-checkout: beads shim v1.1.0 (recognized)",
-      "fingerprint": "sha256:2bcaab224bee440f637946ab0d75f4b0e84eb5ac61af53448dea9e35a1f80bf3",
-      "id": "2bca"
-    },
-    {
-      "detector": "executable_hooks",
-      "severity": "info",
-      "key": "/Users/olgasafonova/Projects/nordic-registry-mcp-server/.beads/hooks/post-merge:recognized",
-      "summary": "post-merge: beads shim v1.1.0 (recognized)",
-      "fingerprint": "sha256:108378056a1018957e16e3d169cc59fc6ac8c276d300fb7783a87bf63e9f6cd5",
-      "id": "1083"
-    },
-    {
-      "detector": "executable_hooks",
-      "severity": "info",
-      "key": "/Users/olgasafonova/Projects/nordic-registry-mcp-server/.beads/hooks/pre-commit:recognized",
-      "summary": "pre-commit: beads shim v1.1.0 (recognized)",
-      "fingerprint": "sha256:09b167a42ae3ada36bc15e5ef86df66459862799f95a314037c5d775e7bd0a0e",
-      "id": "09b1"
-    },
-    {
-      "detector": "executable_hooks",
-      "severity": "info",
-      "key": "/Users/olgasafonova/Projects/nordic-registry-mcp-server/.beads/hooks/pre-push:recognized",
-      "summary": "pre-push: beads shim v1.1.0 (recognized)",
-      "fingerprint": "sha256:723ae733ba8437d3330ba7179c27f53a906396e2de6e3da3913627a40a7453bf",
-      "id": "723a"
-    },
-    {
-      "detector": "executable_hooks",
-      "severity": "info",
-      "key": "/Users/olgasafonova/Projects/nordic-registry-mcp-server/.beads/hooks/prepare-commit-msg:recognized",
-      "summary": "prepare-commit-msg: beads shim v1.1.0 (recognized)",
-      "fingerprint": "sha256:adafdaa7d770ae29f00f6dacb660b89c63d913c70527916753eefdf5adec6e4b",
-      "id": "adaf"
-    },
-    {
       "detector": "file_health",
       "severity": "critical",
       "key": "internal/finland/client_test.go",
