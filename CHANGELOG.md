@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v2.0.1] - 2026-11-14
+
 ### Fixed
 
 - **`sweden_download_document` removes the ZIP files it writes.** Each call left a 1-10 MB file in the system temp directory and nothing ever deleted it. Before writing a new file, the server now removes its own downloads that are older than 24 hours. The returned `path` works as before for that period; copy the file if you need it longer. (#77)
