@@ -52,6 +52,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
+            CERT_REFRESH=${{ github.run_id }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
