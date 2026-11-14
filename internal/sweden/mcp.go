@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"time"
 )
 
 // MCP Tool wrapper methods
@@ -219,7 +221,7 @@ func (c *Client) DownloadDocumentMCP(ctx context.Context, args DownloadDocumentA
 		SizeBytes:  len(data),
 		Path:       path,
 		Description: fmt.Sprintf(
-			"Annual report (årsredovisning) ZIP (%d bytes) written to %s. Read or unzip the file at that path; the bytes are not inlined to keep the response small.",
+			"Annual report (årsredovisning) ZIP (%d bytes) written to %s. Read or unzip the file at that path; the bytes are not inlined to keep the response small. The file is deleted 24 hours after download.",
 			len(data), path,
 		),
 	}, nil
@@ -232,7 +234,8 @@ func (c *Client) DownloadDocumentMCP(ctx context.Context, args DownloadDocumentA
 // 1-10 MB annual report base64-encodes to ~33% more than its raw size, far
 // past what is safe to carry into the caller's next-turn context.
 func writeDocumentToTempFile(data []byte) (string, error) {
-	f, err := os.CreateTemp("", "sweden-arsredovisning-*.zip")
+	pruneOldDocuments(os.TempDir(), time.Now())
+	f, err := os.CreateTemp("", documentFilePattern)
 	if err != nil {
 		return "", fmt.Errorf("creating temp file for downloaded document: %w", err)
 	}
@@ -241,4 +244,35 @@ func writeDocumentToTempFile(data []byte) (string, error) {
 		return "", fmt.Errorf("writing downloaded document to temp file: %w", err)
 	}
 	return f.Name(), nil
+}
+
+// documentFilePattern names the temp files this package writes. The same
+// pattern drives creation and cleanup, so cleanup can only ever match files
+// this server created.
+const documentFilePattern = "sweden-arsredovisning-*.zip"
+
+// documentRetention is how long a downloaded ZIP stays on disk. The caller
+// needs the file after the tool returns, so it cannot be removed straight
+// away; a day covers an agent session without letting files pile up.
+const documentRetention = 24 * time.Hour
+
+// pruneOldDocuments removes downloaded ZIPs in dir that are older than
+// documentRetention. It runs before each new download, so the temp directory
+// holds at most one retention window of files. It is best effort: a file that
+// cannot be inspected or removed is skipped, because failing a download over
+// leftover cleanup would be worse than leaving the file.
+func pruneOldDocuments(dir string, now time.Time) {
+	matches, err := filepath.Glob(filepath.Join(dir, documentFilePattern))
+	if err != nil {
+		return
+	}
+	for _, path := range matches {
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if now.Sub(info.ModTime()) > documentRetention {
+			_ = os.Remove(path)
+		}
+	}
 }
