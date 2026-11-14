@@ -17,7 +17,7 @@ This release changes behaviour that existing callers and deployments can depend 
 
 ### Fixed (security)
 
-- **Docker image refreshes CA certificates on every build.** The eMudhra CA keys leaked on 2026-10-19 and Alpine published `ca-certificates` 20261020-r0 in response. The Docker workflow builds with a GitHub Actions layer cache, which could keep an old `apk add ca-certificates` layer and ship the old certificate bundle. A `CERT_REFRESH` build argument, set to the workflow run id, now sits directly before the certificate install so that layer is rebuilt on every run. The runtime base moves from `alpine:3.20`, which is past end of life, to `alpine:3.24`. The `latest` image published with v1.2.0 predates the new bundle, and this release replaces it. (#75)
+- **Docker image refreshes CA certificates on every build.** The eMudhra intermediate CA keys leaked on 2026-10-19 and Alpine published `ca-certificates` 20261020-r0 the next day. The Docker workflow builds with a GitHub Actions layer cache, which could keep an old `apk add ca-certificates` layer and ship the old certificate bundle. A `CERT_REFRESH` build argument, set to the workflow run id, now sits directly before the certificate install so that layer is rebuilt on every run. The runtime base moves from `alpine:3.20`, which is past end of life, to `alpine:3.24`. The `latest` image published with v1.2.0 predates the new bundle, and this release replaces it. (#75)
 - **Diagnostics endpoints sit behind the auth middleware.** In HTTP mode `/metrics`, `/status` and `/tools` were registered outside the security middleware that guards the MCP handler. They now share its auth path. Binding to a non-loopback address without a token is refused at startup, where it used to log a warning. (`fb3877c`)
 - **Base HTTP client refuses all redirects.** The client shared by the Norway, Denmark and Finland registries did not set `CheckRedirect`, so Go's default policy followed up to 10 redirects away from the hardcoded base URL. It now matches the Sweden client, and an unexpected 3xx response is returned as a non-retryable error. (`bad56f9`)
 - **Bearer token comparison no longer short-circuits on length.** A length check in front of `subtle.ConstantTimeCompare` returned early on a length mismatch, which let response time reveal whether a guessed token had the right length. (#61)
@@ -32,7 +32,7 @@ This release changes behaviour that existing callers and deployments can depend 
 ### Changed
 
 - `sweden_download_document` writes the ZIP to a temporary file and returns `path` and `size_bytes` instead of `content_base64`. See the upgrade notes. (#34)
-- Dropped `idempotentHint` from all 23 tool specs. Every tool is read-only, and the hint only carries meaning for tools that modify state. (#57)
+- All 23 tools now report `idempotentHint: false`, where 1.2.0 reported `true`. The hint was removed from the tool specs on the reasoning that it only carries meaning for tools that modify state, and go-sdk now serializes the unset hint as `false`. `readOnlyHint` stays `true` on every tool. (#57)
 - The three tools that need Sweden OAuth2 credentials say so in their descriptions and point at `sweden_check_status`. (#31)
 - Upgraded go-sdk v1.5.0 → v1.8.0 and OpenTelemetry v1.43.0 → v1.47.0. Builds use Go 1.26, and `go.mod` now requires Go 1.26.
 - Internal refactors with no intended behaviour change, added tests, CI maintenance (a dedicated lint workflow, an `all-checks` aggregator job, release and artifact actions pinned to commit SHAs) and routine dependency bumps.
