@@ -21,12 +21,13 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.ServerVersion=${VERSION}" -o nordic-registry-mcp-server .
 
 # Runtime stage
-FROM alpine:3.20
+FROM alpine:3.24
 
 LABEL io.modelcontextprotocol.server.name="io.github.olgasafonova/nordic-registry-mcp-server"
 
 # Install ca-certificates for HTTPS
-RUN apk add --no-cache ca-certificates
+ARG CERT_REFRESH=unset
+RUN echo "ca-certificates refresh: ${CERT_REFRESH}" && apk add --no-cache ca-certificates
 
 WORKDIR /app
 
