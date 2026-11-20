@@ -58,13 +58,15 @@ func TestBuildTool(t *testing.T) {
 	registry := NewHandlerRegistry(HandlerRegistryConfig{NorwayClient: noClient, DenmarkClient: dkClient, FinlandClient: fiClient, SwedenClient: nil, Logger: logger})
 
 	tests := []struct {
-		name      string
-		spec      ToolSpec
-		wantName  string
-		wantDesc  string
-		wantRO    bool
-		wantIdem  bool
-		wantDestr bool
+		name     string
+		spec     ToolSpec
+		wantName string
+		wantDesc string
+		wantRO   bool
+		wantIdem bool
+		// wantDestr is nil when destructiveHint must be omitted (read-only
+		// tools), otherwise the exact value that must be emitted.
+		wantDestr *bool
 		wantOpen  bool
 	}{
 		{
@@ -82,22 +84,62 @@ func TestBuildTool(t *testing.T) {
 			wantDesc:  "Search for companies by name",
 			wantRO:    true,
 			wantIdem:  true,
-			wantDestr: false,
+			wantDestr: nil,
 			wantOpen:  false,
 		},
 		{
-			name: "open world tool",
+			name: "read-only open world tool",
 			spec: ToolSpec{
 				Name:        "norway_get_company",
 				Title:       "Get Norwegian Company",
 				Description: "Get company details by org number",
 				Method:      "GetCompany",
 				Country:     "norway",
+				ReadOnly:    true,
 				OpenWorld:   true,
 			},
-			wantName: "norway_get_company",
-			wantDesc: "Get company details by org number",
-			wantOpen: true,
+			wantName:  "norway_get_company",
+			wantDesc:  "Get company details by org number",
+			wantRO:    true,
+			wantDestr: nil,
+			wantOpen:  true,
+		},
+		{
+			name: "non-destructive write tool emits destructive false",
+			spec: ToolSpec{
+				Name:        "sweden_download_document",
+				Title:       "Download Swedish Annual Report",
+				Description: "Download an annual report",
+				Method:      "SEDownloadDocument",
+				Country:     "sweden",
+				ReadOnly:    false,
+				Destructive: false,
+				Idempotent:  false,
+				OpenWorld:   true,
+			},
+			wantName:  "sweden_download_document",
+			wantDesc:  "Download an annual report",
+			wantRO:    false,
+			wantIdem:  false,
+			wantDestr: ptr(false),
+			wantOpen:  true,
+		},
+		{
+			name: "closed-world write tool emits open world false",
+			spec: ToolSpec{
+				Name:        "test_local_write",
+				Title:       "Local Write",
+				Description: "Writes locally",
+				Method:      "TestMethod",
+				Country:     "test",
+				Destructive: true,
+				Idempotent:  true,
+			},
+			wantName:  "test_local_write",
+			wantDesc:  "Writes locally",
+			wantIdem:  true,
+			wantDestr: ptr(true),
+			wantOpen:  false,
 		},
 	}
 
@@ -120,11 +162,18 @@ func TestBuildTool(t *testing.T) {
 			if tool.Annotations.IdempotentHint != tt.wantIdem {
 				t.Errorf("IdempotentHint = %v, want %v", tool.Annotations.IdempotentHint, tt.wantIdem)
 			}
-			if tt.wantDestr && (tool.Annotations.DestructiveHint == nil || !*tool.Annotations.DestructiveHint) {
-				t.Error("Expected DestructiveHint to be true")
+			switch {
+			case tt.wantDestr == nil && tool.Annotations.DestructiveHint != nil:
+				t.Errorf("DestructiveHint = %v, want omitted", *tool.Annotations.DestructiveHint)
+			case tt.wantDestr != nil && tool.Annotations.DestructiveHint == nil:
+				t.Errorf("DestructiveHint omitted, want %v (omitted means true per spec)", *tt.wantDestr)
+			case tt.wantDestr != nil && *tool.Annotations.DestructiveHint != *tt.wantDestr:
+				t.Errorf("DestructiveHint = %v, want %v", *tool.Annotations.DestructiveHint, *tt.wantDestr)
 			}
-			if tt.wantOpen && (tool.Annotations.OpenWorldHint == nil || !*tool.Annotations.OpenWorldHint) {
-				t.Error("Expected OpenWorldHint to be true")
+			if tool.Annotations.OpenWorldHint == nil {
+				t.Errorf("OpenWorldHint omitted, want %v (omitted means true per spec)", tt.wantOpen)
+			} else if *tool.Annotations.OpenWorldHint != tt.wantOpen {
+				t.Errorf("OpenWorldHint = %v, want %v", *tool.Annotations.OpenWorldHint, tt.wantOpen)
 			}
 		})
 	}

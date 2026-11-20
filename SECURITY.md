@@ -4,8 +4,8 @@ This document outlines the security architecture and considerations for the Nord
 
 ## Security Profile
 
-**This is a read-only server** that queries public business registry APIs. It does not:
-- Perform write operations
+**This server only reads from the registries** it queries (public business registry APIs). It never writes to any registry. Its one local write is `sweden_download_document`, which saves the downloaded annual-report ZIP to the OS temp directory and removes its own files after 24 hours. It does not:
+- Write to any registry, or to any file other than that temporary ZIP
 - Handle user authentication
 - Store sensitive data
 - Process user credentials

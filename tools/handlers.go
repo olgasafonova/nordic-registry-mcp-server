@@ -142,17 +142,22 @@ func (h *HandlerRegistry) RegisteredTools() []ToolSpec {
 }
 
 // buildTool creates an mcp.Tool from a ToolSpec.
+//
+// DestructiveHint and OpenWorldHint are pointers in the SDK, and an omitted
+// pointer means the spec default (destructive true, open world true). So the
+// real value is always emitted: OpenWorldHint for every tool, and
+// DestructiveHint for every write tool, where false must reach the client
+// to stop it warning as if the tool were destructive. For a read-only tool
+// destructiveHint carries no meaning and is left out.
 func (h *HandlerRegistry) buildTool(spec ToolSpec) *mcp.Tool {
 	annotations := &mcp.ToolAnnotations{
 		Title:          spec.Title,
 		ReadOnlyHint:   spec.ReadOnly,
 		IdempotentHint: spec.Idempotent,
+		OpenWorldHint:  ptr(spec.OpenWorld),
 	}
-	if spec.Destructive {
-		annotations.DestructiveHint = ptr(true)
-	}
-	if spec.OpenWorld {
-		annotations.OpenWorldHint = ptr(true)
+	if !spec.ReadOnly {
+		annotations.DestructiveHint = ptr(spec.Destructive)
 	}
 
 	return &mcp.Tool{

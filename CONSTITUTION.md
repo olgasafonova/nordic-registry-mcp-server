@@ -30,7 +30,7 @@ Every tool handler runs behind `defer h.recoverPanic(spec.Name, &err)`, and the 
 
 This article is incident-born in this repository: the 17-05-2026 portfolio sweep found exactly this silent-nil dispatcher shape in `tools/handlers.go`, where `recoverPanic` recovered and logged but could not write the error back. Fixed 23-05-2026 in commit `10bba4f` ("silent-nil dispatcher writes panic to errPtr"), and the comments at `tools/handlers.go:206-208` and `266-270` now state the named-return requirement, citing HG-1 in the portfolio's `rules/code-review-prompts.md`.
 
-Panics are permitted in exactly one place: registration-time validation that runs at startup. `headerAnnotatedSchema` panics on a `HeaderParams` entry naming an unknown property or a non-primitive type, because the SDK silently skips malformed annotations and the malformed tool would vanish from `tools/list` over HTTP with no error anywhere (`tools/handlers.go:180-199`).
+Panics are permitted in exactly one place: registration-time validation that runs at startup. `headerAnnotatedSchema` panics on a `HeaderParams` entry naming an unknown property or a non-primitive type, because the SDK silently skips malformed annotations and the malformed tool would vanish from `tools/list` over HTTP with no error anywhere (`tools/handlers.go:185-204`).
 
 Codifies: `tools/handlers.go` (`register`, `recoverPanic`, `newCorrelationID`, `headerAnnotatedSchema`).
 
@@ -114,13 +114,13 @@ Codifies: `tools/definitions.go` (all 23 specs), `main.go:252` (`serverInstructi
 
 ## Article IX: Annotations tell the truth about what a tool does
 
-`ReadOnly`, `Destructive`, `Idempotent`, and `OpenWorld` on a `ToolSpec` become MCP tool hints via `buildTool` (`tools/handlers.go:145-163`), and clients use them to decide whether to prompt a human.
+`ReadOnly`, `Destructive`, `Idempotent`, and `OpenWorld` on a `ToolSpec` become MCP tool hints via `buildTool` (`tools/handlers.go`), and clients use them to decide whether to prompt a human. `buildTool` always emits the real `openWorldHint`, and emits the real `destructiveHint` on every tool that is not read-only, because an omitted hint means `true` under the MCP spec.
 
-This is a fully read-only server, and the annotations MUST say so: every tool is `ReadOnly`, no tool is `Destructive`, and every tool is `OpenWorld` (all reach external registries). A tool MUST NOT be both `ReadOnly` and `Idempotent`: idempotence carries meaning only for tools that change state, and asserting it on a read misleads a client reasoning about retry safety — the reasoning is written into the test itself. A future write-capable tool would need to change the test deliberately, which is exactly the friction intended.
+`ReadOnly` means the tool changes nothing in its environment, not only that it leaves the registries alone. Every tool is `OpenWorld` (all reach external registries). The read tools are `ReadOnly`, not `Destructive`, and not `Idempotent`: idempotence carries meaning only for tools that change state, and asserting it on a read misleads a client reasoning about retry safety. There is exactly one write tool, `sweden_download_document`, because it writes a ZIP to the server's temp directory and prunes this server's own downloads older than 24 hours. It is not `ReadOnly`, not `Destructive` (it never overwrites or deletes anything the caller supplied or still holds), and not `Idempotent` (each call writes a new file and returns a new path). Any further write tool MUST be added to the `writeTools` allowlist in the test with its exact annotations, which is exactly the friction intended.
 
-Codifies: `tools/definitions.go` (every spec), `tools/handlers.go` (`buildTool`), `SECURITY.md` "This is a read-only server".
+Codifies: `tools/definitions.go` (every spec), `tools/handlers.go` (`buildTool`), `tools/registry.go` (`ToolSpec` field comments), `SECURITY.md` "Security Profile".
 
-**Enforcement: mechanically checked.** `TestToolAnnotations` (`tools/definitions_test.go:100`) asserts all four properties on every tool, and `TestBuildTool` / `TestBuildTool_DestructiveHint` (`tools/handlers_test.go`) pin the spec-to-hint mapping. All run in CI. This is the best-enforced article in this document.
+**Enforcement: mechanically checked.** `TestToolAnnotations` (`tools/definitions_test.go`) asserts all four properties on every tool against the `writeTools` allowlist, `TestToolAnnotationsEmitted` checks the hints `buildTool` actually emits for every spec (explicit `openWorldHint: true` everywhere, explicit `destructiveHint: false` on the write tool), and `TestBuildTool` / `TestBuildTool_DestructiveHint` (`tools/handlers_test.go`) pin the spec-to-hint mapping, including false values. All run in CI. This is the best-enforced article in this document.
 
 ---
 
@@ -128,7 +128,7 @@ Codifies: `tools/definitions.go` (every spec), `tools/handlers.go` (`buildTool`)
 
 `ToolSpec.HeaderParams` declares SEP-2243 `x-mcp-header` passthrough (currently one: `norway_get_company`'s `org_number` travels as `Mcp-Param-Org-Number`). Two rules keep it honest. First, the annotation is validated at registration: `headerAnnotatedSchema` panics on an unknown property or non-primitive type, because the SDK silently skips malformed annotations and the failure would otherwise surface as the whole tool missing from `tools/list` over HTTP (Article II). Second, every new header suffix MUST be added to the CORS `Access-Control-Allow-Headers` list in `security.go:353`, or browser-based clients lose the tool — the requirement is written into the `HeaderParams` doc comment in `tools/registry.go`.
 
-Codifies: `tools/registry.go` (`HeaderParams` and its doc comment), `tools/handlers.go:180-199`, `tools/definitions.go:26`, `security.go:353`.
+Codifies: `tools/registry.go` (`HeaderParams` and its doc comment), `tools/handlers.go:185-204`, `tools/definitions.go:26`, `security.go:353`.
 
 **Enforcement: mechanical at startup, review for the CORS mirror.** `tools/headerparams_test.go` runs `TestHeaderAnnotatedSchemaAttachesAnnotation`, both panic tests, and `TestAllToolsHeaderParamsAreWellFormed` (every declared `HeaderParams` entry across `AllTools` must build). No test cross-checks `security.go`'s header list against the declared suffixes; that sync rests on the doc comment and review.
 
@@ -174,7 +174,7 @@ Codifies: `.github/workflows/ci.yml` (jobs: lint, test, security, go-mod-tidy, b
 
 **Test-first development, or a numeric coverage bar.** Rejected because neither is what this repository does. Coverage is real but uneven — `internal/infra` and `security.go` are thoroughly tested, while `main.go`'s HTTP paths gained their test files only in the recent security wave — and `CONTRIBUTING.md` asks for tests without naming a number. Writing ">80%" here would invent a requirement no tooling checks.
 
-**Operations that grant durable access fail closed.** Rejected as not applicable: no tool shares, invites, grants, or writes anything — all 23 are read-only, and Article IX's `TestToolAnnotations` mechanically forbids a `Destructive` tool from appearing quietly. The fail-closed instances this repository actually has are the startup token refusal and the redirect refusal, which stand as Articles XII and XI.
+**Operations that grant durable access fail closed.** Rejected as not applicable: no tool shares, invites, or grants anything. 22 of the 23 tools are read-only; the one write, `sweden_download_document`, only creates and prunes its own temp files on the server, and Article IX's `TestToolAnnotations` mechanically forbids a new write or `Destructive` tool from appearing quietly. The fail-closed instances this repository actually has are the startup token refusal and the redirect refusal, which stand as Articles XII and XI.
 
 **Fixtures are captured from live responses, with a live-probe workflow.** Rejected because the machinery does not exist here: there is no `api-tracking/` directory and no scheduled probe. The repository's substitute discipline is encoding verified upstream quirks where the agent reads them — the Danish single-result warning and Finnish narrowing advice in the descriptions and `serverInstructions` (Article VIII). An article claiming probe-backed fixture provenance would describe a workflow this repo does not run.
 
