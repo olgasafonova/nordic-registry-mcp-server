@@ -97,11 +97,36 @@ func TestToolCategories(t *testing.T) {
 	}
 }
 
+// writeTools lists the only tools allowed to change their environment,
+// with the exact annotations each must carry. Adding a tool here is a
+// deliberate decision recorded in CONSTITUTION.md Article IX.
+var writeTools = map[string]struct{ destructive, idempotent bool }{
+	// Writes a new ZIP to the server's temp dir and prunes this server's
+	// own downloads older than 24h: a write, never destructive to anything
+	// the caller holds, and not idempotent (each call makes a new file).
+	"sweden_download_document": {destructive: false, idempotent: false},
+}
+
 func TestToolAnnotations(t *testing.T) {
 	for _, tool := range AllTools {
 		t.Run(tool.Name, func(t *testing.T) {
+			if !tool.OpenWorld {
+				t.Errorf("tool %q should be OpenWorld (accesses external registries)", tool.Name)
+			}
+			if want, isWrite := writeTools[tool.Name]; isWrite {
+				if tool.ReadOnly {
+					t.Errorf("tool %q writes files and must not be ReadOnly", tool.Name)
+				}
+				if tool.Destructive != want.destructive {
+					t.Errorf("tool %q Destructive = %v, want %v", tool.Name, tool.Destructive, want.destructive)
+				}
+				if tool.Idempotent != want.idempotent {
+					t.Errorf("tool %q Idempotent = %v, want %v", tool.Name, tool.Idempotent, want.idempotent)
+				}
+				return
+			}
 			if !tool.ReadOnly {
-				t.Errorf("tool %q should be ReadOnly (all registries are read-only)", tool.Name)
+				t.Errorf("tool %q should be ReadOnly (only tools in writeTools may write)", tool.Name)
 			}
 			if tool.Destructive {
 				t.Errorf("tool %q should not be Destructive", tool.Name)
@@ -109,13 +134,35 @@ func TestToolAnnotations(t *testing.T) {
 			// idempotentHint carries meaning only for tools that modify
 			// state: a read-only tool is trivially repeatable, so asserting
 			// idempotence on it says nothing and misleads a client reasoning
-			// about retry safety. Every tool here is read-only, so none may
-			// set Idempotent.
+			// about retry safety.
 			if tool.Idempotent {
 				t.Errorf("tool %q is ReadOnly and must not also be Idempotent", tool.Name)
 			}
-			if !tool.OpenWorld {
-				t.Errorf("tool %q should be OpenWorld (accesses external registries)", tool.Name)
+		})
+	}
+}
+
+// TestToolAnnotationsEmitted checks the hints a client actually receives
+// for every registered spec, after buildTool. An omitted destructiveHint or
+// openWorldHint means true per the MCP spec, so the write tool must carry an
+// explicit destructiveHint false and every tool an explicit openWorldHint.
+func TestToolAnnotationsEmitted(t *testing.T) {
+	h := &HandlerRegistry{}
+	for _, spec := range AllTools {
+		t.Run(spec.Name, func(t *testing.T) {
+			a := h.buildTool(spec).Annotations
+			if a.OpenWorldHint == nil || !*a.OpenWorldHint {
+				t.Errorf("openWorldHint = %v, want explicit true", a.OpenWorldHint)
+			}
+			if a.ReadOnlyHint != spec.ReadOnly {
+				t.Errorf("readOnlyHint = %v, want %v", a.ReadOnlyHint, spec.ReadOnly)
+			}
+			if _, isWrite := writeTools[spec.Name]; isWrite {
+				if a.DestructiveHint == nil || *a.DestructiveHint {
+					t.Errorf("destructiveHint = %v, want explicit false", a.DestructiveHint)
+				}
+			} else if a.DestructiveHint != nil {
+				t.Errorf("destructiveHint emitted on read-only tool: %v", *a.DestructiveHint)
 			}
 		})
 	}

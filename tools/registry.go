@@ -24,16 +24,24 @@ type ToolSpec struct {
 	// Country indicates which Nordic country this tool is for
 	Country string
 
-	// ReadOnly indicates the tool doesn't modify registry state
+	// ReadOnly indicates the tool does not modify its environment at all
+	// (MCP readOnlyHint): no registry writes, no files written or removed on
+	// the server. A tool that writes a temp file is not read-only.
 	ReadOnly bool
 
-	// Destructive indicates the tool can delete or overwrite data
+	// Destructive indicates the tool may perform destructive updates, such
+	// as deleting or overwriting data (MCP destructiveHint). Only meaningful
+	// when ReadOnly is false; buildTool emits it for write tools only.
 	Destructive bool
 
-	// Idempotent indicates repeated calls have the same effect
+	// Idempotent indicates repeated calls with the same arguments have no
+	// additional effect (MCP idempotentHint). Only meaningful when ReadOnly
+	// is false.
 	Idempotent bool
 
-	// OpenWorld indicates the tool accesses external resources
+	// OpenWorld indicates the tool interacts with external entities such as
+	// a third-party API (MCP openWorldHint). Always emitted; every tool here
+	// sets it, and TestToolAnnotations enforces that.
 	OpenWorld bool
 
 	// HeaderParams maps an input-schema property name to the Mcp-Param-*

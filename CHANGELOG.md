@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`sweden_download_document` is no longer annotated as read-only.** It writes a ZIP to the server's temp directory and removes its own downloads older than 24 hours, so it now reports `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false` and `openWorldHint: true`. Clients that skip confirmation for read-only tools will now treat it as a write. The other 22 tools are unchanged. ([MCP tool annotations](https://blog.modelcontextprotocol.io/posts/2026-03-16-tool-annotations/))
+- **`openWorldHint` and `destructiveHint` are emitted with their real value.** `buildTool` used to send these hints only when they were `true`. An omitted hint means `true` under the MCP spec, so a `false` value never reached the client. `openWorldHint` is now always sent, and `destructiveHint` is sent on every tool that is not read-only.
+
 ## [v2.0.1] - 2026-11-14
 
 ### Fixed
